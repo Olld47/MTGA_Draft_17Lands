@@ -172,8 +172,7 @@ class ArenaScanner:
         try:
             draft_id = event_data["id"]
             request_data = json.loads(event_data["request"])
-            payload_data = json.loads(request_data["Payload"])
-            event_name = payload_data["EventName"]
+            event_name = request_data["EventName"]
 
             logger.info("Event found %s", event_name)
 
