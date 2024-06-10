@@ -275,8 +275,7 @@ class ArenaScanner:
                         start_offset = line.find("{\"id\":")
                         self.draft_log.info(line)
                         draft_data = json.loads(line[start_offset:])
-                        request_data = draft_data["request"]
-                        payload_data = json.loads(request_data)["Payload"]
+                        payload_data = draft_data["request"]
 
                         pack_cards = []
                         try:
@@ -345,8 +344,7 @@ class ArenaScanner:
                             # Identify the pack
                             draft_data = json.loads(line[start_offset:])
 
-                            request_data = json.loads(draft_data["request"])
-                            param_data = json.loads(request_data["Payload"])
+                            param_data = json.loads(draft_data["request"])
 
                             pack = int(param_data["Pack"])
                             pick = int(param_data["Pick"])
@@ -525,8 +523,7 @@ class ArenaScanner:
                             # Identify the pack
                             draft_data = json.loads(line[len(draft_string):])
 
-                            request_data = json.loads(draft_data["request"])
-                            param_data = request_data["params"]
+                            param_data = json.loads(draft_data["request"])
 
                             pack = int(param_data["packNumber"])
                             pick = int(param_data["pickNumber"])
@@ -648,13 +645,11 @@ class ArenaScanner:
                             draft_data = json.loads(
                                 line[string_offset+len(draft_string):])
 
-                            request_data = json.loads(draft_data["request"])
-                            payload_data = json.loads(request_data["Payload"])
-                            pick_data = payload_data["PickInfo"]
+                            payload_data = json.loads(draft_data["request"])
 
-                            pack = pick_data["PackNumber"] + 1
-                            pick = pick_data["PickNumber"] + 1
-                            card = pick_data["CardId"]
+                            pack = payload_data["PackNumber"] + 1
+                            pick = payload_data["PickNumber"] + 1
+                            card = payload_data["CardId"]
 
                             pack_index = (pick - 1) % 8
 
@@ -702,8 +697,7 @@ class ArenaScanner:
                         start_offset = line.find("{\"id\":")
                         self.draft_log.info(line)
                         draft_data = json.loads(line[start_offset:])
-                        request_data = draft_data["request"]
-                        payload_data = json.loads(request_data)["Payload"]
+                        payload_data = draft_data["request"]
 
                         pack_cards = []
                         try:
@@ -772,8 +766,7 @@ class ArenaScanner:
                             # Identify the pack
                             draft_data = json.loads(line[start_offset:])
 
-                            request_data = json.loads(draft_data["request"])
-                            param_data = json.loads(request_data["Payload"])
+                            param_data = json.loads(draft_data["request"])
 
                             pack = int(param_data["Pack"])
                             pick = int(param_data["Pick"])
@@ -888,8 +881,7 @@ class ArenaScanner:
                         start_offset = line.find("{\"CurrentModule\"")
                         self.draft_log.info(line)
                         # Identify the pack
-                        draft_data = json.loads(line[start_offset:])
-                        payload_data = json.loads(draft_data["Payload"])
+                        payload_data = json.loads(line[start_offset:])
                         changes = payload_data["Changes"]
                         try:
                             card_pool = []

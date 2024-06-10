@@ -22,6 +22,7 @@ from src import card_logic as CL
 from src import constants
 from src.logger import create_logger
 from src.app_update import AppUpdate
+import json
 
 try:
     import win32api
@@ -1067,6 +1068,10 @@ class Overlay(ScaledWindow):
             logger.error(error)
 
     def __update_suggest_table(self, selected_color, suggested_decks, color_options):
+        # logger.info("selected_color:%s",selected_color)
+        # logger.info('suggested_decks:%s',json.dumps(suggested_decks))
+        # logger.info('color_options:%s',json.dumps(color_options))
+
         '''Update the table that lists the suggested decks'''
         try:
             if not self.suggester_table:

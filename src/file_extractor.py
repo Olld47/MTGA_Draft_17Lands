@@ -876,17 +876,17 @@ class FileExtractor:
                         elif ((key == constants.DATA_FIELD_ATA) or
                               (key == constants.DATA_FIELD_ALSA)):
                             color_data[colors][key] = round(
-                                float(card[value]), 2)
+                                float(card[value]), 2) if card[value] else 0.0
                         else:
-                            color_data[colors][key] = int(card[value])
+                            color_data[colors][key] = int(card[value]) if card[value] else 0
 
                 card_name = card[constants.DATA_FIELD_NAME]
 
                 if card_name not in self.card_ratings:
                     self.card_ratings[card_name] = card_data
 
-                self.card_ratings[card_name][constants.DATA_SECTION_RATINGS].append(
-                    color_data)
+                self.card_ratings[card_name][constants.DATA_SECTION_RATINGS].append(color_data)
+                logger.info("self.card_ratings[card_name][constants.DATA_SECTION_RATINGS]")
 
             except Exception as error:
                 result = False
