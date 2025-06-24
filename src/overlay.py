@@ -2912,42 +2912,43 @@ class Overlay(ScaledWindow):
         self.draft.clear_draft(full_reset)
 
     def __update_overlay_build(self):
-        '''Checks the version.txt file in Github to determine if a new version of the application is available'''
-        # Version Check
-        update_flag = True
-
-        update = AppUpdate()
-
-        new_version_found, new_version, file_location = check_version(
-            update, APPLICATION_VERSION)
-
-        try:
-            if new_version_found:
-                if sys.platform == constants.PLATFORM_ID_WINDOWS:
-                    message_string = f"Version {new_version} is now available. Would you like to upgrade?"
-                    message_box = tkinter.messagebox.askyesno(
-                        title="Update", message=message_string)
-                    if message_box:
-                        output_location = update.download_file(file_location)
-                        if output_location:
-                            update_flag = False
-                            self.root.destroy()
-                            win32api.ShellExecute(
-                                0, "open", output_location, None, None, 10)
-                        else:
-                            message_box = tkinter.messagebox.showerror(
-                                title="Download Failed", message="Visit https://github.com/bstaple1/MTGA_Draft_17Lands/releases to manually download the new version.")
-
-                else:
-                    message_string = f"Update {new_version} is now available.\n\nCheck https://github.com/bstaple1/MTGA_Draft_17Lands/releases for more details."
-                    message_box = tkinter.messagebox.showinfo(
-                        title="Update", message=message_string)
-        except Exception as error:
-            logger.error(error)
-
-        if update_flag:
-            self.__arena_log_check()
-            self.__control_trace(True)
+        logger.info("skip")
+        # '''Checks the version.txt file in Github to determine if a new version of the application is available'''
+        # # Version Check
+        # update_flag = True
+        #
+        # update = AppUpdate()
+        #
+        # new_version_found, new_version, file_location = check_version(
+        #     update, APPLICATION_VERSION)
+        #
+        # try:
+        #     if new_version_found:
+        #         if sys.platform == constants.PLATFORM_ID_WINDOWS:
+        #             message_string = f"Version {new_version} is now available. Would you like to upgrade?"
+        #             message_box = tkinter.messagebox.askyesno(
+        #                 title="Update", message=message_string)
+        #             if message_box:
+        #                 output_location = update.download_file(file_location)
+        #                 if output_location:
+        #                     update_flag = False
+        #                     self.root.destroy()
+        #                     win32api.ShellExecute(
+        #                         0, "open", output_location, None, None, 10)
+        #                 else:
+        #                     message_box = tkinter.messagebox.showerror(
+        #                         title="Download Failed", message="Visit https://github.com/bstaple1/MTGA_Draft_17Lands/releases to manually download the new version.")
+        #
+        #         else:
+        #             message_string = f"Update {new_version} is now available.\n\nCheck https://github.com/bstaple1/MTGA_Draft_17Lands/releases for more details."
+        #             message_box = tkinter.messagebox.showinfo(
+        #                 title="Update", message=message_string)
+        # except Exception as error:
+        #     logger.error(error)
+        #
+        # if update_flag:
+        #     self.__arena_log_check()
+        #     self.__control_trace(True)
 
     def __display_widgets(self):
         '''Hide/Display widgets based on the application settings'''

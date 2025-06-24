@@ -795,7 +795,7 @@ class FileExtractor:
                     try:
                         status.set(f"Collecting {color} 17Lands Data")
                         root.update()
-                        url = f"https://www.17lands.com/card_ratings/data?expansion={set_code}&format={self.draft}&start_date={self.start_date}&end_date={self.end_date}"
+                        url = f"https://www.17lands.com/card_ratings/data?expansion={set_code}&event_type={self.draft}&start_date={self.start_date}&end_date={self.end_date}"
 
                         if color != constants.FILTER_OPTION_ALL_DECKS:
                             url += "&colors=" + color
