@@ -161,7 +161,7 @@ class SettingsWindow(tkinter.Toplevel):
         ]
 
         for key in checkbox_keys:
-            val = getattr(s, key, True)
+            val = getattr(s, key)
             self.vars[key].set(int(val))
 
         self._toggle_traces(True)

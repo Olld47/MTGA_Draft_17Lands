@@ -1480,15 +1480,7 @@ def select_useful_lands(pool, target_colors, metrics=None):
         card_colors = card.get("colors", [])
 
         is_universal = False
-        universal_phrases = [
-            "any color",
-            "any one color",
-            "any type",
-            "chosen color",
-            "{w}, {u}, {b}, {r}, or {g}",
-            "search your library for a basic",
-        ]
-        if any(phrase in text for phrase in universal_phrases) or any(
+        if any(phrase in text for phrase in constants.FIXING_KEYWORDS) or any(
             fn in name.lower() for fn in constants.FIXING_NAMES
         ):
             is_universal = True
@@ -1824,30 +1816,57 @@ class ManaSourceAnalyzer:
         is_land = "Land" in types
         is_basic = "Basic" in types
 
+        # 1. Identify specific color fetching/cycling
+        # If a card explicitly searches for a specific basic land type, it fixes for that color.
+        specific_fixing_map = {
+            "plainscycling": "W",
+            "search your library for a plains": "W",
+            "islandcycling": "U",
+            "search your library for an island": "U",
+            "swampcycling": "B",
+            "search your library for a swamp": "B",
+            "mountaincycling": "R",
+            "search your library for a mountain": "R",
+            "forestcycling": "G",
+            "search your library for a forest": "G",
+        }
+
+        specific_match_found = False
+        for phrase, color_sym in specific_fixing_map.items():
+            if phrase in text:
+                self.sources[color_sym] += count
+                self.total_fixing_cards += count
+                specific_match_found = True
+
+        # 2. Identify universal fixing
         is_universal = False
-        universal_phrases = [
-            "any color",
-            "any one color",
-            "any type",
-            "chosen color",
-            "{w}, {u}, {b}, {r}, or {g}",
-            "search your library for a basic",
-            "search your library for a land",
-            "create a treasure",
-            "treasure token",
-            "gold token",
-            "basic landcycling",
-        ]
-        if any(phrase in text for phrase in universal_phrases) or any(
-            fn in name for fn in constants.FIXING_NAMES
+        if any(phrase in text for phrase in constants.FIXING_KEYWORDS):
+            is_universal = True
+        elif any(fn in name for fn in constants.FIXING_NAMES):
+            is_universal = True
+
+        # Protect against missing card text in new sets. If tagged as fixing but missing from explicit text maps.
+        if (
+            "fixing_ramp" in tags
+            and not is_land
+            and not specific_match_found
+            and not is_universal
         ):
-            is_universal = True
+            produces_specific = False
+            for c_sym in constants.CARD_COLORS:
+                if (
+                    f"add {{{c_sym.lower()}}}" in text
+                    or f"adds {{{c_sym.lower()}}}" in text
+                ):
+                    self.sources[c_sym] += count
+                    produces_specific = True
 
-        # Protect against missing card text in new sets. If it's tagged as a fixer and it's a spell (like a dork or fetch), assume it's universal
-        if "fixing_ramp" in tags and not is_land:
-            is_universal = True
+            if produces_specific:
+                self.total_fixing_cards += count
+            else:
+                is_universal = True
 
-        if is_universal:
+        if is_universal and not specific_match_found:
             self.any_color_sources += count
             self.total_fixing_cards += count
             for c in card_colors:
@@ -1857,7 +1876,7 @@ class ManaSourceAnalyzer:
 
         if is_land and not is_basic:
             # Colorless fetching lands without text (e.g., Evolving Wilds in an incomplete dataset)
-            if not card_colors and "fixing_ramp" in tags:
+            if not card_colors and "fixing_ramp" in tags and not specific_match_found:
                 self.any_color_sources += count
                 self.total_fixing_cards += count
                 return

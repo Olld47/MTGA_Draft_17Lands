@@ -43,14 +43,14 @@ To prevent the engine from suggesting off-color cards too late in the draft, it 
 
 ---
 
-## 5. Compositional Math (The 2-Drop Rule)
+## 5. Compositional Math & Dynamic Needs
 
-Modern Limited is dictated by "Mana Velocity"—the ability to affect the board early.
+Modern Limited is dictated by "Mana Velocity" and "Mana Stability."
 
 - **Velocity Target:** 7+ "Early Plays" (CMC <= 2 Creatures or cheap interaction).
-- **Hunger Formula:** The engine projects your final 2-drop count based on your current pool relative to the remaining picks in the draft.
-- **Panic Mode:** If the projection is below 7 entering Pack 2, all 2-drop creatures receive a "Critical: Needs 2-Drops" multiplier (up to 1.5x).
+- **Velocity Hunger:** The engine projects your final 2-drop count based on your current pool relative to the remaining picks in the draft. If the projection is below 7 entering Pack 2, early plays receive a "Critical: Needs 2-Drops" multiplier (up to 1.5x).
 - **Top-Heavy Penalty:** If you have 4+ cards costing 5+ mana, expensive cards receive a `0.7x` dampening multiplier to prevent "clunky" hands.
+- **Dynamic Fixing Hunger:** The engine actively monitors whether you are drafting a highly synergistic 2-color deck, or moving towards a "Good Stuff" 3/4-color splash strategy. If the number of drafted off-color playables exceeds your dedicated fixing tools (dual lands, treasures, dorks) by Pack 2, fixing cards receive a massive `1.4x` "Critical: Needs Fixing" multiplier. This proactively _supports_ greedy drafting rather than arbitrarily penalizing the user for taking off-color cards.
 
 ---
 

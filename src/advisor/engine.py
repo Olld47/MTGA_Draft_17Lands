@@ -336,9 +336,13 @@ class DraftAdvisor:
 
     def _analyze_pool(self) -> Dict[str, Any]:
         early_plays, hard_removal_count, fixing_count, splash_targets = 0, 0, 0, set()
+        off_color_playables = 0
+
         for c in self.pool:
             try:
                 cmc, tags = get_functional_cmc(c), c.get("tags", [])
+                colors = c.get("colors", [])
+
                 if "Creature" in c.get("types", []) and cmc <= 2:
                     early_plays += 1
                 if "removal" in tags:
@@ -346,14 +350,23 @@ class DraftAdvisor:
                     if cmc <= 2:
                         early_plays += 1
                 if "fixing_ramp" in tags or (
-                    "Land" in c.get("types", []) and len(c.get("colors", [])) > 1
+                    "Land" in c.get("types", []) and len(colors) > 1
                 ):
                     fixing_count += 1
+
                 wr = float(
                     c.get("deck_colors", {}).get("All Decks", {}).get("gihwr", 0.0)
                 )
+
+                is_off_color = False
+                if self.main_colors and colors:
+                    is_off_color = not all(col in self.main_colors for col in colors)
+
+                if is_off_color and wr > (self.global_mean - self.global_std):
+                    off_color_playables += 1
+
                 if wr > (self.global_mean + (1.5 * self.global_std)):
-                    for col in c.get("colors", []):
+                    for col in colors:
                         if self.main_colors and col not in self.main_colors:
                             splash_targets.add(col)
             except:
@@ -363,15 +376,28 @@ class DraftAdvisor:
             "hard_removal_count": hard_removal_count,
             "fixing_count": fixing_count,
             "splash_targets": splash_targets,
+            "off_color_playables": off_color_playables,
         }
 
     def _calculate_composition_bonus(self, card: Dict, pack: int) -> Tuple[float, str]:
         tags, cmc = card.get("tags", []), get_functional_cmc(card)
         if "Land" in card.get("types", []) or "fixing_ramp" in tags:
+            # Active Splash Support (Fixing Hunger)
+            off_color_playables = self.pool_metrics.get("off_color_playables", 0)
+            fixing_count = self.pool_metrics.get("fixing_count", 0)
+
+            if (
+                pack >= 2
+                and off_color_playables > 0
+                and fixing_count <= off_color_playables
+            ):
+                return 1.4, "Critical: Needs Fixing"
+
             if any(
                 c in self.pool_metrics["splash_targets"] for c in card.get("colors", [])
             ):
                 return 1.3, "Enables Bomb Splash"
+
             return (
                 (1.15, "Premium Fixing")
                 if pack == 1 and len(card.get("colors", [])) > 1
