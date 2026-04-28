@@ -578,31 +578,9 @@ def simulate_deck(deck_list, iterations=10000):
         if c2 and c3 and c4:
             stats["curve_out"] += 1
 
-        if len(lands_t3) >= 3:
-            color_sources = {"W": 0, "U": 0, "B": 0, "R": 0, "G": 0}
-            for l in lands_t3:
-                for c in l["colors_produced"]:
-                    color_sources[c] += 1
-
-            t3_spells = [c for c in t3_state if not c["is_land"] and c["cmc"] <= 3]
-            any_color_screw = False
-            for s in t3_spells:
-                temp_sources = color_sources.copy()
-                can_pay_colors = True
-                for pip_opts in s["pips"]:
-                    paid = False
-                    for opt in pip_opts:
-                        if temp_sources.get(opt, 0) > 0:
-                            temp_sources[opt] -= 1
-                            paid = True
-                            break
-                    if not paid:
-                        can_pay_colors = False
-                        break
-                if not can_pay_colors:
-                    any_color_screw = True
-                    break
-            if any_color_screw:
+        if len(lands_t3) >= 3 and not c3:
+            has_3_drop = any(not c["is_land"] and c["cmc"] == 3 for c in t3_state)
+            if has_3_drop:
                 stats["color_screw_t3"] += 1
 
     stats["avg_hand_size"] = stats["avg_hand_size"] / iterations
@@ -865,21 +843,79 @@ def suggest_deck(
             if spell_count < 22:
                 return
 
+            # --- DYNAMICALLY DETERMINE TRUE DECK COLORS & LABEL ---
+            pips = {c: 0 for c in constants.CARD_COLORS}
+            for card in spells:
+                cost = card.get("mana_cost", "")
+                if not cost:
+                    for c in card.get("colors", []):
+                        if c in pips:
+                            pips[c] += card.get("count", 1)
+                    continue
+                pip_matches = re.findall(r"\{(.*?)\}", cost)
+                for pip in pip_matches:
+                    options = [c for c in pip.split("/") if c in constants.CARD_COLORS]
+                    for opt in options:
+                        pips[opt] += card.get("count", 1)
+
+            active_colors = sorted(
+                [c for c, count in pips.items() if count > 0],
+                key=lambda x: pips[x],
+                reverse=True,
+            )
+
+            if not active_colors:
+                true_arch_key = arch_key
+                true_variant_name = variant_name
+            else:
+                if len(active_colors) == 1:
+                    true_arch_key = active_colors[0]
+                    true_variant_name = "Consistent"
+                elif len(active_colors) == 2:
+                    if pips[active_colors[1]] <= 3:
+                        true_arch_key = active_colors[0]
+                        true_variant_name = f"Splash {active_colors[1]}"
+                    else:
+                        true_arch_key = "".join(
+                            sorted(
+                                active_colors[:2],
+                                key=lambda x: constants.CARD_COLORS.index(x),
+                            )
+                        )
+                        true_variant_name = (
+                            "Consistent"
+                            if "Consistent" in variant_name or "Tempo" in variant_name
+                            else "Consistent"
+                        )
+                        if "Tempo" in variant_name:
+                            true_variant_name = "Tempo"
+                else:
+                    true_arch_key = "".join(
+                        sorted(
+                            active_colors[:2],
+                            key=lambda x: constants.CARD_COLORS.index(x),
+                        )
+                    )
+                    if "Soup" in variant_name:
+                        true_variant_name = "Good Stuff (Soup)"
+                    else:
+                        splash_str = "".join(active_colors[2:])
+                        true_variant_name = f"Splash {splash_str}"
+
             opt_deck, opt_sb = deck, sb
             opt_note = ""
             opt_stats = simulate_deck(opt_deck, iterations=10000)
 
             score, breakdown = calculate_holistic_score(
-                opt_deck, colors, pool_size, metrics
+                opt_deck, active_colors, pool_size, metrics
             )
 
             # --- MONTE CARLO REALITY CHECK ---
             # The heuristic score measures raw card power, but the simulator reveals if the mana base actually works.
             if opt_stats:
                 mc_penalties = []
-                # Baseline color screw is ~10-15%. Punish severely if over 16%.
-                if opt_stats["color_screw_t3"] > 16.0:
-                    pen = (opt_stats["color_screw_t3"] - 16.0) * 2.5
+                if opt_stats["color_screw_t3"] > 10.0:
+                    pen = (opt_stats["color_screw_t3"] - 10.0) * 2.5
                     score -= pen
                     mc_penalties.append(f"Color Screw (-{pen:.1f})")
 
@@ -911,19 +947,19 @@ def suggest_deck(
             seen_signatures.add(sig)
 
             variant_data = {
-                "label_prefix": variant_name,
+                "label_prefix": true_variant_name,
                 "type": "Deck",
                 "rating": score,
                 "record": estimate_record(score, is_bo3),
                 "deck_cards": opt_deck,
                 "sideboard_cards": opt_sb,
-                "colors": colors,
+                "colors": active_colors,
                 "breakdown": breakdown,
                 "stats": opt_stats,
                 "optimization_note": opt_note,
             }
 
-            full_label = f"{arch_key} {variant_name} [Est: {variant_data['record']}] (Power: {score:.0f})"
+            full_label = f"{true_arch_key} {true_variant_name} [Est: {variant_data['record']}] (Power: {score:.0f})"
 
             if "Incomplete Deck" not in breakdown:
                 all_variants.append((full_label, variant_data))
@@ -1088,20 +1124,32 @@ def calculate_holistic_score(deck, colors, pool_size, metrics, tier_data=None):
 
     avg_cmc = sum(cmcs) / spell_count
 
-    analyzer = ManaSourceAnalyzer(deck)
     land_count = sum(c.get("count", 1) for c in deck if "Land" in c.get("types", []))
-    total_mana_sources = (
-        land_count + analyzer.any_color_sources + sum(analyzer.sources.values())
+
+    # Cap non-land ramp sources to 3 to prevent absurd velocity scores from treasure spam
+    ramp_count = sum(
+        c.get("count", 1)
+        for c in deck
+        if (
+            "fixing_ramp" in c.get("tags", [])
+            or "treasure" in str(c.get("text", "")).lower()
+            or "add {" in str(c.get("text", "")).lower()
+            or "adds {" in str(c.get("text", "")).lower()
+        )
+        and "Land" not in c.get("types", [])
     )
+    ramp_count = min(3, ramp_count)
+
+    total_mana_sources = land_count + ramp_count
 
     mana_deficit = (avg_cmc * 5.5) - total_mana_sources
     if mana_deficit > 1.5:
         penalty = mana_deficit * 3.0
         power_level -= penalty
-        breakdown_notes.append(f"Clunky Mana Velocity (-{penalty:.1f})")
+        breakdown_notes.append(f"High Curve / Needs Lands (-{penalty:.1f})")
     elif mana_deficit < -1.0 and avg_cmc < 2.8:
         power_level += 5.0
-        breakdown_notes.append("Excellent Aggro Velocity (+5.0)")
+        breakdown_notes.append("Excellent Aggro Curve (+5.0)")
 
     # 3. UNIVERSAL SYNERGY MATRIX
     supertypes = {
@@ -1153,6 +1201,7 @@ def calculate_holistic_score(deck, colors, pool_size, metrics, tier_data=None):
             or "basic land types" in str(c.get("text", "")).lower()
         )
 
+        analyzer = ManaSourceAnalyzer(deck)
         fixing_count = analyzer.total_fixing_cards
 
         if domain_payoffs >= 2 and fixing_count >= 4:

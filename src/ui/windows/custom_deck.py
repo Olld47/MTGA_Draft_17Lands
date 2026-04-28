@@ -170,7 +170,11 @@ class CustomDeckPanel(ttk.Frame):
         ]
         for sym, name, style in basics:
             btn = ttk.Button(
-                self.basics_frame, text=f"{sym}: 0", bootstyle=style, width=5, padding=Theme.scaled_val(5)
+                self.basics_frame,
+                text=f"{sym}: 0",
+                bootstyle=style,
+                width=5,
+                padding=Theme.scaled_val(5),
             )
 
             # Standard Add (Left Click)
@@ -211,7 +215,9 @@ class CustomDeckPanel(ttk.Frame):
         self.notebook.add(self.builder_tab, text=" DECK BUILDER ")
 
         self.v_split = ttk.PanedWindow(self.builder_tab, orient=tkinter.VERTICAL)
-        self.v_split.pack(fill="both", expand=True, padx=Theme.scaled_val(2), pady=Theme.scaled_val(2))
+        self.v_split.pack(
+            fill="both", expand=True, padx=Theme.scaled_val(2), pady=Theme.scaled_val(2)
+        )
 
         self.deck_frame = ttk.Labelframe(
             self.v_split, text=" MAIN DECK (0) ", padding=Theme.scaled_val(2)
@@ -225,7 +231,9 @@ class CustomDeckPanel(ttk.Frame):
         )
         self.deck_manager.pack(fill="both", expand=True)
 
-        self.sb_frame = ttk.Labelframe(self.v_split, text=" SIDEBOARD (0) ", padding=Theme.scaled_val(2))
+        self.sb_frame = ttk.Labelframe(
+            self.v_split, text=" SIDEBOARD (0) ", padding=Theme.scaled_val(2)
+        )
         self.v_split.add(self.sb_frame, weight=2)
         self.sb_manager = DynamicTreeviewManager(
             self.sb_frame,
@@ -277,7 +285,9 @@ class CustomDeckPanel(ttk.Frame):
         self.hand_tab.rowconfigure(1, weight=1)
 
         hand_control_bar = ttk.Frame(self.hand_tab)
-        hand_control_bar.grid(row=0, column=0, columnspan=2, sticky="ew", pady=Theme.scaled_val((0, 15)))
+        hand_control_bar.grid(
+            row=0, column=0, columnspan=2, sticky="ew", pady=Theme.scaled_val((0, 15))
+        )
         ttk.Button(
             hand_control_bar,
             text="Draw New Hand",
@@ -295,7 +305,9 @@ class CustomDeckPanel(ttk.Frame):
         self.btn_optimize.pack(side="left", padx=Theme.scaled_val(10))
 
         self.hand_canvas_frame = ttk.Frame(self.hand_tab)
-        self.hand_canvas_frame.grid(row=1, column=0, sticky="nsew", padx=Theme.scaled_val((0, 15)))
+        self.hand_canvas_frame.grid(
+            row=1, column=0, sticky="nsew", padx=Theme.scaled_val((0, 15))
+        )
         self.hand_canvas_frame.rowconfigure(0, weight=1)
         self.hand_canvas_frame.columnconfigure(0, weight=1)
 
@@ -329,7 +341,9 @@ class CustomDeckPanel(ttk.Frame):
         bind_scroll(self.hand_container, self.hand_canvas.yview_scroll)
 
         self.sim_outer_frame = ttk.Labelframe(
-            self.hand_tab, text=" MONTE CARLO SIMULATION (10,000 Games) ", padding=Theme.scaled_val(5)
+            self.hand_tab,
+            text=" MONTE CARLO SIMULATION (10,000 Games) ",
+            padding=Theme.scaled_val(5),
         )
         self.sim_outer_frame.grid(row=1, column=1, sticky="nsew")
         self.sim_canvas = tkinter.Canvas(
@@ -1356,20 +1370,9 @@ class CustomDeckPanel(ttk.Frame):
             if c2 and c3 and c4:
                 stats["curve_out"] += 1
 
-            if len(lands_t3) >= 3:
-                color_sources = {"W": 0, "U": 0, "B": 0, "R": 0, "G": 0}
-                for l in lands_t3:
-                    for c in l["colors_produced"]:
-                        color_sources[c] += 1
-
-                t3_spells = [c for c in t3_state if not c["is_land"] and c["cmc"] <= 3]
-                any_color_screw = False
-                for s in t3_spells:
-                    for pip, count in s["pips"].items():
-                        if color_sources.get(pip, 0) < count:
-                            any_color_screw = True
-                            break
-                if any_color_screw:
+            if len(lands_t3) >= 3 and not c3:
+                has_3_drop = any(not c["is_land"] and c["cmc"] == 3 for c in t3_state)
+                if has_3_drop:
                     stats["color_screw_t3"] += 1
 
         stats["avg_hand_size"] = stats["avg_hand_size"] / iterations
@@ -1393,7 +1396,9 @@ class CustomDeckPanel(ttk.Frame):
             return
 
         def _add_stat(label, value, thresholds, reverse=False, is_percent=True):
-            frame = ttk.Frame(self.sim_frame if hasattr(self, 'sim_frame') else sim_frame)
+            frame = ttk.Frame(
+                self.sim_frame if hasattr(self, "sim_frame") else sim_frame
+            )
             frame.pack(fill="x", pady=Theme.scaled_val(2))
             ttk.Label(frame, text=label, font=Theme.scaled_font(10, "bold")).pack(
                 side="left"
@@ -1456,9 +1461,7 @@ class CustomDeckPanel(ttk.Frame):
         )
         _add_stat("Missed 3rd Land Drop:", stats["screw_t3"], (15, 25), reverse=True)
         _add_stat("Missed 4th Land Drop:", stats["screw_t4"], (25, 35), reverse=True)
-        _add_stat(
-            "Color Screwed (T3):", stats["color_screw_t3"], (10, 20), reverse=True
-        )
+        _add_stat("Color Screwed (T3):", stats["color_screw_t3"], (6, 12), reverse=True)
         _add_stat("Mana Flooded (T5):", stats["flood_t5"], (20, 30), reverse=True)
 
         ttk.Separator(self.sim_frame).pack(fill="x", pady=Theme.scaled_val(8))
@@ -1520,7 +1523,7 @@ class CustomDeckPanel(ttk.Frame):
                 "⚠️ Interaction: You lack early removal. Consider prioritizing cheap interaction from your sideboard."
             )
 
-        if stats["color_screw_t3"] > 15:
+        if stats["color_screw_t3"] > 10:
             advice.append(
                 "⚠️ Mana Base: High color screw risk. Review your colored pips vs sources. You may need more dual lands or to cut a greedy splash."
             )
@@ -1608,9 +1611,15 @@ class CustomDeckPanel(ttk.Frame):
             )
         )
 
-        img_w, img_h, offset_y = Theme.scaled_val(180), Theme.scaled_val(252), Theme.scaled_val(32)
+        img_w, img_h, offset_y = (
+            Theme.scaled_val(180),
+            Theme.scaled_val(252),
+            Theme.scaled_val(32),
+        )
         stack_container = ttk.Frame(
-            self.hand_container, width=img_w, height=img_h + (6 * offset_y) + Theme.scaled_val(20)
+            self.hand_container,
+            width=img_w,
+            height=img_h + (6 * offset_y) + Theme.scaled_val(20),
         )
         stack_container.pack(expand=True, pady=Theme.scaled_val(15))
         stack_container.pack_propagate(False)

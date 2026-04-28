@@ -495,9 +495,7 @@ class SuggestDeckPanel(ttk.Frame):
         )
         _add_stat("Missed 3rd Land Drop:", stats["screw_t3"], (15, 25), reverse=True)
         _add_stat("Missed 4th Land Drop:", stats["screw_t4"], (25, 35), reverse=True)
-        _add_stat(
-            "Color Screwed (T3):", stats["color_screw_t3"], (10, 20), reverse=True
-        )
+        _add_stat("Color Screwed (T3):", stats["color_screw_t3"], (6, 12), reverse=True)
         _add_stat("Mana Flooded (T5):", stats["flood_t5"], (20, 30), reverse=True)
 
         ttk.Separator(sim_frame).pack(fill="x", pady=Theme.scaled_val(8))
@@ -535,7 +533,7 @@ class SuggestDeckPanel(ttk.Frame):
         ]
         colorless_lands = [c for c in non_basics if not c.get("colors")]
 
-        if stats["color_screw_t3"] > 16.0:
+        if stats["color_screw_t3"] > 10.0:
             if colorless_lands:
                 advice.append(
                     f"• Color screw risk is elevated. Consider cutting a colorless utility land (like {colorless_lands[0].get('name', '')}) for a basic land."
