@@ -795,7 +795,7 @@ class DraftApp:
 
         # 2. ADVISOR & SIGNAL MATH
         advisor = DraftAdvisor(metrics, taken_cards)
-        recommendations = advisor.evaluate_pack(pack_cards, pi)
+        recommendations = advisor.evaluate_pack(pack_cards, pi, current_pack=pk)
 
         sig_calc = SignalCalculator(metrics)
         scores = {c: 0.0 for c in constants.CARD_COLORS}

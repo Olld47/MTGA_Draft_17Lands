@@ -10,6 +10,7 @@
 * unrealities: [Bug] Fixed an issue where AutoScrollbars would sometimes throw mapping errors or fail to properly hide/show on resizing.
 * unrealities: [Bug] Resolved bugs regarding caching, file paths, and API fallback logic for smooth Day-1 performance.
 * unrealities: [Bug] Fixed issue where Tooltips for cards near the bottom of the screen would fail to display or instantly disappear. Also added support for proper tooltip rendering on negative multi-monitor setups.
+* unrealities: [Bug] Launch Error: No module named 'PIL._tkinter_finder' #176
 
 ===================== RELEASE NOTES 4.14 =====================
 * unrealities: [Feature] Improvements to the Github Pages site. Added direct download links to the "Today's Pipeline Activity" table.

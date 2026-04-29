@@ -147,6 +147,7 @@ class ArenaScanner:
             for handler in self.draft_log.handlers:
                 if isinstance(handler, logging.FileHandler):
                     self.draft_log.removeHandler(handler)
+                    handler.close()
             formatter = logging.Formatter(
                 "%(asctime)s,%(message)s", datefmt="<%d%m%Y %H:%M:%S>"
             )

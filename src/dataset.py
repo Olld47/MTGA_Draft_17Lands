@@ -3,7 +3,6 @@ src/dataset.py
 Data storage and retrieval for card ratings.
 """
 
-import sys
 from src.utils import (
     Result,
     check_file_integrity,
@@ -25,6 +24,9 @@ from src.constants import (
 
 
 class Dataset:
+    # Configuration flag to allow the UI to drop unresolved numeric IDs
+    skip_unresolved_ids = True
+
     def __init__(self, retrieve_unknown: bool = False, db_path: str = None):
         self._dataset = None
         self._retrieve_unknown = retrieve_unknown
@@ -349,7 +351,7 @@ class Dataset:
             if string_id in result_map:
                 name = str(result_map[string_id].get(DATA_FIELD_NAME, ""))
 
-                if name.isdigit() and "pytest" not in sys.modules:
+                if name.isdigit() and self.skip_unresolved_ids:
                     continue
                 if name in [
                     "Plains",

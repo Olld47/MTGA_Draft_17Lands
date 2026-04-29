@@ -1063,6 +1063,10 @@ def identify_top_pairs(pool, metrics, tier_data=None):
                 scores[c] += points
 
     sorted_c = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+
+    if sorted_c[0][1] <= 0.0:
+        return [] # Return empty so the filter safely defaults to "All Decks"
+
     top_4_colors = [c[0] for c in sorted_c[:4]]
 
     top_pairs = []

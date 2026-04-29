@@ -115,24 +115,26 @@ class ScryfallTagger:
         while url:
             retries = 3
             success = False
+            response = None
 
             while retries > 0:
                 try:
                     response = requests.get(url, headers=self.HEADERS, timeout=15)
+                    if response.status_code != 404:
+                        response.raise_for_status()
                     success = True
                     break
-                except requests.exceptions.RequestException:
+                except requests.exceptions.RequestException as e:
+                    logger.warning(f"Network issue querying Scryfall ({e}). Retries left: {retries-1}")
                     retries -= 1
                     time.sleep(2)
 
-            if not success:
+            if not success or not response:
                 break
 
             if response.status_code == 404:
-                # 404 means no cards matched the tag in this chunk
                 logger.info(f"Scryfall returned 0 results (404) for query: {query}")
                 break
-            response.raise_for_status()
 
             data = response.json()
             for card in data.get("data", []):

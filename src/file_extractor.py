@@ -951,6 +951,9 @@ class FileExtractor(UIProgress):
             result = False
             logger.error(error)
 
+        finally:
+            connection.close()
+
         return result, card_text, card_enumerators, card_data
 
     def _retrieve_local_card_text(self, data):
