@@ -53,7 +53,9 @@ class DraftAdvisor:
         self.fixing_map = count_fixing(self.pool)
         self.pool_metrics = self._analyze_pool()
 
-    def evaluate_pack(self, pack_cards: List[Dict], current_pick: int, current_pack: int = 1) -> List[Recommendation]:
+    def evaluate_pack(
+        self, pack_cards: List[Dict], current_pick: int, current_pack: int = 1
+    ) -> List[Recommendation]:
         if not pack_cards:
             return []
         safe_pick = max(1, min(self.TOTAL_PICKS, current_pick))

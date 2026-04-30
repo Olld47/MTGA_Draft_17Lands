@@ -1192,7 +1192,19 @@ class SealedStudioWindow(tb.Toplevel):
 
                 self.after(0, apply_img)
             except Exception:
-                pass
+                # Tell user image loading failed
+                if canvas.winfo_exists():
+                    try:
+
+                        def apply_err():
+                            if canvas.winfo_exists():
+                                canvas.itemconfigure(
+                                    text_id, text=f"{name}\n(Image Unavailable)"
+                                )
+
+                        self.after(0, apply_err)
+                    except RuntimeError:
+                        pass
 
         self.image_executor.submit(fetch)
 

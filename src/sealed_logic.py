@@ -65,10 +65,39 @@ class HeuristicEvaluator:
                 score += 1.5
             elif cmc == 3:
                 score += 1.0
-            elif cmc >= 5 and not any(
-                t in tags for t in ["removal", "evasion", "card_advantage"]
-            ):
-                score -= 4.0  # Penalize big dumb vanilla creatures
+            elif cmc >= 5:
+                # FIXED DUMB BEATER PENALTY: Check for protective/impactful keywords that justify the cost
+                good_tags = any(
+                    t in tags
+                    for t in [
+                        "removal",
+                        "evasion",
+                        "card_advantage",
+                        "lifegain",
+                        "protection",
+                        "token_maker",
+                        "mana_sink",
+                    ]
+                )
+                text = str(card.get("oracle_text", card.get("text", ""))).lower()
+                good_keywords = any(
+                    kw in text
+                    for kw in [
+                        "vigilance",
+                        "reach",
+                        "trample",
+                        "haste",
+                        "ward",
+                        "hexproof",
+                        "lifelink",
+                        "indestructible",
+                        "double strike",
+                        "first strike",
+                    ]
+                )
+
+                if not good_tags and not good_keywords:
+                    score -= 4.0  # Penalize big dumb vanilla creatures
 
         # 5. Minor Synergy
         if "combat_trick" in tags:

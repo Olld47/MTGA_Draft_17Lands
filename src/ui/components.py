@@ -215,6 +215,10 @@ class CardToolTip(tkinter.Toplevel):
     _active_tooltip = None
     _image_executor = ThreadPoolExecutor(max_workers=4)
 
+    # Added LRU Dictionary to manage in-memory image objects so we don't bleed RAM over long sessions
+    _in_memory_images = {}
+    _MAX_IN_MEMORY_IMAGES = 60
+
     @classmethod
     def create(cls, parent, card, images_enabled, scale):
         """Factory method ensures only one tooltip exists globally and avoids flickering loops."""
@@ -495,25 +499,44 @@ class CardToolTip(tkinter.Toplevel):
     def _load_image_async(self, u, s):
         if "scryfall" in u:
             u = u.replace("/small/", "/large/").replace("/normal/", "/large/")
-        self._image_executor.submit(self._fetch_and_apply_image, u, s)
 
-    def _fetch_and_apply_image(self, u, s):
+        cache_key = hashlib.md5(u.encode("utf-8")).hexdigest()
+
+        if cache_key in self._in_memory_images:
+            # Memory Hit! Instant render.
+            self.after(0, lambda: self._apply_image(self._in_memory_images[cache_key]))
+            return
+
+        self._image_executor.submit(self._fetch_and_apply_image, u, s, cache_key)
+
+    def _fetch_and_apply_image(self, u, s, cache_key):
         """Moved the core logic into a clean worker method"""
         try:
             if not u:
                 return
-            sn = hashlib.md5(u.encode("utf-8")).hexdigest() + ".jpg"
+            sn = cache_key + ".jpg"
             cp = os.path.join(self.IMAGE_CACHE_DIR, sn)
             if os.path.exists(cp):
                 with open(cp, "rb") as fi:
                     r = fi.read()
             else:
-                r = requests.get(u, timeout=5).content
+                req = requests.get(u, timeout=5)
+                req.raise_for_status()
+                r = req.content
                 with open(cp, "wb") as fi:
                     fi.write(r)
 
             im = Image.open(io.BytesIO(r))
             im.thumbnail((int(240 * s), int(335 * s)), Image.Resampling.LANCZOS)
+
+            # Save to LRU dictionary
+            if len(CardToolTip._in_memory_images) > CardToolTip._MAX_IN_MEMORY_IMAGES:
+                # Remove oldest entry to prevent RAM bloat
+                CardToolTip._in_memory_images.pop(
+                    next(iter(CardToolTip._in_memory_images))
+                )
+
+            CardToolTip._in_memory_images[cache_key] = im
 
             # Safely route back to Tkinter Main Thread
             if hasattr(self, "winfo_exists"):
@@ -524,7 +547,7 @@ class CardToolTip(tkinter.Toplevel):
                     )
                 except RuntimeError:
                     pass
-        except Exception:
+        except Exception as e:
             pass
 
     def _apply_image(self, im):

@@ -23,7 +23,9 @@ def scanner(tmp_path):
     return s
 
 
-def _setup(scanner, *, current_pick, current_pack_cards, initial_pack=None, picked_cards=None):
+def _setup(
+    scanner, *, current_pick, current_pack_cards, initial_pack=None, picked_cards=None
+):
     """
     Inject scanner state for returnable tests.
 
@@ -50,12 +52,16 @@ def _setup(scanner, *, current_pick, current_pack_cards, initial_pack=None, pick
 
 def _returnable(scanner):
     """Returns {card_name: returnable_at_list} for the current pack."""
-    return {c["name"]: c.get("returnable_at", []) for c in scanner.retrieve_current_pack_cards()}
+    return {
+        c["name"]: c.get("returnable_at", [])
+        for c in scanner.retrieve_current_pack_cards()
+    }
 
 
 # ---------------------------------------------------------------------------
 # Basic returnable behaviour
 # ---------------------------------------------------------------------------
+
 
 def test_no_other_slots_means_no_returnable(scanner):
     """Card in pack with no other initial_pack slots → not returnable."""
@@ -89,6 +95,7 @@ def test_card_not_in_other_slot_has_no_returnable(scanner):
 # ---------------------------------------------------------------------------
 # User-picked card suppression
 # ---------------------------------------------------------------------------
+
 
 def test_picked_card_not_returnable(scanner):
     """
@@ -130,7 +137,7 @@ def test_picked_from_different_slot_does_not_suppress(scanner):
         current_pick=3,
         current_pack_cards=["card_a"],
         initial_pack={0: ["card_a"], 1: ["card_x"]},
-        picked_cards={2: ["card_a"]},   # picked from the current slot, not slot 0
+        picked_cards={2: ["card_a"]},  # picked from the current slot, not slot 0
     )
     assert _returnable(scanner)["card_a"] == [9]
 
@@ -138,6 +145,7 @@ def test_picked_from_different_slot_does_not_suppress(scanner):
 # ---------------------------------------------------------------------------
 # User's concrete example
 # ---------------------------------------------------------------------------
+
 
 def test_user_example_taken_pick1_no_returnable_at_pick2(scanner):
     """
@@ -166,7 +174,7 @@ def test_user_example_not_taken_pick2_returnable_at_pick3(scanner):
         current_pick=3,
         current_pack_cards=["card_a", "card_b"],
         initial_pack={1: ["card_a", "card_c"]},
-        picked_cards={},   # user picked nothing from slot 1
+        picked_cards={},  # user picked nothing from slot 1
     )
     result = _returnable(scanner)
     assert result["card_a"] == [10], "card_a should be returnable at pick 10"
@@ -175,6 +183,7 @@ def test_user_example_not_taken_pick2_returnable_at_pick3(scanner):
 # ---------------------------------------------------------------------------
 # Edge cases
 # ---------------------------------------------------------------------------
+
 
 def test_return_pick_already_passed_not_returnable(scanner):
     """Slot whose return_pick <= current_pick is ignored."""
@@ -220,7 +229,7 @@ def test_current_pack_slot_excluded_from_returnable(scanner):
         scanner,
         current_pick=1,
         current_pack_cards=["card_a"],
-        initial_pack={0: ["card_a"]},   # same slot as pack_index
+        initial_pack={0: ["card_a"]},  # same slot as pack_index
     )
     assert _returnable(scanner)["card_a"] == []
 

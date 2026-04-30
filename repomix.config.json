@@ -1,7 +1,1 @@
-{
-  "ignore": {
-    "customPatterns": [
-      "tests/data/**"
-    ]
-  }
-}
+{"ignore": {"customPatterns": ["tests/data/**"]}}

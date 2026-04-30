@@ -63,11 +63,15 @@ class TierListWindow(ttk.Frame):
             static_columns=["Set", "Label", "Date"],
             height=4,
         )
-        self.table_manager.pack(fill="both", expand=True, pady=Theme.scaled_val((0, 15)))
+        self.table_manager.pack(
+            fill="both", expand=True, pady=Theme.scaled_val((0, 15))
+        )
         self.table = self.table_manager.tree
 
         # --- 3. IMPORT FORM ---
-        form_frame = ttk.Frame(container, style="Card.TFrame", padding=Theme.scaled_val(15))
+        form_frame = ttk.Frame(
+            container, style="Card.TFrame", padding=Theme.scaled_val(15)
+        )
         form_frame.pack(fill="x")
         ttk.Label(
             form_frame,

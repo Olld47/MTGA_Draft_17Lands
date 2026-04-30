@@ -39,7 +39,9 @@ class DatasetUpdater:
                 if report_resp.status_code == 200:
                     report_data = report_resp.json()
                     if report_data.get("pipeline_run", {}).get("status") == "FAILED":
-                        progress_callback("⚠️ Server sync failed today. Using cached data.")
+                        progress_callback(
+                            "⚠️ Server sync failed today. Using cached data."
+                        )
             except Exception as health_e:
                 logger.debug(f"Failed to fetch health report (non-fatal): {health_e}")
 
@@ -95,4 +97,3 @@ class DatasetUpdater:
         except Exception as e:
             logger.error(f"Failed to sync datasets: {e}")
             progress_callback("Skipped dataset sync (Network Error).")
-            

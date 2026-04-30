@@ -11,6 +11,13 @@
 * unrealities: [Bug] Resolved bugs regarding caching, file paths, and API fallback logic for smooth Day-1 performance.
 * unrealities: [Bug] Fixed issue where Tooltips for cards near the bottom of the screen would fail to display or instantly disappear. Also added support for proper tooltip rendering on negative multi-monitor setups.
 * unrealities: [Bug] Launch Error: No module named 'PIL._tkinter_finder' #176
+* unrealities: [Performance] Fixed a severe memory leak where viewing hundreds of card tooltips over a long session would permanently pin high-resolution images in RAM. The app now uses a strict LRU cache to keep memory usage low.
+* unrealities: [Bug] Hardened the Scryfall tag downloader against strict API rate limits (HTTP 429). The app now actively pauses and retries instead of silently failing, ensuring your datasets always have card roles (Removal, Evasion, etc.).
+* unrealities: [Bug] Fixed an AI evaluation bug where cost-reduction text containing specific mana pips (e.g., "costs {1} and {U} less") was ignored, causing the engine to incorrectly penalize the tempo of highly castable cards.
+* unrealities: [Bug] Fixed a blindspot in the Day-1 Heuristic engine where expensive creatures with powerful keywords (Reach, Vigilance, Ward, Lifelink) were incorrectly penalized as "vanilla" creatures.
+* unrealities: [Bug] Fixed an issue in the Auto-Lands generator where hybrid mana costs containing generic numbers or 'X' (e.g., {2/W}) could disrupt the pip-counting math and skew basic land allocations.
+* unrealities: [UX/UI] Eradicated several "silent failures". The app will now pop up an explicit alert if Windows Defender/OneDrive blocks your preferences from saving, or if the AI Auto-Optimizer fails to run.
+* unrealities: [UX/UI] Added an "Image Unavailable" text fallback to the Visual Deckbuilder and Sample Hand generator if a card's artwork fails to download due to network drops.
 
 ===================== RELEASE NOTES 4.14 =====================
 * unrealities: [Feature] Improvements to the Github Pages site. Added direct download links to the "Today's Pipeline Activity" table.

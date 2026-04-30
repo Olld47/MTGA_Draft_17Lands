@@ -50,7 +50,7 @@ def get_functional_cmc(card: dict) -> int:
     """
     try:
         raw_cmc = int(card.get("cmc", 0))
-        text = str(card.get("text", "")).lower()
+        text = str(card.get("oracle_text", card.get("text", ""))).lower()
 
         if not text:
             return raw_cmc
@@ -66,14 +66,29 @@ def get_functional_cmc(card: dict) -> int:
         if "channel \u2014" in text or "channel —" in text or "channel -" in text:
             return min(raw_cmc, 2)
 
-        # Generic cost reduction: e.g., "costs {3} less" or "costs 3 less"
-        # We use a non-greedy wildcard .*? to catch any spacing/formatting artifacts
-        reduction_match = re.search(r"costs?.*?(\{?(\d+)\}?).*?less", text)
+        # Generic cost reduction: e.g., "costs {3} less", "costs {1} and {U} less", "costs 2 less"
+        reduction_match = re.search(r"costs?\s+(.*?)\s+less", text)
         if reduction_match:
             try:
-                # group(2) contains the actual digits inside the curly braces if they exist
-                reduction = int(reduction_match.group(2))
-                return max(1, raw_cmc - reduction)
+                cost_str = reduction_match.group(1)
+                blocks = re.findall(r"\{(.*?)\}", cost_str)
+                total_reduction = 0
+
+                if not blocks:
+                    # e.g. "costs 2 less"
+                    digits = re.findall(r"\d+", cost_str)
+                    if digits:
+                        total_reduction = sum(int(d) for d in digits)
+                else:
+                    # e.g. "costs {1} and {U} less"
+                    for b in blocks:
+                        if b.isdigit():
+                            total_reduction += int(b)
+                        else:
+                            total_reduction += 1
+
+                if total_reduction > 0:
+                    return max(1, raw_cmc - total_reduction)
             except (ValueError, TypeError):
                 pass
 
@@ -440,7 +455,7 @@ def simulate_deck(deck_list, iterations=10000):
         colors_produced = set()
         if is_land:
             colors_produced.update(c.get("colors", []))
-            text = str(c.get("text", "")).lower()
+            text = str(c.get("oracle_text", c.get("text", ""))).lower()
             if "any color" in text or "fixing_ramp" in c.get("tags", []):
                 colors_produced.update(["W", "U", "B", "R", "G"])
 
@@ -603,7 +618,12 @@ def optimize_deck(base_deck, base_sb, archetype_key, colors):
     """
     total_cards = sum(c.get("count", 1) for c in base_deck)
     if total_cards != 40:
-        return base_deck, base_sb, None, ""
+        return (
+            base_deck,
+            base_sb,
+            None,
+            f"Error: Deck must be exactly 40 cards to optimize (currently {total_cards}).",
+        )
 
     spells = [c for c in base_deck if "Land" not in c.get("types", [])]
     lands = [c for c in base_deck if "Land" in c.get("types", [])]
@@ -1065,7 +1085,7 @@ def identify_top_pairs(pool, metrics, tier_data=None):
     sorted_c = sorted(scores.items(), key=lambda x: x[1], reverse=True)
 
     if sorted_c[0][1] <= 0.0:
-        return [] # Return empty so the filter safely defaults to "All Decks"
+        return []  # Return empty so the filter safely defaults to "All Decks"
 
     top_4_colors = [c[0] for c in sorted_c[:4]]
 
@@ -1136,9 +1156,9 @@ def calculate_holistic_score(deck, colors, pool_size, metrics, tier_data=None):
         for c in deck
         if (
             "fixing_ramp" in c.get("tags", [])
-            or "treasure" in str(c.get("text", "")).lower()
-            or "add {" in str(c.get("text", "")).lower()
-            or "adds {" in str(c.get("text", "")).lower()
+            or "treasure" in str(c.get("oracle_text", c.get("text", ""))).lower()
+            or "add {" in str(c.get("oracle_text", c.get("text", ""))).lower()
+            or "adds {" in str(c.get("oracle_text", c.get("text", ""))).lower()
         )
         and "Land" not in c.get("types", [])
     )
@@ -1174,7 +1194,7 @@ def calculate_holistic_score(deck, colors, pool_size, metrics, tier_data=None):
     subtypes = {}
     changeling_count = 0
     for c in spells:
-        text = str(c.get("text", "")).lower()
+        text = str(c.get("oracle_text", c.get("text", ""))).lower()
         count = c.get("count", 1)
         if "changeling" in text:
             changeling_count += count
@@ -1188,8 +1208,8 @@ def calculate_holistic_score(deck, colors, pool_size, metrics, tier_data=None):
         payoff_count = sum(
             c.get("count", 1)
             for c in spells
-            if "chosen type" in str(c.get("text", "")).lower()
-            or top_tribe.lower() in str(c.get("text", "")).lower()
+            if "chosen type" in str(c.get("oracle_text", c.get("text", ""))).lower()
+            or top_tribe.lower() in str(c.get("oracle_text", c.get("text", ""))).lower()
         )
 
         if total_tribe_density >= 6 and payoff_count >= 2:
@@ -1201,8 +1221,9 @@ def calculate_holistic_score(deck, colors, pool_size, metrics, tier_data=None):
         domain_payoffs = sum(
             c.get("count", 1)
             for c in spells
-            if "colors among" in str(c.get("text", "")).lower()
-            or "basic land types" in str(c.get("text", "")).lower()
+            if "colors among" in str(c.get("oracle_text", c.get("text", ""))).lower()
+            or "basic land types"
+            in str(c.get("oracle_text", c.get("text", ""))).lower()
         )
 
         analyzer = ManaSourceAnalyzer(deck)
@@ -1221,7 +1242,7 @@ def calculate_holistic_score(deck, colors, pool_size, metrics, tier_data=None):
         for c in spells
         if "evasion" in c.get("tags", [])
         or any(
-            kw in str(c.get("text", "")).lower()
+            kw in str(c.get("oracle_text", c.get("text", ""))).lower()
             for kw in [
                 "flying",
                 "trample",
@@ -1450,7 +1471,7 @@ def build_variant_soup(pool, metrics, tier_data=None):
     def soup_rating(card):
         base = get_card_rating(card, ["All Decks"], metrics, tier_data)
         tags = card.get("tags", [])
-        text = str(card.get("text", "")).lower()
+        text = str(card.get("oracle_text", card.get("text", ""))).lower()
         name = str(card.get("name", "")).lower()
 
         is_fixer = "fixing_ramp" in tags or any(
@@ -1529,7 +1550,7 @@ def select_useful_lands(pool, target_colors, metrics=None):
         if "Land" not in types or "Basic" in types:
             continue
 
-        text = str(card.get("text", "")).lower()
+        text = str(card.get("oracle_text", card.get("text", ""))).lower()
         card_colors = card.get("colors", [])
 
         is_universal = False
@@ -1605,7 +1626,9 @@ def calculate_dynamic_mana_base(spells, non_basic_lands, colors, forced_count=17
             card_color_pips = {c: 0 for c in constants.CARD_COLORS}
             for pip in pips:
                 opts = pip.split("/")
-                if any(opt.isdigit() or opt in ["X", "C"] for opt in opts):
+
+                # FIXED HYBRID MANA BUG: Only skip if ALL options are generic numbers or X/C
+                if all(opt.isdigit() or opt in ["X", "C"] for opt in opts):
                     continue
 
                 valid_opts = [
@@ -1861,7 +1884,7 @@ class ManaSourceAnalyzer:
     def _evaluate(self, card):
         count = card.get("count", 1)
         types = card.get("types", [])
-        text = str(card.get("text", "")).lower()
+        text = str(card.get("oracle_text", card.get("text", ""))).lower()
         name = card.get("name", "").lower()
         card_colors = card.get("colors", [])
         tags = card.get("tags", [])

@@ -625,7 +625,16 @@ class CustomDeckPanel(ttk.Frame):
             else:
                 raise Exception("Failed to optimize.")
         except Exception as e:
-            self.after(0, lambda err=str(e): self._show_sim_error(err))
+
+            def show_err():
+                self._show_sim_error(str(e))
+                import tkinter.messagebox
+
+                tkinter.messagebox.showwarning(
+                    "Optimization Failed", str(e), parent=self
+                )
+
+            self.after(0, show_err)
 
     def _show_sim_loading(self, msg="Running 10,000 Monte Carlo Simulations..."):
         for widget in self.sim_frame.winfo_children():
@@ -1237,7 +1246,7 @@ class CustomDeckPanel(ttk.Frame):
             colors_produced = set()
             if is_land:
                 colors_produced.update(c.get("colors", []))
-                text = str(c.get("text", "")).lower()
+                text = str(c.get("oracle_text", c.get("text", ""))).lower()
                 if "any color" in text or "fixing_ramp" in c.get("tags", []):
                     colors_produced.update(["W", "U", "B", "R", "G"])
 
@@ -1660,7 +1669,7 @@ class CustomDeckPanel(ttk.Frame):
 
         if img_url.startswith("/static"):
             img_url = f"https://www.17lands.com{img_url}"
-        elif "scryfall" in img_url:
+        elif "scryfall" in img_url and "format=image" not in img_url:
             img_url = img_url.replace("/small/", "/large/").replace(
                 "/normal/", "/large/"
             )
@@ -1715,8 +1724,29 @@ class CustomDeckPanel(ttk.Frame):
                     )
 
             self.after(0, apply_img)
-        except:
-            pass
+        except Exception:
+            # Safely route back to Tkinter Main Thread to show error state
+            if hasattr(self, "winfo_exists"):
+
+                def apply_err():
+                    if container_frame.winfo_exists():
+                        for w in container_frame.winfo_children():
+                            w.destroy()
+                        import ttkbootstrap as ttk
+                        from src.ui.styles import Theme
+
+                        ttk.Label(
+                            container_frame,
+                            text="Image\nUnavailable",
+                            bootstyle="danger",
+                            justify="center",
+                            font=Theme.scaled_font(9),
+                        ).pack(expand=True)
+
+                try:
+                    self.after(0, apply_err)
+                except RuntimeError:
+                    pass
 
     def _copy_to_clipboard(self):
         self.clipboard_clear()
