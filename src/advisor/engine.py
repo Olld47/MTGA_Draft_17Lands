@@ -467,29 +467,27 @@ class DraftAdvisor:
 
         if not is_on_lane:
             # P2/P3 Double-Pip Discipline: Hard-Lock double pips if no fixing exists
-            if (
-                pack >= 2
-                and off_color_pips >= 2
-                and self.pool_metrics["fixing_count"] < 2
-            ):
+            if pack >= 2 and off_color_pips >= 2 and self.pool_metrics["fixing_count"] < 2:
                 return 0.01, "Uncastable (Double Pip)"
 
             # Specific Color Fixing Detection
             splash_colors = [c for c in card_colors if c not in top_2_lane]
             has_specific_fixing = (
                 all(self.fixing_map.get(c, 0) > 0 for c in splash_colors)
-                if splash_colors
-                else False
+                if splash_colors else False
             )
 
-            if z_score >= self.BOMB_Z_SCORE and off_color_pips == 1:
-                if has_specific_fixing or self.pool_metrics["fixing_count"] >= (
-                    4 if pack == 3 else 3
-                ):
-                    return (0.35 if pack == 3 else 0.45), "Bomb Splash"
+            if z_score >= self.BOMB_Z_SCORE:
+                if off_color_pips == 1:
+                    if has_specific_fixing or self.pool_metrics["fixing_count"] >= (4 if pack == 3 else 3):
+                        return (0.35 if pack == 3 else 0.45), "Bomb Splash"
+                elif off_color_pips == 2 and get_functional_cmc(card) >= 5:
+                    if self.pool_metrics["fixing_count"] >= 4:
+                        return 0.30, "Greedy Bomb Splash"
 
             if off_color_pips == 1 and has_specific_fixing:
                 return 0.3, "Splashable"
+                
             return 0.01 if pack == 3 else 0.05, "Off-Color"
         return 1.0, ""
 

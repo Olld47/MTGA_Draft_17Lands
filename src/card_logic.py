@@ -452,10 +452,14 @@ def simulate_deck(deck_list, iterations=10000):
     flat_deck = []
     for c in deck_list:
         is_land = "Land" in c.get("types", [])
+        is_ramp = False
+        text = str(c.get("oracle_text", c.get("text", ""))).lower()
+        if "fixing_ramp" in c.get("tags", []) or "any color" in text or "treasure" in text:
+            is_ramp = True
+
         colors_produced = set()
-        if is_land:
+        if is_land or is_ramp:
             colors_produced.update(c.get("colors", []))
-            text = str(c.get("oracle_text", c.get("text", ""))).lower()
             if "any color" in text or "fixing_ramp" in c.get("tags", []):
                 colors_produced.update(["W", "U", "B", "R", "G"])
 
@@ -472,6 +476,7 @@ def simulate_deck(deck_list, iterations=10000):
             flat_deck.append(
                 {
                     "is_land": is_land,
+                    "is_ramp": is_ramp and not is_land,
                     "is_removal": "removal" in c.get("tags", []),
                     "colors_produced": colors_produced,
                     "cmc": get_functional_cmc(c),
@@ -550,8 +555,14 @@ def simulate_deck(deck_list, iterations=10000):
             stats["removal_t4"] += 1
 
         def can_cast(state, target_cmc):
-            available_lands = [c for c in state if c["is_land"]]
-            if len(available_lands) < target_cmc:
+            available_mana = []
+            for c in state:
+                if c["is_land"]:
+                    available_mana.append(c)
+                elif c["is_ramp"] and c["cmc"] < target_cmc:
+                    available_mana.append(c)
+
+            if len(available_mana) < target_cmc:
                 return False
 
             spells = [c for c in state if not c["is_land"] and c["cmc"] == target_cmc]
@@ -559,8 +570,8 @@ def simulate_deck(deck_list, iterations=10000):
                 return False
 
             color_sources = {"W": 0, "U": 0, "B": 0, "R": 0, "G": 0}
-            for l in available_lands:
-                for c in l["colors_produced"]:
+            for m in available_mana:
+                for c in m["colors_produced"]:
                     color_sources[c] += 1
 
             for s in spells:
@@ -1352,7 +1363,11 @@ def build_variant_greedy(pool, colors, metrics, tier_data=None):
                 off_color_pips += 1
 
         if off_color_pips > 1:
-            continue
+            total_fixing = fixing_sources.get(splash_col, 0) + count_fixing(pool).get(splash_col, 0) # Approximation
+            if off_color_pips == 2 and get_functional_cmc(card) >= 5 and total_fixing >= 3:
+                pass
+            else:
+                continue
 
         rating = get_card_rating(card, ["All Decks"], metrics)
         if rating > best_rating and fixing_sources.get(splash_col, 0) >= 1:
