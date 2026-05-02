@@ -1,10 +1,10 @@
-# Business Logic & Scoring Specification: "Compositional Brain" (v5.1 Pro)
+# Business Logic & Scoring Specification: "Compositional Brain" (v5.5 Pro)
 
-**Version:** 5.1 | **Architecture:** Pro-Tour Context Engine & Archetype Gravity
+**Version:** 5.5 | **Architecture:** Pro-Tour Context Engine & Archetype Gravity
 
 ## 1. Introduction
 
-The v5.1 Engine abandons rigid heuristics in favor of a fluid, context-aware model. It simulates high-level drafting by shifting its focus from global card quality to specific archetype performance as the draft progresses, while enforcing a sliding commitment curve to prevent late-draft indecision.
+The v5.5 Engine abandons rigid heuristics in favor of a fluid, context-aware model. It simulates high-level drafting by shifting its focus from global card quality to specific archetype performance as the draft progresses, while enforcing a sliding commitment curve to prevent late-draft indecision.
 
 ---
 
@@ -26,7 +26,7 @@ Instead of evaluating a card globally (e.g., its win rate across all 17Lands use
 - **Progressive Weighting:**
   - **Pack 1:** Evaluates cards primarily (90%) on their Global GIHWR.
   - **Pack 3:** Evaluates cards primarily (80%) on their Archetype-specific win rate.
-- **Synergy Payoff:** If a card performs > 1.5% better in your specific color pair than its global average, it receives an **Archetype Synergy** bonus (multiplied by 3.5x the delta).
+- **Synergy Payoff:** If a card performs > 1.5% better in your specific color pair than its global average, it receives an **Archetype Synergy** bonus.
 
 ---
 
@@ -50,7 +50,7 @@ Modern Limited is dictated by "Mana Velocity" and "Mana Stability."
 - **Velocity Target:** 7+ "Early Plays" (CMC <= 2 Creatures or cheap interaction).
 - **Velocity Hunger:** The engine projects your final 2-drop count based on your current pool relative to the remaining picks in the draft. If the projection is below 7 entering Pack 2, early plays receive a "Critical: Needs 2-Drops" multiplier (up to 1.5x).
 - **Top-Heavy Penalty:** If you have 4+ cards costing 5+ mana, expensive cards receive a `0.7x` dampening multiplier to prevent "clunky" hands.
-- **Dynamic Fixing Hunger:** The engine actively monitors whether you are drafting a highly synergistic 2-color deck, or moving towards a "Good Stuff" 3/4-color splash strategy. If the number of drafted off-color playables exceeds your dedicated fixing tools (dual lands, treasures, dorks) by Pack 2, fixing cards receive a massive `1.4x` "Critical: Needs Fixing" multiplier. This proactively _supports_ greedy drafting rather than arbitrarily penalizing the user for taking off-color cards.
+- **Dynamic Fixing Hunger:** The engine actively monitors whether you are drafting a highly synergistic 2-color deck, or moving towards a "Good Stuff" 3/4-color splash strategy. If the number of drafted off-color playables exceeds your dedicated fixing tools (dual lands, treasures, dorks) by Pack 2, fixing cards receive a massive `1.4x` "Critical: Needs Fixing" multiplier.
 
 ---
 
@@ -60,65 +60,70 @@ The v5 engine moves beyond raw win rates by pre-calculating the **Format Texture
 
 - **Role Scarcity (VOR):** The engine analyzes the dataset to count how many "Playable" (WR > Baseline) Commons and Uncommons exist for critical roles (e.g., Removal, 2-Drops) in each color.
   - If a user sees a Playable Red 2-Drop, and the engine knows there are only two viable Red 2-drops in the entire set, it applies a `High VOR (+6.0)` bonus.
-  - This pushes players to draft scarce resources early, rather than taking a slightly higher win-rate card that has 7 viable replacements later in the draft.
-- **Archetype Glue:** Players often fall into the trap of taking a mediocre Rare over a great Common. If a Common/Uncommon has a win rate in the user's specific color pair that is `> 1.0%` higher than its global average, it is classified as "Archetype Glue." It receives an aggressive point multiplier to force it to outscore clunky, generic Rares.
+- **Archetype Glue:** If a Common/Uncommon has a win rate in the user's specific color pair that is `> 1.0%` higher than its global average, it is classified as "Archetype Glue." It receives an aggressive point multiplier to force it to outscore generic Rares.
 
 ---
 
 ## 7. Semantic Role Analysis (Interaction & Tricks)
 
-The app parses Scryfall community tags to understand a card's functional role, preventing deck saturation.
+The app parses Scryfall community tags to understand a card's functional role.
 
 - **Hard Removal Quota:** Targets 3+ removal spells. If the pool is lacking entering Pack 2, interaction cards receive a `1.3x` panic multiplier. Conversely, if you have 6+ removal spells, new ones are penalized (`0.8x`).
-- **Trick Diminishing Returns:** Combat tricks and Auras (Enhancements) are capped at 3. Beyond this, they receive a severe `0.5x` penalty to ensure you draft enough creatures to actually use the tricks.
-- **Flood Insurance:** "Mana Sinks" (cards with activated abilities) are weighted higher in Pack 2/3 if the deck lacks late-game utility.
+- **Trick Diminishing Returns:** Combat tricks and Auras (Enhancements) are capped at 3. Beyond this, they receive a severe `0.5x` penalty.
 
 ---
 
 ## 8. True Bomb Detection (IWD Injection)
 
-A high win rate can be misleading (e.g., an aggressive 1-drop has a high win rate but is not a "bomb").
-
 - **Logic:** A card is tagged as a **TRUE BOMB** only if its Z-Score is `> 1.0` AND its **Improvement When Drawn (IWD)** is `> 4.5%`.
-- **Effect:** Distinguishes between "Great Filler" and "Game-Warping Power." These cards receive a power bonus that can override the Sliding Commitment Curve, allowing for late-draft splashes.
+- **Effect:** Distinguishes between "Great Filler" and "Game-Warping Power." These cards receive a power bonus that overrides the Sliding Commitment Curve, allowing for late-draft splashes.
 
 ---
 
 ## 9. Interactive Deck Building & AI Optimization
 
-The application shifts from pack-evaluation to a unified, interactive deck construction environment that blends rapid baseline generation with on-demand deep analysis.
-
 ### A. Frank Karsten Mana Base Engine ("Auto-Lands")
 
 Users can click a single button to perfectly balance their lands using Pro-Tour heuristics:
 
-- **Pip Volume Calculation:** Counts the exact number of specific colored mana symbols (Pips) required by the spells in the deck.
-- **Universal Fixer Detection:** Explicitly identifies Treasure-makers, Fetchlands, and "Any Color" dorks to supplement mathematical mana sources.
+- **Pip Volume Calculation:** Counts the exact number of specific colored mana symbols.
+- **Universal Fixer Detection:** Explicitly identifies Treasure-makers, Fetchlands, and "Any Color" dorks.
 - **Hybrid Mana Resolution:** Correctly categorizes hybrid mana (e.g., `{W/U}`) towards whichever core color the deck favors.
-- **Splash Starvation Protection:** Strictly caps basic land allocations for splash colors (max 2 basics for a single-pip splash) to prevent a greedy splash from stealing lands from the primary curve colors.
+- **Splash Starvation Protection:** Strictly caps basic land allocations for splash colors to prevent main-color starvation.
 
 ### B. Monte Carlo Simulation
 
-The app evaluates the user's customized 40-card deck by running a **10,000-game Monte Carlo simulation**.
+Evaluates the user's custom deck by running a **10,000-game Monte Carlo simulation**.
 
-- **London Mulligan Logic:** Applies pro-level mulligan heuristics, automatically throwing back 0-land, 1-land, and 6+ land hands. When reducing hand size, it intelligently bottom-decks the highest CMC cards.
-- **Hypergeometrics:** Calculates the exact probability of casting a 2-drop on Turn 2, a 3-drop on Turn 3, and "Curving Out" perfectly on the play.
-- **Risk Factors:** Tracks probabilities for Mana Screw (Missing 3rd/4th land drops), Mana Flood (6+ lands by turn 5), and Color Screw.
+- Applies pro-level London mulligan heuristics.
+- Calculates probabilities for `cast_t2/t3/t4`, Mana Screw, Mana Flood, and Color Screw.
 
 ### C. On-Demand AI Auto-Optimizer
 
 Users can actively "brute-force" permutations of their current deck configuration via a dedicated background task.
 
-- It generates variations: **Play 18 Lands**, **Play 16 Lands**, **Curve Lower** (swap an expensive 5-drop for a cheap 2-drop from the sideboard), and **Power Up** (swap the weakest main deck card for the strongest sideboard card).
-- It simulates thousands of games for each variation simultaneously without freezing the UI.
-- It selects the deck configuration that mathematically maximizes Cast Rates and minimizes Screw Rates, then automatically updates the interactive tables.
+- It generates variations: **Play 18 Lands**, **Play 16 Lands**, **Curve Lower**, **Power Up**, and **Fix Mana Base** (swapping colorless utility lands for core colored basics).
+- It simulates thousands of games for each variation simultaneously.
+- Selects the deck configuration that maximizes `cast_t2/t3/t4` + `curve_out` while heavily penalizing `color_screw`, `mana_screw`, and `flood`.
+
+---
 
 ## 10. Post-Draft Analysis & Dashboard
 
-Upon completion of a draft (42+ cards for human drafts), the application transitions into a comprehensive Post-Draft Recap designed to get the user excited about deckbuilding.
+Transitions into a Post-Draft Recap tracking:
 
-- **Holistic Pool Grading:** The entire drafted pool is evaluated using the exact same `75.0 + (Z-Score * 12.0)` Power Scale as the AI Deck Builder. This anchors an "average" deck at a realistic 75 (C grade) and an elite trophy deck at 90+ (A grade).
-- **Steals & Reaches:** The engine cross-references the exact Pack and Pick a card was taken against its global ALSA (Average Last Seen At) and ATA (Average Taken At).
-  - _Steal:_ Taken 1.5+ picks _after_ its ALSA and possesses a highly positive win rate (>= 55.0%).
-  - _Reach:_ Taken 1.5+ picks _before_ its ATA and possesses a subpar win rate (< 54.0%).
-- **Tribal Synergy:** Dynamically queries the MTGA SQLite database for `SubType` enumerators (e.g., Ninja, Mutant, Human) to strictly separate them from Base Types (e.g., Creature, Land). It aggregates and displays Top Creature Types that have 3+ members to highlight tribal synergies.
+- **Holistic Pool Grading:** Evaluated on a realistic 100-point scale.
+- **Steals & Reaches:** Compares exact Pack/Pick against global ALSA/ATA.
+- **Tribal Synergy:** Dynamically queries the MTGA SQLite database for `SubType` enumerators to highlight tribal synergies.
+
+---
+
+## 11. Sealed Studio & Shell Generation
+
+Added in v4.15, the application includes a dedicated workspace for Sealed deckbuilding.
+
+- **AI Shell Generator:** Because Sealed pools contain 90+ cards, it's difficult to find the correct lane manually. The AI evaluates the pool and generates the Top 3 mathematically optimal 40-card shells on demand:
+  1. **Best 2-Color:** The most consistent 2-color pair based on raw power and curve.
+  2. **Greedy Splash:** Automatically forces the best off-color Bomb into the deck, strictly allocating appropriate fixing lands/treasures.
+  3. **Aggro/Tempo:** Filters the secondary best color pair through a strict CMC penalty to build a low-to-the-ground deck.
+- **Visual Deckbuilder:** A 1-to-1 recreation of the MTGA client's column-based (CMC sorted) drag-and-drop workspace, complete with real-time image caching via the `ThreadPoolExecutor`.

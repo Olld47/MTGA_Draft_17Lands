@@ -1,10 +1,10 @@
 # External Integrations & APIs
 
-**Status:** Implementation Spec | **Dependencies:** `requests`, `PIL`
+**Status:** Implementation Spec | **Dependencies:** `requests`, `PIL`, `sqlite3`
 
 ## 1. 17Lands.com API (Statistical Data)
 
-The application relies entirely on 17Lands for win-rate data. Note that 17Lands does **not** have an official public API documentation; this usage is based on "gentlemen's agreements" regarding rate limiting.
+The application relies entirely on 17Lands for win-rate data.
 
 ### A. Card Ratings Endpoint
 
@@ -13,57 +13,58 @@ The application relies entirely on 17Lands for win-rate data. Note that 17Lands 
 - **Parameters:**
   - `expansion`: Set Code (e.g., `OTJ`, `MH3`).
   - `format`: Event Type (e.g., `PremierDraft`).
-  - `start_date`: YYYY-MM-DD (Usually set start).
-  - `end_date`: YYYY-MM-DD (Today).
-  - `colors`: Optional filter (e.g., `UB`). If omitted, returns all.
+  - `start_date`: YYYY-MM-DD
+  - `end_date`: YYYY-MM-DD
+  - `colors`: Optional filter (e.g., `UB`).
 
 ### B. Rate Limiting Strategy (CRITICAL)
 
-To avoid IP bans, the new application **MUST** implement the following caching logic (found in `src/seventeenlands.py`):
-
-1. **Cache Directory:** Store responses in `Temp/RawCache/`.
-2. **Naming Convention:** `{set}_{format}_{color}.json` (e.g., `otj_premierdraft_ub.json`).
-3. **Staleness Check:**
-   - On Request: Check file modification time (`mtime`).
-   - If `TimeSinceModified < 24 Hours`: **RETURN CACHE**. Do not hit network.
-   - If `TimeSinceModified > 24 Hours`: Fetch fresh data and overwrite cache.
-4. **Throttling:** When fetching multiple archetypes (e.g., "All", "WU", "UB"), sleep **1.5 seconds** between requests.
-
-### C. Data Normalization
-
-The API returns colors in varying orders (e.g., "GW").
-
-- **Requirement:** The app must normalize ALL keys to **WUBRG** order (e.g., `GW` -> `WG`) before storage/lookup.
+- **Cache Directory:** Store responses in `Temp/RawCache/`.
+- **Naming Convention:** `{set}_{format}_{start}_{end}_{color}_{user}.json`.
+- **Staleness Check:** Network fetches are completely bypassed if the file is < 12 Hours old.
+- **Throttling:** Sleeps **1.5 seconds** between archetype requests.
 
 ---
 
-## . Scryfall API (Metadata Backup)
+## 2. Scryfall API (Metadata Backup & Tag Harvesting)
 
-Used to build the local ID-to-Name database if Arena's local files are unreadable.
+### A. Community Tags (`otags`)
 
-- **Endpoint:** `https://api.scryfall.com/sets`
-- **Usage:**
-  1. Fetch list of all sets.
-  2. Match `arena_code` to the current log's Set ID.
-  3. Download card definitions to map `arena_id` -> `name`.
-- **Etiquette:** Scryfall requires a 50-100ms delay between requests.
+The app uses the `ScryfallTagger` to harvest community-sourced roles to feed the Compositional Brain.
+
+- **Endpoint:** `https://api.scryfall.com/cards/search?q=set:{SET} ({QUERY})`
+- **Queries:** Complex regex combinations (e.g., `otag:removal OR otag:board-wipe`).
+- **Cache:** Stored in `Temp/RawCache/{set}_scryfall_tags.json` for 12 hours.
+- **Rate Limit:** Strictly enforces a 0.5s backoff to avoid HTTP 429 penalties.
+
+### B. Bulk Resolution
+
+If the local Arena Database fails to resolve an ID, the app sends a bulk query using the `/cards/collection` endpoint in chunks of 75.
 
 ---
 
-## 3. GitHub Releases (Self-Update)
+## 3. Local MTGA SQLite Database (Zero-Day Fallback)
+
+To ensure the app works seamlessly on Day 1 of a new set release without waiting for 3rd party APIs, it queries local game files.
+
+- **Path:** `MTGA_Data/Downloads/Raw/Raw_CardDatabase_*.sqlite`
+- **Logic:** Joins `Cards` with `Localizations_enUS` and `Enums` to instantly resolve numeric `GrpId`s into English card names, CMCs, and Base Types.
+- **Custom Installs:** Users can manually map custom installation paths via the UI (`File -> Locate MTGA Data Folder`).
+
+---
+
+## 4. GitHub Releases (Self-Update)
 
 - **Endpoint:** `https://api.github.com/repos/unrealities/MTGA_Draft_17Lands/releases/latest`
 - **Logic:**
-  1. Fetch `tag_name` (e.g., `v3.38`).
+  1. Fetch `tag_name` (e.g., `v4.15`).
   2. Compare with internal constant `APPLICATION_VERSION`.
   3. If `Remote > Local`: Prompt user to open the release URL.
 
 ---
 
-## 4. Security & Compliance Checklist
+## 5. Security & Compliance Checklist
 
-When migrating, ensure these standards are met:
-
-1. [ ] **User Agent:** All HTTP requests must include a descriptive User-Agent header (e.g., `MTGADraftTool/4.0 (Contact: repo_url)`).
-2. [ ] **Read-Only:** The app must never attempt to write to MTGA memory or inject inputs. It interacts strictly via `Player.log` and Screenshots.
-3. [ ] **Data Minimization:** Do not upload logs or deck lists to any server unless the user explicitly exports them.
+1. [x] **User Agent:** All HTTP requests include a descriptive User-Agent header (e.g., `MTGADraftTool/5.0 (Contact: repo_url)`).
+2. [x] **Read-Only:** The app never attempts to write to MTGA memory or inject inputs. It interacts strictly via `Player.log` and Local SQLite mapping.
+3. [x] **Data Minimization:** Logs or deck lists are never uploaded to any server unless the user explicitly exports them.
