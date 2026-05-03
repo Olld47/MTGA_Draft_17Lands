@@ -1273,6 +1273,11 @@ class SealedStudioWindow(tb.Toplevel):
             add="+",
         )
         tree.bind(
+            "<Double-Button-1>",
+            lambda e: self._on_list_double_click(e, tree, is_pool),
+            add="+",
+        )
+        tree.bind(
             "<Button-3>", lambda e: self._on_context_menu(e, tree, is_pool), add="+"
         )
         tree.bind(
@@ -1289,6 +1294,11 @@ class SealedStudioWindow(tb.Toplevel):
         )
         canvas.bind("<B1-Motion>", self._on_canvas_motion, add="+")
         canvas.bind("<ButtonRelease-1>", self._on_canvas_release, add="+")
+        canvas.bind(
+            "<Double-Button-1>",
+            lambda e: self._on_canvas_double_click(e, canvas, is_pool),
+            add="+",
+        )
         canvas.bind(
             "<Button-3>",
             lambda e: self._on_canvas_right_click(e, canvas, is_pool),
@@ -1339,13 +1349,23 @@ class SealedStudioWindow(tb.Toplevel):
                 else:
                     self.session.move_to_sideboard(card_name)
                 self._refresh_data()
-        else:
-            if is_pool:
-                self.session.move_to_main(card_name)
-            else:
-                self.session.move_to_sideboard(card_name)
-            self._refresh_data()
+
         self._drag_data = None
+
+    def _on_list_double_click(self, event, tree, is_pool):
+        row_id = tree.identify_row(event.y)
+        if not row_id:
+            return
+        card_name = tree.item(row_id).get("text")
+        if not card_name:
+            return
+
+        if is_pool:
+            self.session.move_to_main(card_name)
+        else:
+            self.session.move_to_sideboard(card_name)
+        self._refresh_data()
+        return "break"
 
     def _on_canvas_press(self, event, canvas, is_pool):
         item = canvas.find_withtag("current")
@@ -1384,16 +1404,27 @@ class SealedStudioWindow(tb.Toplevel):
 
             if data["is_pool"] and target == self.deck_canvas:
                 self.session.move_to_main(data["name"])
+                self._refresh_data()
             elif not data["is_pool"] and target == self.pool_canvas:
                 self.session.move_to_sideboard(data["name"])
+                self._refresh_data()
             else:
-                # Click logic (no move)
-                if data["is_pool"]:
-                    self.session.move_to_main(data["name"])
-                else:
-                    self.session.move_to_sideboard(data["name"])
+                self._refresh_data()
 
+    def _on_canvas_double_click(self, event, canvas, is_pool):
+        item = canvas.find_withtag("current")
+        if not item:
+            return
+        tags = canvas.gettags(item[0])
+        name_tag = next((t for t in tags if t.startswith("cardname_")), None)
+        if name_tag:
+            name = name_tag.replace("cardname_", "")
+            if is_pool:
+                self.session.move_to_main(name)
+            else:
+                self.session.move_to_sideboard(name)
             self._refresh_data()
+        return "break"
 
     def _on_canvas_right_click(self, event, canvas, is_pool):
         item = canvas.find_withtag("current")

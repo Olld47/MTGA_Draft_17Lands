@@ -708,6 +708,11 @@ class CustomDeckPanel(ttk.Frame):
             lambda e: self._on_drag_release(e, tree, is_sb),
             add="+",
         )
+        tree.bind(
+            "<Double-Button-1>",
+            lambda e: self._on_double_click(e, tree, is_sb),
+            add="+",
+        )
         tree.bind("<Button-3>", lambda e: self._on_right_click(e, tree, is_sb), add="+")
         tree.bind(
             "<Control-Button-1>",
@@ -752,18 +757,27 @@ class CustomDeckPanel(ttk.Frame):
         )
         card_name = self._drag_data["name"]
 
-        if dx < 5 and dy < 5:
-            if is_sb:
-                self._move_card(self.sb_list, self.deck_list, card_name)
-            else:
-                self._move_card(self.deck_list, self.sb_list, card_name)
-        else:
+        if dx >= 5 or dy >= 5:
             if is_sb and self._inside_widget(event, self.deck_frame):
                 self._move_card(self.sb_list, self.deck_list, card_name)
             elif not is_sb and self._inside_widget(event, self.sb_frame):
                 self._move_card(self.deck_list, self.sb_list, card_name)
 
         self._drag_data = None
+
+    def _on_double_click(self, event, tree, is_sb):
+        row_id = tree.identify_row(event.y)
+        if not row_id:
+            return
+        card = self._get_card_from_row(tree, row_id, is_sb)
+        if not card:
+            return
+
+        if is_sb:
+            self._move_card(self.sb_list, self.deck_list, card["name"])
+        else:
+            self._move_card(self.deck_list, self.sb_list, card["name"])
+        return "break"
 
     def _on_right_click(self, event, tree, is_sb):
         if tree.identify_region(event.x, event.y) == "heading":
