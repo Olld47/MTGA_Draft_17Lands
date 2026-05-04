@@ -4,7 +4,6 @@ Professional Deck Builder Panel.
 Uses the Advisor Engine to suggest optimal archetypes from the pool.
 Displays Main Deck and Sideboard in separate notebook tabs.
 Includes a 10,000 game Monte Carlo Simulation for elite pro-level analysis.
-Features a Ground-Breaking AI Deck Optimizer that simulates permutations.
 """
 
 import tkinter
@@ -558,6 +557,17 @@ class SuggestDeckPanel(ttk.Frame):
         if stats["removal_t4"] < 45:
             advice.append("• Low early interaction. Prioritize cheap removal.")
 
+        deck_colors = set()
+        for c in self.current_deck_list:
+            if "Land" not in c.get("types", []):
+                for col in c.get("colors", []):
+                    deck_colors.add(col)
+
+        if len(deck_colors) >= 3:
+            advice.append(
+                "⚠️ Mana Base: You are playing 3+ colors. This inherently increases your risk of color screw. Ensure you have at least 3-4 strong fixing sources."
+            )
+
         # Swap Suggestions
         if not optimization_note:
             if stats["cast_t2"] < 50 or stats["flood_t5"] > 25:
@@ -572,7 +582,7 @@ class SuggestDeckPanel(ttk.Frame):
                         for c in self.current_deck_list
                         if "Land" not in c.get("types", [])
                     ]
-                    deck_colors = (
+                    deck_colors_strict = (
                         get_strict_colors(deck_spells)
                         if deck_spells
                         else ["W", "U", "B", "R", "G"]
@@ -592,7 +602,7 @@ class SuggestDeckPanel(ttk.Frame):
                         if int(c.get("cmc", 0)) <= 3
                         and "Land" not in c.get("types", [])
                         and "Creature" in c.get("types", [])
-                        and is_castable(c, deck_colors, strict=True)
+                        and is_castable(c, deck_colors_strict, strict=True)
                     ]
                     if cheap_sb:
                         best_cheap = max(
@@ -817,8 +827,29 @@ class SuggestDeckPanel(ttk.Frame):
             # Safely sync to main UI thread
             self.after(0, apply_img)
 
-        except Exception as e:
-            pass
+        except Exception:
+            # Tell user image loading failed
+            if container_frame.winfo_exists():
+                try:
+
+                    def apply_err():
+                        if container_frame.winfo_exists():
+                            for w in container_frame.winfo_children():
+                                w.destroy()
+                            import ttkbootstrap as ttk
+                            from src.ui.styles import Theme
+
+                            ttk.Label(
+                                container_frame,
+                                text="Image\nUnavailable",
+                                bootstyle="danger",
+                                justify="center",
+                                font=Theme.scaled_font(9),
+                            ).pack(expand=True)
+
+                    self.after(0, apply_err)
+                except RuntimeError:
+                    pass
 
     def _on_theme_change(self, event=None):
         stats_canvas = getattr(self, "stats_canvas", None)
@@ -1248,7 +1279,6 @@ class SuggestDeckPanel(ttk.Frame):
         self._render_deck_stats()
         self._update_tables()
 
-        # Render Monte Carlo directly from cached data computed during build phase
         stats = data.get("stats")
         opt_note = data.get("optimization_note")
         if stats:
@@ -1256,7 +1286,6 @@ class SuggestDeckPanel(ttk.Frame):
         else:
             self._show_sim_error("Simulation data missing.")
 
-        # Draw sample hand seamlessly if the user is currently looking at the tab
         notebook = getattr(self, "notebook", None)
         if notebook and notebook.winfo_exists():
             current_tab = notebook.tab(notebook.select(), "text")

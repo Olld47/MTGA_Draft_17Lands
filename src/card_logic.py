@@ -454,7 +454,11 @@ def simulate_deck(deck_list, iterations=10000):
         is_land = "Land" in c.get("types", [])
         is_ramp = False
         text = str(c.get("oracle_text", c.get("text", ""))).lower()
-        if "fixing_ramp" in c.get("tags", []) or "any color" in text or "treasure" in text:
+        if (
+            "fixing_ramp" in c.get("tags", [])
+            or "any color" in text
+            or "treasure" in text
+        ):
             is_ramp = True
 
         colors_produced = set()
@@ -626,6 +630,7 @@ def clear_deck_cache():
 def optimize_deck(base_deck, base_sb, archetype_key, colors):
     """
     Brute-forces deck permutations using Monte Carlo to ensure the optimal final 40.
+    Dynamically solves for the perfect mana-base via simulation loops.
     """
     total_cards = sum(c.get("count", 1) for c in base_deck)
     if total_cards != 40:
@@ -796,11 +801,41 @@ def optimize_deck(base_deck, base_sb, archetype_key, colors):
             (f"Fix Mana Base (-{worst_colorless_land['name']}, +Basic Land)", d, s)
         )
 
+    # NEW: Mana Base Simulation Variations
+    basic_types = list(set(c["name"] for c in basic_lands))
+    if len(basic_types) >= 2:
+        for type_add in basic_types:
+            for type_sub in basic_types:
+                if type_add == type_sub:
+                    continue
+
+                card_sub = next((c for c in basic_lands if c["name"] == type_sub), None)
+                card_add = next((c for c in basic_lands if c["name"] == type_add), None)
+
+                if not card_add:
+                    color_map_inv = {
+                        "Plains": "W",
+                        "Island": "U",
+                        "Swamp": "B",
+                        "Mountain": "R",
+                        "Forest": "G",
+                        "Wastes": "C",
+                    }
+                    synth_color = color_map_inv.get(type_add, "W")
+                    card_add = create_basic_lands(synth_color, 1)[0]
+
+                if card_sub:
+                    d, s = swap_cards(base_deck, base_sb, card_sub, card_add)
+                    permutations.append(
+                        (f"Optimize Mana (+{type_add}, -{type_sub})", d, s)
+                    )
+
     best_score = -9999
     best_perm = permutations[0]
 
     for desc, p_deck, p_sb in permutations:
-        stats = simulate_deck(p_deck, iterations=300)
+        # Boost iterations for permutations to ensure statistical accuracy for mana screw detection
+        stats = simulate_deck(p_deck, iterations=500)
         if not stats:
             continue
         score = (
@@ -809,8 +844,8 @@ def optimize_deck(base_deck, base_sb, archetype_key, colors):
             + stats["cast_t4"]
             + (stats["curve_out"] * 2)
             - stats["mulligans"]
-            - stats["screw_t3"]
-            - stats["color_screw_t3"]
+            - (stats["screw_t3"] * 1.5)
+            - (stats["color_screw_t3"] * 2.0)
             - (stats["flood_t5"] * 1.5)
         )
         if score > best_score:
@@ -819,8 +854,8 @@ def optimize_deck(base_deck, base_sb, archetype_key, colors):
 
     final_deck, final_sb = best_perm[1], best_perm[2]
 
-    # 2,000 iterations is plenty for accurate decimal percentages without blocking CPU
-    final_stats = simulate_deck(final_deck, iterations=2000)
+    # 10,000 iterations for the final deck to lock in a highly accurate output UI
+    final_stats = simulate_deck(final_deck, iterations=10000)
     opt_note = f"Optimized: {best_perm[0]}"
 
     return final_deck, final_sb, final_stats, opt_note
@@ -837,6 +872,7 @@ def suggest_deck(
     """
     Entry point. Generates distinct deck variants, forces them through the AI Optimizer,
     and yields the mathematically perfected options dynamically via callback.
+    GUARANTEES a "Safe Core" (1-2 color) deck is always prioritized in the UI.
     """
     sorted_decks = {}
     pool_size = len(taken_cards)
@@ -844,12 +880,10 @@ def suggest_deck(
 
     playable_spells = [c for c in taken_cards if "Land" not in c.get("types", [])]
 
-    # Don't waste CPU trying to mathematically solve for a deck if there are not enough playables to create one
-    if not playable_spells or len(playable_spells) < 22:
+    if not playable_spells or len(playable_spells) < 15:
         return sorted_decks
 
     try:
-        # Check Global Cache First (incorporating Dataset Name so toggling Trad/Premier forces updates)
         pool_sig = tuple(
             sorted([f"{c.get('name', '')}:{c.get('count', 1)}" for c in taken_cards])
         )
@@ -871,7 +905,9 @@ def suggest_deck(
 
             spells = [c for c in deck if "Land" not in c.get("types", [])]
             spell_count = sum(c.get("count", 1) for c in spells)
-            if spell_count < 22:
+
+            # Lowered from 22 to 15 to allow shallow pools to generate a "Safe Core" with an "Incomplete Deck" warning
+            if spell_count < 15:
                 return
 
             # --- DYNAMICALLY DETERMINE TRUE DECK COLORS & LABEL ---
@@ -942,7 +978,6 @@ def suggest_deck(
             )
 
             # --- MONTE CARLO REALITY CHECK ---
-            # The heuristic score measures raw card power, but the simulator reveals if the mana base actually works.
             if opt_stats:
                 mc_penalties = []
                 if opt_stats["color_screw_t3"] > 10.0:
@@ -950,13 +985,11 @@ def suggest_deck(
                     score -= pen
                     mc_penalties.append(f"Color Screw (-{pen:.1f})")
 
-                # Baseline mana screw is ~15-20%. Punish if over 22%.
                 if opt_stats["screw_t3"] > 22.0:
                     pen = (opt_stats["screw_t3"] - 22.0) * 1.5
                     score -= pen
                     mc_penalties.append(f"Mana Screw (-{pen:.1f})")
 
-                # Baseline flood is ~20-25%. Punish if over 27%.
                 if opt_stats["flood_t5"] > 27.0:
                     pen = (opt_stats["flood_t5"] - 27.0) * 1.5
                     score -= pen
@@ -1057,8 +1090,47 @@ def suggest_deck(
                 soup_arch_key,
             )
 
-        final_list = all_variants if all_variants else incomplete_variants
+        final_list = all_variants + incomplete_variants
         final_list.sort(key=lambda x: x[1]["rating"], reverse=True)
+
+        # --- NEW: Safe Play Guarantee ---
+        # Forces the absolute best 2-color (or mono-color) deck to the top of the list so it is always
+        # clearly visible as an alternative to greedy 3+ color builds.
+        safe_decks = [v for v in final_list if len(v[1]["colors"]) <= 2]
+        if safe_decks:
+            best_safe = safe_decks[0]
+            best_safe_idx = final_list.index(best_safe)
+
+            old_label = best_safe[0]
+            new_label = old_label.replace("Consistent", "🛡️ Safe Core").replace(
+                "Tempo", "🛡️ Safe Tempo"
+            )
+            if "🛡️" not in new_label:
+                # Fallback replacement if it had a weird generic name
+                parts = new_label.split(" ", 1)
+                new_label = (
+                    f"{parts[0]} 🛡️ Safe Core {parts[1]}"
+                    if len(parts) > 1
+                    else f"🛡️ Safe Core {new_label}"
+                )
+
+            best_safe[1]["label_prefix"] = (
+                best_safe[1]["label_prefix"]
+                .replace("Consistent", "Safe Core")
+                .replace("Tempo", "Safe Tempo")
+            )
+
+            updated_safe = (new_label, best_safe[1])
+            final_list[best_safe_idx] = updated_safe
+
+            if best_safe_idx > 0:
+                top_deck = final_list[0]
+                # If the greedy #1 deck is only marginally better (<= 6 points), default to the safe deck immediately
+                if (top_deck[1]["rating"] - updated_safe[1]["rating"]) <= 6.0:
+                    final_list.insert(0, final_list.pop(best_safe_idx))
+                # Otherwise, ensure the safe deck is exactly at option #2 so it is impossible to miss
+                elif best_safe_idx > 1:
+                    final_list.insert(1, final_list.pop(best_safe_idx))
 
         for label, data in final_list[:10]:
             sorted_decks[label] = data
@@ -1096,7 +1168,7 @@ def identify_top_pairs(pool, metrics, tier_data=None):
     sorted_c = sorted(scores.items(), key=lambda x: x[1], reverse=True)
 
     if sorted_c[0][1] <= 0.0:
-        return []  # Return empty so the filter safely defaults to "All Decks"
+        return []
 
     top_4_colors = [c[0] for c in sorted_c[:4]]
 
@@ -1148,7 +1220,6 @@ def calculate_holistic_score(deck, colors, pool_size, metrics, tier_data=None):
         avg_gihwr = sum(valid_ratings) / len(valid_ratings)
 
     z_score = (avg_gihwr - global_mean) / global_std
-
     power_level = 75.0 + (z_score * 12.0)
     breakdown_notes = []
 
@@ -1161,7 +1232,6 @@ def calculate_holistic_score(deck, colors, pool_size, metrics, tier_data=None):
 
     land_count = sum(c.get("count", 1) for c in deck if "Land" in c.get("types", []))
 
-    # Cap non-land ramp sources to 3 to prevent absurd velocity scores from treasure spam
     ramp_count = sum(
         c.get("count", 1)
         for c in deck
@@ -1185,6 +1255,12 @@ def calculate_holistic_score(deck, colors, pool_size, metrics, tier_data=None):
     elif mana_deficit < -1.0 and avg_cmc < 2.8:
         power_level += 5.0
         breakdown_notes.append("Excellent Aggro Curve (+5.0)")
+
+    # NEW: Consistency Bonus
+    # Accurately reflects the immense value of never losing games to color screw.
+    if len(colors) <= 2:
+        power_level += 2.5
+        breakdown_notes.append("Rock-Solid Mana (+2.5)")
 
     # 3. UNIVERSAL SYNERGY MATRIX
     supertypes = {
@@ -1338,7 +1414,7 @@ def build_variant_greedy(pool, colors, metrics, tier_data=None):
         global_std = 4.0
 
     fixing_sources = count_fixing(pool)
-    best_splash = None
+    splash_candidates = []
     best_rating = global_mean - (global_std * 0.5)
 
     for card in pool:
@@ -1363,19 +1439,29 @@ def build_variant_greedy(pool, colors, metrics, tier_data=None):
                 off_color_pips += 1
 
         if off_color_pips > 1:
-            total_fixing = fixing_sources.get(splash_col, 0) + count_fixing(pool).get(splash_col, 0) # Approximation
-            if off_color_pips == 2 and get_functional_cmc(card) >= 5 and total_fixing >= 3:
+            total_fixing = fixing_sources.get(splash_col, 0) + count_fixing(pool).get(
+                splash_col, 0
+            )
+            if (
+                off_color_pips == 2
+                and get_functional_cmc(card) >= 5
+                and total_fixing >= 3
+            ):
                 pass
             else:
                 continue
 
         rating = get_card_rating(card, ["All Decks"], metrics)
         if rating > best_rating and fixing_sources.get(splash_col, 0) >= 1:
-            best_rating = rating
-            best_splash = (card, splash_col)
+            splash_candidates.append((card, splash_col, rating))
 
-    if not best_splash:
+    if not splash_candidates:
         return None, ""
+
+    splash_candidates.sort(key=lambda x: x[2], reverse=True)
+    best_splash_col = splash_candidates[0][1]
+
+    valid_splashes = [c[0] for c in splash_candidates if c[1] == best_splash_col]
 
     main_spells = [
         c
@@ -1383,9 +1469,16 @@ def build_variant_greedy(pool, colors, metrics, tier_data=None):
         if is_castable(c, colors, strict=True) and "Land" not in c.get("types", [])
     ]
     main_spells.sort(key=lambda x: get_card_rating(x, colors, metrics), reverse=True)
-    deck_spells = main_spells[:22] + [best_splash[0]]
 
-    target_colors = colors + [best_splash[1]]
+    deck_spells = main_spells[:23]
+    needed = 23 - len(deck_spells)
+
+    if needed > 0:
+        deck_spells.extend(valid_splashes[:needed])
+    elif valid_splashes:
+        deck_spells = main_spells[:22] + [valid_splashes[0]]
+
+    target_colors = colors + [best_splash_col]
     non_basic_lands = select_useful_lands(pool, target_colors, metrics)
 
     total_lands_needed = 40 - len(deck_spells)
@@ -1403,7 +1496,7 @@ def build_variant_greedy(pool, colors, metrics, tier_data=None):
         deck_spells, non_basic_lands, target_colors, forced_count=needed_basics
     )
 
-    return stack_cards(deck_spells + non_basic_lands + basics), best_splash[1]
+    return stack_cards(deck_spells + non_basic_lands + basics), best_splash_col
 
 
 def build_variant_curve(pool, colors, metrics, tier_data=None):
@@ -1471,7 +1564,6 @@ def get_strict_colors(spells):
 
     strict_colors = {c for c, p in pips.items() if p > 0}
     for options in hybrid_pips_list:
-        # If a hybrid pip cannot be paid by our strict colors, we must adopt one of its colors
         if not any(opt in strict_colors for opt in options):
             strict_colors.add(options[0])
 
@@ -1507,7 +1599,6 @@ def build_variant_soup(pool, metrics, tier_data=None):
             if any(phrase in text for phrase in universal_phrases):
                 is_fixer = True
 
-        # Massive priority boost for fixers to ensure they aren't cut for random 2-drops
         if is_fixer:
             return base + 5.0
 
@@ -1558,7 +1649,6 @@ def select_useful_lands(pool, target_colors, metrics=None):
         name = card.get("name", "")
         types = card.get("types", [])
 
-        # Explicitly reject true basic lands that might be missing internal tags
         if name in constants.BASIC_LANDS:
             continue
 
@@ -1584,11 +1674,9 @@ def select_useful_lands(pool, target_colors, metrics=None):
             if gihwr >= (baseline_wr - 2.0) or gihwr == 0.0:
                 useful_lands.append(card)
         elif not card_colors:
-            # Colorless utility land. Let the AI Optimizer test if it ruins the mana base!
             if gihwr >= (baseline_wr - 2.0) or gihwr == 0.0:
                 useful_lands.append(card)
 
-    # Cap colorless utility lands to max 2 to prevent total mana base collapse
     colorless_lands = [
         c
         for c in useful_lands
@@ -1602,7 +1690,6 @@ def select_useful_lands(pool, target_colors, metrics=None):
             ),
             reverse=True,
         )
-        # Remove the excess from useful_lands
         for c in colorless_lands[2:]:
             useful_lands.remove(c)
 
@@ -1612,11 +1699,6 @@ def select_useful_lands(pool, target_colors, metrics=None):
 def calculate_dynamic_mana_base(spells, non_basic_lands, colors, forced_count=17):
     """
     Pro-Tour Caliber Mana Base algorithm.
-    1. Calculates Exact Pip Requirements (Frank Karsten math).
-    2. Identifies Core vs Splash colors based on Pip Volume and Early Curve.
-    3. Analyzes existing dual lands and universal fixers (Treasure, Any-Color Dorks).
-    4. Prioritizes fixing the exact deficits for all colors.
-    5. Fills remaining slots with primary colors.
     """
     if forced_count <= 0:
         return []
@@ -1642,7 +1724,6 @@ def calculate_dynamic_mana_base(spells, non_basic_lands, colors, forced_count=17
             for pip in pips:
                 opts = pip.split("/")
 
-                # FIXED HYBRID MANA BUG: Only skip if ALL options are generic numbers or X/C
                 if all(opt.isdigit() or opt in ["X", "C"] for opt in opts):
                     continue
 
@@ -1675,7 +1756,6 @@ def calculate_dynamic_mana_base(spells, non_basic_lands, colors, forced_count=17
                     if cmc < lowest_cmc[c]:
                         lowest_cmc[c] = cmc
 
-    # Resolve Hybrid Pips intelligently towards core colors
     for opts, cmc in hybrid_pips:
         valid_opts = [opt for opt in opts if opt in colors]
         if not valid_opts:
@@ -1815,9 +1895,6 @@ def create_basic_lands(color, count):
 
 
 def is_castable(card, colors, strict=True):
-    """
-    Determines if a card can be cast natively by the target deck colors.
-    """
     card_colors = card.get("colors", [])
     mana_cost = card.get("mana_cost", "")
 
@@ -1907,8 +1984,6 @@ class ManaSourceAnalyzer:
         is_land = "Land" in types
         is_basic = "Basic" in types
 
-        # 1. Identify specific color fetching/cycling
-        # If a card explicitly searches for a specific basic land type, it fixes for that color.
         specific_fixing_map = {
             "plainscycling": "W",
             "search your library for a plains": "W",
@@ -1929,14 +2004,12 @@ class ManaSourceAnalyzer:
                 self.total_fixing_cards += count
                 specific_match_found = True
 
-        # 2. Identify universal fixing
         is_universal = False
         if any(phrase in text for phrase in constants.FIXING_KEYWORDS):
             is_universal = True
         elif any(fn in name for fn in constants.FIXING_NAMES):
             is_universal = True
 
-        # Protect against missing card text in new sets. If tagged as fixing but missing from explicit text maps.
         if (
             "fixing_ramp" in tags
             and not is_land
@@ -1966,7 +2039,6 @@ class ManaSourceAnalyzer:
             return
 
         if is_land and not is_basic:
-            # Colorless fetching lands without text (e.g., Evolving Wilds in an incomplete dataset)
             if not card_colors and "fixing_ramp" in tags and not specific_match_found:
                 self.any_color_sources += count
                 self.total_fixing_cards += count
@@ -2062,13 +2134,11 @@ def export_draft_to_json(history, dataset, picked_cards_map):
 
 
 def format_win_rate(val, color, field, metrics, result_format):
-    """Converts raw winrate to Grade (A+) or Rating (0-5.0) based on set metrics."""
     from src import constants
 
     if val == 0.0 or val == "-":
         return "-"
 
-    # If format is percentage or the field isn't a win rate (like ALSA), just return the number
     if (
         not metrics
         or result_format == constants.RESULT_FORMAT_WIN_RATE
@@ -2085,7 +2155,6 @@ def format_win_rate(val, color, field, metrics, result_format):
     if result_format == constants.RESULT_FORMAT_GRADE:
         for grade, limit in constants.GRADE_DEVIATION_DICT.items():
             if z_score >= limit:
-                # Strip trailing spaces used for sorting (e.g. "A " -> "A")
                 return grade.strip()
         return "F"
 

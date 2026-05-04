@@ -66,7 +66,7 @@ class HeuristicEvaluator:
             elif cmc == 3:
                 score += 1.0
             elif cmc >= 5:
-                # FIXED DUMB BEATER PENALTY: Check for protective/impactful keywords that justify the cost
+                # Check for protective/impactful keywords that justify the cost
                 good_tags = any(
                     t in tags
                     for t in [
@@ -329,7 +329,6 @@ def generate_sealed_shells(session: SealedSession, metrics, tier_data=None) -> N
     Analyzes the SealedSession's master pool and mathematically generates
     the top 3 distinct shells, loading them directly into the session variants.
     """
-    # Import locally to avoid circular dependencies
     from src.card_logic import (
         identify_top_pairs,
         build_variant_consistency,
@@ -349,13 +348,13 @@ def generate_sealed_shells(session: SealedSession, metrics, tier_data=None) -> N
 
     primary_pair = top_pairs[0]
 
-    # 1. Best 2-Color
+    # 1. Safe 2-Color (Was "Best 2-Color")
     con_deck = build_variant_consistency(pool, primary_pair, metrics, tier_data)
     if con_deck:
         score, _ = calculate_holistic_score(
             con_deck, primary_pair, len(pool), metrics, tier_data
         )
-        variant = SealedVariant(f"Best 2-Color ({''.join(primary_pair)}) [{score:.0f}]")
+        variant = SealedVariant(f"Safe 2-Color ({''.join(primary_pair)}) [{score:.0f}]")
         for c in con_deck:
             variant.add_card(c["name"], c.get("count", 1))
         session.variants[variant.name] = variant

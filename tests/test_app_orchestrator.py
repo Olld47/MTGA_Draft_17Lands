@@ -71,7 +71,7 @@ class TestAppOrchestrator:
             patch("src.ui.app.DraftApp._schedule_update"),
         ]
 
-    @patch("src.ui.app.retrieve_local_set_list")
+    @patch("src.ui.top_bar.retrieve_local_set_list")
     def test_event_change_data_bootstrap(
         self, mock_retrieve, root, mock_scanner, config, ui_patches
     ):
@@ -107,8 +107,8 @@ class TestAppOrchestrator:
             app = DraftApp(root, mock_scanner, config)
             app._loading = False
 
-            app._update_data_sources()
-            app._update_deck_filter_options()
+            app.top_bar.update_data_sources()
+            app.top_bar.update_deck_filter_options()
 
             mock_scanner.retrieve_set_data.reset_mock()
 
@@ -126,7 +126,7 @@ class TestAppOrchestrator:
         for p in ui_patches:
             p.start()
         try:
-            with patch("src.ui.app.write_configuration") as mock_write:
+            with patch("src.ui.top_bar.write_configuration") as mock_write:
                 app = DraftApp(root, mock_scanner, config)
                 app._loading = False
 
@@ -141,8 +141,8 @@ class TestAppOrchestrator:
         for p in ui_patches:
             p.start()
         try:
-            with patch("src.ui.app.messagebox"), patch(
-                "src.ui.app.filedialog.asksaveasfile"
+            with patch("src.ui.menu_bar.messagebox"), patch(
+                "src.ui.menu_bar.filedialog.asksaveasfile"
             ) as mock_dialog, patch(
                 "src.card_logic.export_draft_to_csv"
             ) as mock_export:
@@ -152,7 +152,7 @@ class TestAppOrchestrator:
                 mock_dialog.return_value = mock_file
                 mock_export.return_value = "csv_data"
 
-                app._export_csv()
+                app.menu_bar._export_csv()
                 assert mock_export.called
                 mock_file.write.assert_called_with("csv_data")
                 assert mock_file.__enter__.called
@@ -177,10 +177,10 @@ class TestAppOrchestrator:
             for p in ui_patches:
                 p.stop()
 
-    @patch("src.ui.app.filedialog.askdirectory")
-    @patch("src.ui.app.os.path.exists")
-    @patch("src.ui.app.write_configuration")
-    @patch("src.ui.app.messagebox.showinfo")
+    @patch("src.ui.menu_bar.filedialog.askdirectory")
+    @patch("src.ui.menu_bar.os.path.exists")
+    @patch("src.ui.menu_bar.write_configuration")
+    @patch("src.ui.menu_bar.messagebox.showinfo")
     def test_locate_mtga_data_success(
         self,
         mock_showinfo,
@@ -201,7 +201,7 @@ class TestAppOrchestrator:
             # mock_exists returns True for both the MTGA_Data path and Downloads/Raw
             mock_exists.side_effect = lambda path: True
 
-            app._locate_mtga_data()
+            app.menu_bar._locate_mtga_data()
 
             assert app.configuration.settings.database_location == "/custom/MTGA_Data"
             mock_write.assert_called_once()
@@ -210,9 +210,9 @@ class TestAppOrchestrator:
             for p in ui_patches:
                 p.stop()
 
-    @patch("src.ui.app.filedialog.askdirectory")
-    @patch("src.ui.app.os.path.exists")
-    @patch("src.ui.app.messagebox.showerror")
+    @patch("src.ui.menu_bar.filedialog.askdirectory")
+    @patch("src.ui.menu_bar.os.path.exists")
+    @patch("src.ui.menu_bar.messagebox.showerror")
     def test_locate_mtga_data_fail(
         self,
         mock_showerror,
@@ -232,7 +232,7 @@ class TestAppOrchestrator:
             # Returns False when checking for MTGA_Data or Downloads/Raw
             mock_exists.side_effect = lambda path: False
 
-            app._locate_mtga_data()
+            app.menu_bar._locate_mtga_data()
 
             # Should not have updated the setting
             assert (

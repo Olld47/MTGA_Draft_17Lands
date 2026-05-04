@@ -61,9 +61,9 @@ class TestColorPercentagesUI:
         with patch("src.ui.app.DraftApp._refresh_ui_data"):
             app = DraftApp(root, mock_scanner, config)
             app._loading = False
-            app._update_deck_filter_options()
+            app.top_bar.update_deck_filter_options()
 
-            menu = app.om_filter["menu"]
+            menu = app.top_bar.om_filter["menu"]
             last = menu.index("end")
             labels = [menu.entrycget(i, "label") for i in range(last + 1)]
             assert "WG (57.5%)" in labels
@@ -77,7 +77,7 @@ class TestColorPercentagesUI:
         with patch("src.ui.app.DraftApp._refresh_ui_data"):
             app = DraftApp(root, mock_scanner, config)
             app._loading = False
-            app._update_deck_filter_options()
+            app.top_bar.update_deck_filter_options()
 
             app.vars["deck_filter"].set("UB (54.2%)")
             assert app.configuration.settings.deck_filter == "UB"

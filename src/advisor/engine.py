@@ -1,7 +1,7 @@
 """
 src/advisor/engine.py
 The "Compositional Brain" (v5.5 Pro-Tour Architecture)
-Updated: Pip-Sensitive Discipline and Specific Color Fixing Detection.
+Updated: Bayesian Smoothing, Signal Tie-Breakers, Top-End/Synergy Tracking, and Premium Removal Splash.
 """
 
 import statistics
@@ -27,9 +27,12 @@ class DraftAdvisor:
     BOMB_Z_SCORE = 1.5
     IWD_PREMIUM_THRESHOLD = 4.5
 
-    def __init__(self, set_metrics, taken_cards: List[Dict]):
+    def __init__(
+        self, set_metrics, taken_cards: List[Dict], signals: Dict[str, float] = None
+    ):
         self.metrics = set_metrics
         self.pool = taken_cards or []
+        self.signals = signals or {}
 
         # 1. Base statistical baselines
         self.global_mean, self.global_std = self.metrics.get_metrics(
@@ -124,7 +127,7 @@ class DraftAdvisor:
                 card_colors = card.get("colors", [])
                 reasons, synergy_bonus = [], 0.0
 
-                # --- STEP 1: Blended Base Score ---
+                # --- STEP 1: Blended Base Score (With Bayesian Smoothing & Signals) ---
                 base_score = self._calculate_weighted_score(card, safe_pick)
 
                 # --- STEP 2: Bomb Detection ---
@@ -173,7 +176,6 @@ class DraftAdvisor:
                         base_score *= 1.3 if needs_playables else 1.1
 
                 # --- STEP 5: Value Over Replacement (VOR) ---
-                # Checks if the card fulfills a role that is highly scarce in the set for its color.
                 if pack_number == 1 and card_colors and len(card_colors) == 1:
                     c = card_colors[0]
                     texture = getattr(self.metrics, "format_texture", {}).get(c, {})
@@ -201,14 +203,14 @@ class DraftAdvisor:
                                 power_bonus -= 2.0
                                 reasons.append(f"Highly Replaceable {role_name}")
 
-                # --- STEP 6: Castability (Pip-Sensitive Discipline) ---
+                # --- STEP 6: Castability (Pip-Sensitive Discipline & Premium Splashing) ---
                 cast_mult, cast_reason = self._calculate_castability_v5(
                     card, pack_number, safe_pick, z_score
                 )
                 if cast_reason:
                     reasons.append(cast_reason)
 
-                # --- STEP 7: Composition ---
+                # --- STEP 7: Composition & Synergies ---
                 role_mult, role_reason = self._calculate_composition_bonus(
                     card, pack_number
                 )
@@ -337,21 +339,42 @@ class DraftAdvisor:
     def _analyze_pool(self) -> Dict[str, Any]:
         early_plays, hard_removal_count, fixing_count, splash_targets = 0, 0, 0, set()
         off_color_playables = 0
+        creature_count = 0
+        heavy_drops = 0
+        artifacts = 0
+        graveyard_enablers = 0
+        counters_enablers = 0
 
         for c in self.pool:
             try:
                 cmc, tags = get_functional_cmc(c), c.get("tags", [])
                 colors = c.get("colors", [])
+                types = c.get("types", [])
 
-                if "Creature" in c.get("types", []) and cmc <= 2:
-                    early_plays += 1
-                if "removal" in tags:
-                    hard_removal_count += 1
+                if "Creature" in types:
+                    creature_count += 1
                     if cmc <= 2:
                         early_plays += 1
-                if "fixing_ramp" in tags or (
-                    "Land" in c.get("types", []) and len(colors) > 1
+
+                if cmc >= 5 and "Land" not in types:
+                    heavy_drops += 1
+
+                if (
+                    "Artifact" in types
+                    or "synergy_artifacts" in tags
+                    or "token_maker" in tags
                 ):
+                    artifacts += 1
+                if "synergy_graveyard" in tags or "card_advantage" in tags:
+                    graveyard_enablers += 1
+                if "synergy_counters" in tags:
+                    counters_enablers += 1
+
+                if "removal" in tags:
+                    hard_removal_count += 1
+                    if cmc <= 2 and "Creature" not in types:
+                        early_plays += 1
+                if "fixing_ramp" in tags or ("Land" in types and len(colors) > 1):
                     fixing_count += 1
 
                 wr = float(
@@ -377,12 +400,39 @@ class DraftAdvisor:
             "fixing_count": fixing_count,
             "splash_targets": splash_targets,
             "off_color_playables": off_color_playables,
+            "creature_count": creature_count,
+            "heavy_drops": heavy_drops,
+            "artifacts": artifacts,
+            "graveyard_enablers": graveyard_enablers,
+            "counters_enablers": counters_enablers,
         }
 
     def _calculate_composition_bonus(self, card: Dict, pack: int) -> Tuple[float, str]:
         tags, cmc = card.get("tags", []), get_functional_cmc(card)
-        if "Land" in card.get("types", []) or "fixing_ramp" in tags:
-            # Active Splash Support (Fixing Hunger)
+        types = card.get("types", [])
+
+        # 1. Curve and Heavy Drops Check
+        if cmc >= 5 and self.pool_metrics["heavy_drops"] >= 4 and "Land" not in types:
+            return 0.7, "Curve Too Heavy"
+
+        # 2. Creature Quota Check
+        if pack >= 2 and "Creature" in types:
+            projected_creatures = self.pool_metrics["creature_count"] * (
+                self.TOTAL_PICKS / max(1, len(self.pool))
+            )
+            if projected_creatures < 13:
+                return 1.25, "Critical: Needs Creatures"
+
+        # 3. Synergy (A+B) Checks
+        if "synergy_artifacts" in tags and self.pool_metrics["artifacts"] >= 4:
+            return 1.2, "Artifact Synergy"
+        if "synergy_graveyard" in tags and self.pool_metrics["graveyard_enablers"] >= 3:
+            return 1.2, "Graveyard Synergy"
+        if "synergy_counters" in tags and self.pool_metrics["counters_enablers"] >= 3:
+            return 1.2, "Counters Synergy"
+
+        # 4. Fixing Hunger
+        if "Land" in types or "fixing_ramp" in tags:
             off_color_playables = self.pool_metrics.get("off_color_playables", 0)
             fixing_count = self.pool_metrics.get("fixing_count", 0)
 
@@ -403,6 +453,8 @@ class DraftAdvisor:
                 if pack == 1 and len(card.get("colors", [])) > 1
                 else (1.0, "")
             )
+
+        # 5. Removal Check
         if "removal" in tags:
             if (
                 pack >= 2
@@ -411,7 +463,9 @@ class DraftAdvisor:
                 return 1.3, "Critical: Needs Removal"
             elif self.pool_metrics["hard_removal_count"] > 6:
                 return 0.8, "Removal Saturated"
-        if cmc <= 2 and ("Creature" in card.get("types", []) or "removal" in tags):
+
+        # 6. Early Interaction
+        if cmc <= 2 and ("Creature" in types or "removal" in tags):
             projected = self.pool_metrics["early_plays"] * (
                 self.TOTAL_PICKS / max(1, len(self.pool))
             )
@@ -433,7 +487,6 @@ class DraftAdvisor:
         card_colors = card.get("colors", [])
         top_2_lane = self.main_colors[:2]
 
-        # Parse pip requirements specifically to support Hybrid mana cleanly
         if mana_cost:
             off_color_pips = 0
             is_on_lane = True
@@ -442,14 +495,12 @@ class DraftAdvisor:
                 options = [c for c in pip.split("/") if c in "WUBRG"]
                 if not options:
                     continue
-                # If ANY of the hybrid options are in our top 2 lane, this pip is totally free to cast!
                 if any(opt in top_2_lane for opt in options):
                     continue
                 else:
                     off_color_pips += 1
                     is_on_lane = False
         else:
-            # Fallback for lands / pip-less cards
             is_on_lane = (
                 all(c in top_2_lane for c in card_colors) if card_colors else True
             )
@@ -466,28 +517,45 @@ class DraftAdvisor:
             )
 
         if not is_on_lane:
-            # P2/P3 Double-Pip Discipline: Hard-Lock double pips if no fixing exists
-            if pack >= 2 and off_color_pips >= 2 and self.pool_metrics["fixing_count"] < 2:
+            if (
+                pack >= 2
+                and off_color_pips >= 2
+                and self.pool_metrics["fixing_count"] < 2
+            ):
                 return 0.01, "Uncastable (Double Pip)"
 
-            # Specific Color Fixing Detection
             splash_colors = [c for c in card_colors if c not in top_2_lane]
             has_specific_fixing = (
                 all(self.fixing_map.get(c, 0) > 0 for c in splash_colors)
-                if splash_colors else False
+                if splash_colors
+                else False
             )
 
-            if z_score >= self.BOMB_Z_SCORE:
+            is_premium_removal = "removal" in card.get("tags", []) and z_score >= 1.0
+
+            # Allow premium 1-for-1s to be splashed just like game-winning bombs
+            if z_score >= self.BOMB_Z_SCORE or is_premium_removal:
                 if off_color_pips == 1:
-                    if has_specific_fixing or self.pool_metrics["fixing_count"] >= (4 if pack == 3 else 3):
-                        return (0.35 if pack == 3 else 0.45), "Bomb Splash"
-                elif off_color_pips == 2 and get_functional_cmc(card) >= 5:
+                    if has_specific_fixing or self.pool_metrics["fixing_count"] >= (
+                        4 if pack == 3 else 3
+                    ):
+                        reason = (
+                            "Bomb Splash"
+                            if z_score >= self.BOMB_Z_SCORE
+                            else "Premium Removal Splash"
+                        )
+                        return (0.35 if pack == 3 else 0.45), reason
+                elif (
+                    off_color_pips == 2
+                    and get_functional_cmc(card) >= 5
+                    and z_score >= self.BOMB_Z_SCORE
+                ):
                     if self.pool_metrics["fixing_count"] >= 4:
                         return 0.30, "Greedy Bomb Splash"
 
             if off_color_pips == 1 and has_specific_fixing:
                 return 0.3, "Splashable"
-                
+
             return 0.01 if pack == 3 else 0.05, "Off-Color"
         return 1.0, ""
 
@@ -524,16 +592,32 @@ class DraftAdvisor:
             arch_weight = min(0.9, 0.2 + (pick_number / self.TOTAL_PICKS) * 0.7)
             arch_stats = stats.get(self.main_archetype, {})
             arch_wr = float(arch_stats.get("gihwr", global_wr))
+
+            # BAYESIAN SMOOTHING: Confidently blend global & archetype win rates based on sample size
+            samples = int(arch_stats.get("samples", 0))
+            confidence = min(1.0, samples / 1000.0)
+            trusted_arch_wr = (arch_wr * confidence) + (global_wr * (1.0 - confidence))
+
             blended_wr = (
-                (global_wr * (1.0 - arch_weight)) + (arch_wr * arch_weight)
-                if (arch_wr > 0 and int(arch_stats.get("samples", 0)) >= 100)
+                (global_wr * (1.0 - arch_weight)) + (trusted_arch_wr * arch_weight)
+                if (arch_wr > 0 and samples >= 10)
                 else global_wr
             )
-            return max(
+
+            base_score = max(
                 0.0,
                 50.0
                 + ((blended_wr - self.global_mean) / max(0.1, self.global_std)) * 15.0,
             )
+
+            # SIGNAL TIE-BREAKER
+            card_colors = card.get("colors", [])
+            if self.signals and card_colors:
+                signal_strength = sum(self.signals.get(c, 0.0) for c in card_colors)
+                if signal_strength > 10.0:
+                    base_score *= 1.05
+
+            return base_score
         except:
             return 0.0
 
@@ -559,7 +643,6 @@ class DraftAdvisor:
                     if score > best_score:
                         best_score = score
 
-            # greedy
             deck, splash = build_variant_greedy(pool, main_colors, self.metrics)
             if deck:
                 target_colors = main_colors + [splash] if splash else main_colors
@@ -569,7 +652,6 @@ class DraftAdvisor:
                 if score > best_score:
                     best_score = score
 
-        # soup
         deck, soup_colors = build_variant_soup(pool, self.metrics)
         if deck:
             target_colors = soup_colors[:3] if soup_colors else ["All Decks"]
