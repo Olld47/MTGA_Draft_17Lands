@@ -39,7 +39,7 @@ def sample_pool():
             "types": ["Creature"],
             "colors": ["U"],
             "cmc": 6,
-            "mana_cost": "{4}{U}{U}",
+            "mana_cost": "{5}{U}",  # Single-pip so it can be splashed with 1 fixer
             "deck_colors": {"All Decks": {"gihwr": 65.0}},  # Very high win rate
         }
     )
@@ -88,9 +88,9 @@ def test_full_deck_suggestion_pipeline(sample_pool, mock_metrics):
 
     # Ensure it generated different variants
     assert any(
-        "Consistent" in label for label in labels
-    ), "Failed to build Consistency variant"
-    assert any("Tempo" in label for label in labels), "Failed to build Tempo variant"
+        "Safe" in label for label in labels
+    ), "Failed to build Safe variant (Core or Tempo)"
+    assert any("Splash" in label for label in labels), "Failed to build Splash variant"
 
     # Check that holistic scoring populated properly
     first_deck = results[labels[0]]
