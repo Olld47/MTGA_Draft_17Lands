@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import patch, MagicMock
-from src.card_logic import optimize_deck
+from src.advisor.deck_builder import optimize_deck
 
 
 @pytest.fixture
@@ -71,7 +71,7 @@ def mock_simulator_results(deck, iterations):
     }
 
 
-@patch("src.card_logic.simulate_deck", side_effect=mock_simulator_results)
+@patch("src.advisor.deck_builder.simulate_deck", side_effect=mock_simulator_results)
 def test_optimize_deck_swaps_clunky_card_for_cheap_premium(mock_sim, base_deck_and_sb):
     """
     Verifies that the optimizer builds the permutations, simulates them,

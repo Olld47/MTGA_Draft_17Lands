@@ -131,7 +131,6 @@ class DeckMetrics:
     distribution_all: list = field(default_factory=lambda: [0] * 8)
     distribution_creatures: list = field(default_factory=lambda: [0] * 8)
     distribution_noncreatures: list = field(default_factory=lambda: [0] * 8)
-    # Pro Metrics
     pip_counts: dict = field(default_factory=dict)
     fixing_sources: dict = field(default_factory=dict)
 
@@ -215,7 +214,6 @@ def get_card_colors(mana_cost):
     try:
         if not mana_cost:
             return colors
-
         for color in constants.CARD_COLORS:
             count = mana_cost.count(color)
             if count > 0:
@@ -326,6 +324,7 @@ def export_draft_to_csv(history, dataset, picked_cards_map):
     if not history:
         return output.getvalue()
     user_picks = picked_cards_map[0] if picked_cards_map else []
+
     for entry in history:
         for cid in entry["Cards"]:
             c_list = dataset.get_data_by_id([cid])
@@ -400,19 +399,14 @@ def format_win_rate(val, color, field, metrics, result_format):
             if z_score >= limit:
                 return grade.strip()
         return "F"
-
     elif result_format == constants.RESULT_FORMAT_RATING:
-        upper = mean + (2.0 * std)
-        lower = mean - (1.67 * std)
+        upper, lower = mean + (2.0 * std), mean - (1.67 * std)
         if upper == lower:
             return "2.5"
         rating = ((val - lower) / (upper - lower)) * 5.0
         return f"{max(0.0, min(5.0, rating)):.1f}"
 
     return f"{val:.1f}" if isinstance(val, float) else str(val)
-
-
-# --- LEGACY CLASS FOR DASHBOARD COMPATIBILITY ---
 
 
 class CardResult:
@@ -430,7 +424,6 @@ class CardResult:
             try:
                 selected_card = copy.deepcopy(card)
                 selected_card["results"] = ["NA"] * len(fields)
-
                 primary_color = (
                     colors[0] if colors else constants.FILTER_OPTION_ALL_DECKS
                 )
@@ -456,7 +449,6 @@ class CardResult:
                             val = self._format_win_rate(val, primary_color, option)
 
                         selected_card["results"][count] = val if val != 0.0 else "-"
-
                     elif option == "name":
                         selected_card["results"][count] = card.get("name", "Unknown")
                     elif option == "colors":
@@ -475,7 +467,6 @@ class CardResult:
                                 selected_card["results"][count] = "NA"
                         else:
                             selected_card["results"][count] = "NA"
-
                     elif option == "value":
                         selected_card["results"][count] = 0
 
@@ -488,11 +479,9 @@ class CardResult:
         """Converts raw winrate to Grade (A+) or Rating (0-5.0) based on set metrics."""
         if not self.metrics:
             return val
-
         mean, std = self.metrics.get_metrics(color, field)
         if std == 0:
             return val
-
         z_score = (val - mean) / std
 
         if self.configuration.settings.result_format == constants.RESULT_FORMAT_GRADE:
@@ -500,17 +489,14 @@ class CardResult:
                 if z_score >= limit:
                     return grade
             return constants.LETTER_GRADE_F
-
         elif (
             self.configuration.settings.result_format == constants.RESULT_FORMAT_RATING
         ):
-            upper = mean + (2.0 * std)
-            lower = mean - (1.67 * std)
+            upper, lower = mean + (2.0 * std), mean - (1.67 * std)
             if upper == lower:
                 return 2.5
             rating = ((val - lower) / (upper - lower)) * 5.0
             return round(max(0.0, min(5.0, rating)), 1)
-
         return val
 
 

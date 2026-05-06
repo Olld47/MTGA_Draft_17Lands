@@ -5,6 +5,7 @@ AI Deck Suggester and Auto-Optimizer. Generates distinct archetype variants.
 
 import copy
 import logging
+import re
 from src import constants
 from src.card_logic import get_functional_cmc, stack_cards
 from src.advisor.mana_base import (
@@ -89,7 +90,6 @@ def optimize_deck(base_deck, base_sb, archetype_key, colors):
         if "Basic" in c.get("types", []) or c.get("name") in constants.BASIC_LANDS
     ]
     cuttable_land = basic_lands[0] if basic_lands else None
-
     colorless_utility_lands = [
         c
         for c in lands
@@ -100,8 +100,7 @@ def optimize_deck(base_deck, base_sb, archetype_key, colors):
         min(colorless_utility_lands, key=get_wr) if colorless_utility_lands else None
     )
 
-    permutations = []
-    permutations.append(("Base Deck", base_deck, base_sb))
+    permutations = [("Base Deck", base_deck, base_sb)]
 
     def swap_cards(deck, sb, out_card, in_card):
         new_deck = []
@@ -196,8 +195,6 @@ def optimize_deck(base_deck, base_sb, archetype_key, colors):
         pip_counts = {c: 0 for c in constants.CARD_COLORS}
         for c in spells:
             cost = c.get("mana_cost", "")
-            import re
-
             for pip in re.findall(r"\{(.*?)\}", cost):
                 for opt in pip.split("/"):
                     if opt in pip_counts:
@@ -213,7 +210,6 @@ def optimize_deck(base_deck, base_sb, archetype_key, colors):
             )
         )
         synth_basic = create_basic_lands(best_basic_color, 1)[0]
-
         d, s = swap_cards(base_deck, base_sb, worst_colorless_land, synth_basic)
         permutations.append(
             (f"Fix Mana Base (-{worst_colorless_land['name']}, +Basic Land)", d, s)
@@ -225,10 +221,8 @@ def optimize_deck(base_deck, base_sb, archetype_key, colors):
             for type_sub in basic_types:
                 if type_add == type_sub:
                     continue
-
                 card_sub = next((c for c in basic_lands if c["name"] == type_sub), None)
                 card_add = next((c for c in basic_lands if c["name"] == type_add), None)
-
                 if not card_add:
                     color_map_inv = {
                         "Plains": "W",
@@ -270,9 +264,7 @@ def optimize_deck(base_deck, base_sb, archetype_key, colors):
 
     final_deck, final_sb = best_perm[1], best_perm[2]
     final_stats = simulate_deck(final_deck, iterations=10000)
-    opt_note = f"Optimized: {best_perm[0]}"
-
-    return final_deck, final_sb, final_stats, opt_note
+    return final_deck, final_sb, final_stats, f"Optimized: {best_perm[0]}"
 
 
 def suggest_deck(
@@ -303,21 +295,16 @@ def suggest_deck(
             return GLOBAL_DECK_CACHE[cache_key]
 
         color_options = identify_top_pairs(taken_cards, metrics)
-        all_variants = []
-        incomplete_variants = []
+        all_variants, incomplete_variants = [], []
         seen_signatures = set()
 
         def process_variant(variant_name, deck, sb, colors, arch_key):
             if not deck:
                 return
-
             spells = [c for c in deck if "Land" not in c.get("types", [])]
             spell_count = sum(c.get("count", 1) for c in spells)
-
             if spell_count < 15:
                 return
-
-            import re
 
             pips = {c: 0 for c in constants.CARD_COLORS}
             for card in spells:
@@ -327,10 +314,10 @@ def suggest_deck(
                         if c in pips:
                             pips[c] += card.get("count", 1)
                     continue
-                pip_matches = re.findall(r"\{(.*?)\}", cost)
-                for pip in pip_matches:
-                    options = [c for c in pip.split("/") if c in constants.CARD_COLORS]
-                    for opt in options:
+                for pip in re.findall(r"\{(.*?)\}", cost):
+                    for opt in [
+                        c for c in pip.split("/") if c in constants.CARD_COLORS
+                    ]:
                         pips[opt] += card.get("count", 1)
 
             active_colors = sorted(
@@ -340,16 +327,16 @@ def suggest_deck(
             )
 
             if not active_colors:
-                true_arch_key = arch_key
-                true_variant_name = variant_name
+                true_arch_key, true_variant_name = arch_key, variant_name
             else:
                 if len(active_colors) == 1:
-                    true_arch_key = active_colors[0]
-                    true_variant_name = "Consistent"
+                    true_arch_key, true_variant_name = active_colors[0], "Consistent"
                 elif len(active_colors) == 2:
                     if pips[active_colors[1]] <= 3:
-                        true_arch_key = active_colors[0]
-                        true_variant_name = f"Splash {active_colors[1]}"
+                        true_arch_key, true_variant_name = (
+                            active_colors[0],
+                            f"Splash {active_colors[1]}",
+                        )
                     else:
                         true_arch_key = "".join(
                             sorted(
@@ -358,12 +345,8 @@ def suggest_deck(
                             )
                         )
                         true_variant_name = (
-                            "Consistent"
-                            if "Consistent" in variant_name or "Tempo" in variant_name
-                            else "Consistent"
+                            "Tempo" if "Tempo" in variant_name else "Consistent"
                         )
-                        if "Tempo" in variant_name:
-                            true_variant_name = "Tempo"
                 else:
                     true_arch_key = "".join(
                         sorted(
@@ -371,16 +354,14 @@ def suggest_deck(
                             key=lambda x: constants.CARD_COLORS.index(x),
                         )
                     )
-                    if "Soup" in variant_name:
-                        true_variant_name = "Good Stuff (Soup)"
-                    else:
-                        splash_str = "".join(active_colors[2:])
-                        true_variant_name = f"Splash {splash_str}"
+                    true_variant_name = (
+                        "Good Stuff (Soup)"
+                        if "Soup" in variant_name
+                        else f"Splash {''.join(active_colors[2:])}"
+                    )
 
-            opt_deck, opt_sb = deck, sb
-            opt_note = ""
+            opt_deck, opt_sb, opt_note = deck, sb, ""
             opt_stats = simulate_deck(opt_deck, iterations=10000)
-
             score, breakdown = calculate_holistic_score(
                 opt_deck, active_colors, pool_size, metrics
             )
@@ -391,12 +372,10 @@ def suggest_deck(
                     pen = (opt_stats["color_screw_t3"] - 10.0) * 2.5
                     score -= pen
                     mc_penalties.append(f"Color Screw (-{pen:.1f})")
-
                 if opt_stats["screw_t3"] > 22.0:
                     pen = (opt_stats["screw_t3"] - 22.0) * 1.5
                     score -= pen
                     mc_penalties.append(f"Mana Screw (-{pen:.1f})")
-
                 if opt_stats["flood_t5"] > 27.0:
                     pen = (opt_stats["flood_t5"] - 27.0) * 1.5
                     score -= pen
@@ -431,12 +410,10 @@ def suggest_deck(
             }
 
             full_label = f"{true_arch_key} {true_variant_name} [Est: {variant_data['record']}] (Power: {score:.0f})"
-
             if "Incomplete Deck" not in breakdown:
                 all_variants.append((full_label, variant_data))
             else:
                 incomplete_variants.append((full_label, variant_data))
-
             if progress_callback:
                 progress_callback(
                     {"variant_label": full_label, "variant_data": variant_data}
@@ -460,12 +437,11 @@ def suggest_deck(
                 taken_cards, main_colors, metrics
             )
             if greedy_deck:
-                target_colors = main_colors + [splash_color]
                 process_variant(
                     f"Splash {splash_color}",
                     greedy_deck,
                     get_sideboard(taken_cards, greedy_deck),
-                    target_colors,
+                    main_colors + [splash_color],
                     arch_key,
                 )
 
@@ -503,14 +479,14 @@ def suggest_deck(
         safe_decks = [v for v in final_list if len(v[1]["colors"]) <= 2]
         best_safe = safe_decks[0] if safe_decks else None
 
-        filtered_list = []
-        accepted_signatures = []
+        filtered_list, accepted_signatures = [], []
 
         for label, data in final_list:
-            score = data["rating"]
-            is_top_deck = len(filtered_list) == 0
-            is_best_safe = best_safe is not None and label == best_safe[0]
-
+            score, is_top_deck, is_best_safe = (
+                data["rating"],
+                (len(filtered_list) == 0),
+                (best_safe is not None and label == best_safe[0]),
+            )
             sig = {}
             for c in data["deck_cards"]:
                 sig[c["name"]] = sig.get(c["name"], 0) + c.get("count", 1)
@@ -524,19 +500,15 @@ def suggest_deck(
                     max_overlap = overlap
 
             cards_diff = 40 - max_overlap
+            keep = True if (is_top_deck or is_best_safe) else False
 
-            keep = False
-            if is_top_deck or is_best_safe:
-                keep = True
-            else:
+            if not keep:
                 if cards_diff < 3:
                     keep = False
                 elif cards_diff >= 10:
-                    if score >= (best_score - 25.0):
-                        keep = True
+                    keep = True if score >= best_score - 25.0 else False
                 else:
-                    if score >= (best_score - 50.0):
-                        keep = True
+                    keep = True if score >= best_score - 50.0 else False
 
             if keep:
                 filtered_list.append((label, data))
@@ -545,8 +517,8 @@ def suggest_deck(
                     break
 
         final_list = filtered_list
-
         safe_decks_filtered = [v for v in final_list if len(v[1]["colors"]) <= 2]
+
         if safe_decks_filtered:
             actual_best_safe = safe_decks_filtered[0]
             best_safe_idx = final_list.index(actual_best_safe)
@@ -597,8 +569,9 @@ def build_variant_consistency(pool, colors, metrics, tier_data=None):
         if is_castable(c, colors, strict=True) and "Land" not in c.get("types", [])
     ]
     candidates.sort(key=lambda x: get_card_rating(x, colors, metrics), reverse=True)
-    spells = candidates[:23]
-    non_basic_lands = select_useful_lands(pool, colors, metrics)
+    spells, non_basic_lands = candidates[:23], select_useful_lands(
+        pool, colors, metrics
+    )
 
     total_lands_needed = 40 - len(spells)
     if len(non_basic_lands) > total_lands_needed:
@@ -618,8 +591,6 @@ def build_variant_consistency(pool, colors, metrics, tier_data=None):
 
 
 def build_variant_greedy(pool, colors, metrics, tier_data=None):
-    import re
-
     global_mean, global_std = metrics.get_metrics("All Decks", "gihwr")
     if global_mean == 0.0:
         global_mean = 54.0
@@ -627,41 +598,32 @@ def build_variant_greedy(pool, colors, metrics, tier_data=None):
         global_std = 4.0
 
     fixing_sources = count_fixing(pool)
-    splash_candidates = []
-    best_rating = global_mean - (global_std * 0.5)
+    splash_candidates, best_rating = [], global_mean - (global_std * 0.5)
 
     for card in pool:
-        card_colors = card.get("colors", [])
-        mana_cost = card.get("mana_cost", "")
-
-        if is_castable(card, colors, strict=True):
+        card_colors, mana_cost = card.get("colors", []), card.get("mana_cost", "")
+        if (
+            is_castable(card, colors, strict=True)
+            or not card_colors
+            or len(card_colors) > 1
+        ):
             continue
 
-        if not card_colors or len(card_colors) > 1:
-            continue
-
-        splash_col = card_colors[0]
-
-        pips = re.findall(r"\{(.*?)\}", mana_cost)
-        off_color_pips = 0
-        for pip in pips:
+        splash_col, off_color_pips = card_colors[0], 0
+        for pip in re.findall(r"\{(.*?)\}", mana_cost):
             options = [c for c in pip.split("/") if c in constants.CARD_COLORS]
-            if not options:
-                continue
-            if not any(opt in colors for opt in options):
+            if options and not any(opt in colors for opt in options):
                 off_color_pips += 1
 
         if off_color_pips > 1:
             total_fixing = fixing_sources.get(splash_col, 0) + count_fixing(pool).get(
                 splash_col, 0
             )
-            if (
+            if not (
                 off_color_pips == 2
                 and get_functional_cmc(card) >= 5
                 and total_fixing >= 3
             ):
-                pass
-            else:
                 continue
 
         rating = get_card_rating(card, ["All Decks"], metrics)
@@ -673,7 +635,6 @@ def build_variant_greedy(pool, colors, metrics, tier_data=None):
 
     splash_candidates.sort(key=lambda x: x[2], reverse=True)
     best_splash_col = splash_candidates[0][1]
-
     valid_splashes = [c[0] for c in splash_candidates if c[1] == best_splash_col]
 
     main_spells = [
@@ -685,7 +646,6 @@ def build_variant_greedy(pool, colors, metrics, tier_data=None):
 
     deck_spells = main_spells[:23]
     needed = 23 - len(deck_spells)
-
     if needed > 0:
         deck_spells.extend(valid_splashes[:needed])
     elif valid_splashes:
@@ -719,8 +679,7 @@ def build_variant_curve(pool, colors, metrics, tier_data=None):
     ]
 
     def tempo_rating(card):
-        base = get_card_rating(card, colors, metrics)
-        cmc = get_functional_cmc(card)
+        base, cmc = get_card_rating(card, colors, metrics), get_functional_cmc(card)
         if cmc <= 2:
             return base + 4.0
         if cmc >= 5:
@@ -728,8 +687,9 @@ def build_variant_curve(pool, colors, metrics, tier_data=None):
         return base
 
     candidates.sort(key=tempo_rating, reverse=True)
-    spells = candidates[:24]
-    non_basic_lands = select_useful_lands(pool, colors, metrics)
+    spells, non_basic_lands = candidates[:24], select_useful_lands(
+        pool, colors, metrics
+    )
 
     total_lands_needed = 40 - len(spells)
     if len(non_basic_lands) > total_lands_needed:
@@ -745,7 +705,6 @@ def build_variant_curve(pool, colors, metrics, tier_data=None):
     basics = calculate_dynamic_mana_base(
         spells, non_basic_lands, colors, forced_count=needed_basics
     )
-
     return stack_cards(spells + non_basic_lands + basics)
 
 
@@ -753,10 +712,13 @@ def build_variant_soup(pool, metrics, tier_data=None):
     candidates = [c for c in pool if "Land" not in c.get("types", [])]
 
     def soup_rating(card):
-        base = get_card_rating(card, ["All Decks"], metrics, tier_data)
-        tags = card.get("tags", [])
-        text = str(card.get("oracle_text", card.get("text", ""))).lower()
-        name = str(card.get("name", "")).lower()
+        base, tags = get_card_rating(card, ["All Decks"], metrics, tier_data), card.get(
+            "tags", []
+        )
+        text, name = (
+            str(card.get("oracle_text", card.get("text", ""))).lower(),
+            str(card.get("name", "")).lower(),
+        )
 
         is_fixer = "fixing_ramp" in tags or any(
             fn in name for fn in constants.FIXING_NAMES
@@ -775,21 +737,16 @@ def build_variant_soup(pool, metrics, tier_data=None):
             ]
             if any(phrase in text for phrase in universal_phrases):
                 is_fixer = True
-
-        if is_fixer:
-            return base + 5.0
-        return base
+        return base + 5.0 if is_fixer else base
 
     candidates.sort(key=soup_rating, reverse=True)
     spells = candidates[:23]
-
     if not spells:
         return None, []
 
     soup_colors = get_strict_colors(spells)
     if not soup_colors:
         soup_colors = ["W", "U", "B", "R", "G"]
-
     non_basic_lands = select_useful_lands(pool, soup_colors, metrics)
 
     total_lands_needed = 40 - len(spells)
@@ -806,5 +763,4 @@ def build_variant_soup(pool, metrics, tier_data=None):
     basics = calculate_dynamic_mana_base(
         spells, non_basic_lands, soup_colors, forced_count=needed_basics
     )
-
     return stack_cards(spells + non_basic_lands + basics), soup_colors

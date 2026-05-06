@@ -8,7 +8,6 @@ from src.card_logic import get_functional_cmc
 from src.advisor.mana_base import ManaSourceAnalyzer
 from src.sealed_logic import HeuristicEvaluator
 
-# Maps standard Tier List grades to 17Lands GIHWR equivalents for Day-1 calculations
 TIER_TO_GIHWR = {
     "A+": 68.0,
     "A ": 66.0,
@@ -36,14 +35,12 @@ def get_card_rating(card, colors, metrics=None, tier_data=None):
             global_mean = mean_val
 
     stats = card.get("deck_colors", {})
-    global_stats = stats.get("All Decks", {})
-    global_wr = float(global_stats.get("gihwr", 0.0))
+    global_wr = float(stats.get("All Decks", {}).get("gihwr", 0.0))
 
     arch_key = (
         "".join(sorted(colors)) if len(colors) <= 2 else "".join(sorted(colors[:2]))
     )
-    arch_stats = stats.get(arch_key, {})
-    arch_wr = float(arch_stats.get("gihwr", 0.0))
+    arch_wr = float(stats.get(arch_key, {}).get("gihwr", 0.0))
 
     if arch_wr > 30.0 and global_wr > 30.0:
         return (arch_wr * 0.7) + (global_wr * 0.3)
@@ -51,8 +48,7 @@ def get_card_rating(card, colors, metrics=None, tier_data=None):
         return global_wr
 
     if tier_data:
-        name = card.get("name", "")
-        tier_scores = []
+        name, tier_scores = card.get("name", ""), []
         for tier_obj in tier_data.values():
             if name in tier_obj.ratings:
                 grade = tier_obj.ratings[name].rating
@@ -75,37 +71,27 @@ def identify_top_pairs(pool, metrics, tier_data=None):
         global_std = 4.0
 
     playable_baseline = global_mean - (global_std * 0.5)
-
     scores = {c: 0.0 for c in constants.CARD_COLORS}
+
     for card in pool:
         colors = card.get(constants.DATA_FIELD_COLORS, [])
         wr = get_card_rating(card, ["All Decks"], metrics, tier_data)
-
         if wr > playable_baseline:
             points = (wr - playable_baseline) / global_std
             for c in colors:
                 scores[c] += points
 
     sorted_c = sorted(scores.items(), key=lambda x: x[1], reverse=True)
-
     if sorted_c[0][1] <= 0.0:
         return []
 
     top_4_colors = [c[0] for c in sorted_c[:4]]
-
-    top_pairs = []
     from itertools import combinations
 
-    for pair in combinations(top_4_colors, 2):
-        top_pairs.append(list(pair))
-
-    return top_pairs
+    return [list(pair) for pair in combinations(top_4_colors, 2)]
 
 
 def calculate_holistic_score(deck, colors, pool_size, metrics, tier_data=None):
-    """
-    Evaluates a deck on a 0-100 Power Level scale.
-    """
     if not deck:
         return 0.0, ""
 
@@ -117,69 +103,59 @@ def calculate_holistic_score(deck, colors, pool_size, metrics, tier_data=None):
 
     spells = [c for c in deck if constants.CARD_TYPE_LAND not in c.get("types", [])]
     spell_count = sum(c.get("count", 1) for c in spells)
-
     if spell_count == 0:
         return 0.0, ""
 
-    # 1. BASE POWER
     arch_key = (
         "".join(sorted(colors)) if len(colors) <= 2 else "".join(sorted(colors[:2]))
     )
+    valid_ratings = [
+        get_card_rating(c, [arch_key], metrics)
+        for c in spells
+        for _ in range(c.get("count", 1))
+        if get_card_rating(c, [arch_key], metrics) > 0.0
+    ]
 
-    valid_ratings = []
-    for c in spells:
-        rating = get_card_rating(c, [arch_key], metrics)
-        if rating > 0.0:
-            valid_ratings.extend([rating] * c.get("count", 1))
-
-    if not valid_ratings:
-        avg_gihwr = global_mean - global_std
-    else:
-        avg_gihwr = sum(valid_ratings) / len(valid_ratings)
-
+    avg_gihwr = (
+        sum(valid_ratings) / len(valid_ratings)
+        if valid_ratings
+        else global_mean - global_std
+    )
     z_score = (avg_gihwr - global_mean) / global_std
     power_level = 75.0 + (z_score * 12.0)
     breakdown_notes = []
 
-    # 2. FLUID CURVE & MANA VELOCITY
-    cmcs = []
-    for c in spells:
-        cmcs.extend([get_functional_cmc(c)] * c.get("count", 1))
-
+    cmcs = [get_functional_cmc(c) for c in spells for _ in range(c.get("count", 1))]
     avg_cmc = sum(cmcs) / spell_count
 
     land_count = sum(c.get("count", 1) for c in deck if "Land" in c.get("types", []))
-
-    ramp_count = sum(
-        c.get("count", 1)
-        for c in deck
-        if (
-            "fixing_ramp" in c.get("tags", [])
-            or "treasure" in str(c.get("oracle_text", c.get("text", ""))).lower()
-            or "add {" in str(c.get("oracle_text", c.get("text", ""))).lower()
-            or "adds {" in str(c.get("oracle_text", c.get("text", ""))).lower()
-        )
-        and "Land" not in c.get("types", [])
+    ramp_count = min(
+        3,
+        sum(
+            c.get("count", 1)
+            for c in deck
+            if (
+                "fixing_ramp" in c.get("tags", [])
+                or "treasure" in str(c.get("oracle_text", c.get("text", ""))).lower()
+                or "add {" in str(c.get("oracle_text", c.get("text", ""))).lower()
+                or "adds {" in str(c.get("oracle_text", c.get("text", ""))).lower()
+            )
+            and "Land" not in c.get("types", [])
+        ),
     )
-    ramp_count = min(3, ramp_count)
 
-    total_mana_sources = land_count + ramp_count
-
-    mana_deficit = (avg_cmc * 5.5) - total_mana_sources
+    mana_deficit = (avg_cmc * 5.5) - (land_count + ramp_count)
     if mana_deficit > 1.5:
-        penalty = mana_deficit * 3.0
-        power_level -= penalty
-        breakdown_notes.append(f"High Curve / Needs Lands (-{penalty:.1f})")
+        power_level -= mana_deficit * 3.0
+        breakdown_notes.append(f"High Curve / Needs Lands (-{mana_deficit * 3.0:.1f})")
     elif mana_deficit < -1.0 and avg_cmc < 2.8:
         power_level += 5.0
         breakdown_notes.append("Excellent Aggro Curve (+5.0)")
 
-    # Consistency Bonus
     if len(colors) <= 2:
         power_level += 2.5
         breakdown_notes.append("Rock-Solid Mana (+2.5)")
 
-    # 3. UNIVERSAL SYNERGY MATRIX
     supertypes = {
         "Creature",
         "Instant",
@@ -195,11 +171,11 @@ def calculate_holistic_score(deck, colors, pool_size, metrics, tier_data=None):
         "Tribal",
         "Kindred",
     }
-    subtypes = {}
-    changeling_count = 0
+    subtypes, changeling_count = {}, 0
     for c in spells:
-        text = str(c.get("oracle_text", c.get("text", ""))).lower()
-        count = c.get("count", 1)
+        text, count = str(c.get("oracle_text", c.get("text", ""))).lower(), c.get(
+            "count", 1
+        )
         if "changeling" in text:
             changeling_count += count
         for t in c.get("types", []):
@@ -229,9 +205,7 @@ def calculate_holistic_score(deck, colors, pool_size, metrics, tier_data=None):
             or "basic land types"
             in str(c.get("oracle_text", c.get("text", ""))).lower()
         )
-
-        analyzer = ManaSourceAnalyzer(deck)
-        fixing_count = analyzer.total_fixing_cards
+        fixing_count = ManaSourceAnalyzer(deck).total_fixing_cards
 
         if domain_payoffs >= 2 and fixing_count >= 4:
             power_level += 6.0
@@ -261,11 +235,9 @@ def calculate_holistic_score(deck, colors, pool_size, metrics, tier_data=None):
         power_level -= 5.0
         breakdown_notes.append("Lacks Evasion/Reach (-5.0)")
 
-    # 4. DECK SIZE & PLAYABLES DEFICIT
     expected_spells = int(23 * (min(42, pool_size) / 42.0))
     if spell_count < expected_spells - 1:
-        shortfall = (expected_spells - 1) - spell_count
-        penalty = shortfall * 10.0
+        penalty = ((expected_spells - 1) - spell_count) * 10.0
         power_level -= penalty
         breakdown_notes.append(f"Incomplete Deck (-{penalty:.1f})")
 
@@ -273,7 +245,6 @@ def calculate_holistic_score(deck, colors, pool_size, metrics, tier_data=None):
 
 
 def estimate_record(power_level, is_bo3=False):
-    """Maps the unbounded Power Level to an expected record."""
     if is_bo3:
         if power_level < 65:
             return "0-2 / 1-2"

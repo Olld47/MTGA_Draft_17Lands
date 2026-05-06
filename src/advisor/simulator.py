@@ -68,7 +68,6 @@ def simulate_deck(deck_list, iterations=10000):
     for _ in range(iterations):
         random.shuffle(flat_deck)
 
-        # Pro-Level London Mulligan Heuristic
         mull_count = 0
         hand = flat_deck[0:7]
         lands = sum(1 for c in hand if c["is_land"])
@@ -83,25 +82,19 @@ def simulate_deck(deck_list, iterations=10000):
 
         if mull_count > 0:
             stats["mulligans"] += 1
-
         kept_size = 7 - mull_count
         stats["avg_hand_size"] += kept_size
         start_idx = mull_count * 7
-
         current_7 = flat_deck[start_idx : start_idx + 7]
-        if kept_size < 7:
-            # London Mulligan Heuristic: Drop the highest CMC cards.
-            current_7.sort(key=lambda x: x["cmc"])
 
+        if kept_size < 7:
+            current_7.sort(key=lambda x: x["cmc"])
         kept_hand = current_7[:kept_size]
         deck_rest = flat_deck[start_idx + 7 :]
-
         game_state = kept_hand + deck_rest
 
-        t2_state = game_state[: kept_size + 1]
-        t3_state = game_state[: kept_size + 2]
-        t4_state = game_state[: kept_size + 3]
-        t5_state = game_state[: kept_size + 4]
+        t2_state, t3_state = game_state[: kept_size + 1], game_state[: kept_size + 2]
+        t4_state, t5_state = game_state[: kept_size + 3], game_state[: kept_size + 4]
 
         lands_t3 = [c for c in t3_state if c["is_land"]]
         if len(lands_t3) < 3:
@@ -155,10 +148,7 @@ def simulate_deck(deck_list, iterations=10000):
                     return True
             return False
 
-        c2 = can_cast(t2_state, 2)
-        c3 = can_cast(t3_state, 3)
-        c4 = can_cast(t4_state, 4)
-
+        c2, c3, c4 = can_cast(t2_state, 2), can_cast(t3_state, 3), can_cast(t4_state, 4)
         if c2:
             stats["cast_t2"] += 1
         if c3:

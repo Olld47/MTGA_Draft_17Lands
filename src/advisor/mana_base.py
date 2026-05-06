@@ -11,20 +11,18 @@ def calculate_dynamic_mana_base(spells, non_basic_lands, colors, forced_count=17
     if forced_count <= 0:
         return []
 
-    strict_pips = {c: 0 for c in constants.CARD_COLORS}
-    max_pip_in_single_card = {c: 0 for c in constants.CARD_COLORS}
+    strict_pips, max_pip_in_single_card = {c: 0 for c in constants.CARD_COLORS}, {
+        c: 0 for c in constants.CARD_COLORS
+    }
     lowest_cmc = {c: 99 for c in constants.CARD_COLORS}
     hybrid_pips = []
 
     analyzer = ManaSourceAnalyzer(spells + non_basic_lands)
-    existing_sources = analyzer.sources
-    any_color = analyzer.any_color_sources
+    existing_sources, any_color = analyzer.sources, analyzer.any_color_sources
     any_color_enabler_pips = analyzer.any_color_enabler_pips
 
     for card in spells:
-        cost = card.get("mana_cost", "")
-        raw_cmc = card.get("cmc")
-        cmc = int(raw_cmc) if raw_cmc is not None else 99
+        cost, cmc = card.get("mana_cost", ""), int(card.get("cmc", 99) or 99)
 
         if cost:
             pips = re.findall(r"\{(.*?)\}", cost)
@@ -58,10 +56,8 @@ def calculate_dynamic_mana_base(spells, non_basic_lands, colors, forced_count=17
             for c in card.get("colors", []):
                 if c in colors:
                     strict_pips[c] += 1
-                    if 1 > max_pip_in_single_card[c]:
-                        max_pip_in_single_card[c] = 1
-                    if cmc < lowest_cmc[c]:
-                        lowest_cmc[c] = cmc
+                    max_pip_in_single_card[c] = max(1, max_pip_in_single_card[c])
+                    lowest_cmc[c] = min(cmc, lowest_cmc[c])
 
     for opts, cmc in hybrid_pips:
         valid_opts = [opt for opt in opts if opt in colors]
@@ -69,33 +65,21 @@ def calculate_dynamic_mana_base(spells, non_basic_lands, colors, forced_count=17
             valid_opts = opts
         best_opt = max(valid_opts, key=lambda o: strict_pips[o])
         strict_pips[best_opt] += 1
-        if 1 > max_pip_in_single_card[best_opt]:
-            max_pip_in_single_card[best_opt] = 1
-        if cmc < lowest_cmc[best_opt]:
-            lowest_cmc[best_opt] = cmc
+        max_pip_in_single_card[best_opt] = max(1, max_pip_in_single_card[best_opt])
+        lowest_cmc[best_opt] = min(cmc, lowest_cmc[best_opt])
 
     active_colors = [c for c in colors if strict_pips[c] > 0]
     if not active_colors:
-        active_colors = [c for c in colors]
-        if not active_colors:
-            active_colors = ["W", "U", "B", "R", "G"]
-
+        active_colors = [c for c in colors] if colors else ["W", "U", "B", "R", "G"]
     sorted_active = sorted(active_colors, key=lambda c: strict_pips[c], reverse=True)
 
     targets = {}
     for c in sorted_active:
-        pips = strict_pips.get(c, 0)
-        max_pip = max_pip_in_single_card.get(c, 0)
-
+        pips, max_pip = strict_pips.get(c, 0), max_pip_in_single_card.get(c, 0)
         if max_pip >= 3:
             target = 9
         elif max_pip == 2:
-            if pips <= 3:
-                target = 6
-            elif pips <= 5:
-                target = 7
-            else:
-                target = 8
+            target = 6 if pips <= 3 else (7 if pips <= 5 else 8)
         else:
             if pips == 0:
                 target = 0
@@ -114,31 +98,25 @@ def calculate_dynamic_mana_base(spells, non_basic_lands, colors, forced_count=17
             target = max(target, 8)
         elif lowest_cmc.get(c, 99) == 2 and target > 0:
             target = max(target, 7)
-
         if any_color_enabler_pips.get(c, 0) > 0:
             target = max(target, 8)
-
         targets[c] = target
 
     allocations = {c: 0 for c in sorted_active}
-
     for c in sorted_active:
         effective_any = max(0, any_color - any_color_enabler_pips.get(c, 0))
         provided = existing_sources.get(c, 0) + effective_any
         deficit = targets[c] - provided
 
         if c not in sorted_active[:2]:
-            max_basics = 4 if max_pip >= 2 else 2
-            allocations[c] = max(0, min(deficit, max_basics))
+            allocations[c] = max(0, min(deficit, 4 if max_pip >= 2 else 2))
         else:
             allocations[c] = max(0, deficit)
 
     total_allocated = sum(allocations.values())
-
     if total_allocated > forced_count:
         diff = total_allocated - forced_count
         trim_order = list(reversed(sorted_active))
-
         while diff > 0:
             for c in trim_order:
                 if allocations[c] > 0 and diff > 0:
@@ -150,16 +128,12 @@ def calculate_dynamic_mana_base(spells, non_basic_lands, colors, forced_count=17
                         continue
                     allocations[c] -= 1
                     diff -= 1
-
     elif total_allocated < forced_count:
         diff = forced_count - total_allocated
-        core_colors = sorted_active[:2]
-
-        while diff > 0:
-            for c in core_colors:
-                if diff > 0:
-                    allocations[c] += 1
-                    diff -= 1
+        for c in sorted_active[:2]:
+            if diff > 0:
+                allocations[c] += 1
+                diff -= 1
 
     lands = []
     for c, count in allocations.items():
@@ -170,7 +144,6 @@ def calculate_dynamic_mana_base(spells, non_basic_lands, colors, forced_count=17
     if final_diff > 0:
         fallback_color = sorted_active[0] if sorted_active else "W"
         lands.extend(create_basic_lands(fallback_color, final_diff))
-
     return lands
 
 
@@ -197,24 +170,18 @@ def create_basic_lands(color, count):
 
 
 def is_castable(card, colors, strict=True):
-    card_colors = card.get("colors", [])
-    mana_cost = card.get("mana_cost", "")
-
+    card_colors, mana_cost = card.get("colors", []), card.get("mana_cost", "")
     if not card_colors:
         return True
-
     if strict:
         if mana_cost:
-            pips = re.findall(r"\{(.*?)\}", mana_cost)
-            for pip in pips:
+            for pip in re.findall(r"\{(.*?)\}", mana_cost):
                 options = pip.split("/")
                 if any(opt.isdigit() or opt in ["X", "C"] for opt in options):
                     continue
-
                 valid_mana_options = [opt for opt in options if opt in "WUBRGP"]
                 if not valid_mana_options:
                     continue
-
                 if not any(opt in colors or opt == "P" for opt in valid_mana_options):
                     return False
             return True
@@ -235,15 +202,16 @@ class ManaSourceAnalyzer:
             self._evaluate(card)
 
     def _evaluate(self, card):
-        count = card.get("count", 1)
-        types = card.get("types", [])
-        text = str(card.get("oracle_text", card.get("text", ""))).lower()
-        name = card.get("name", "").lower()
-        card_colors = card.get("colors", [])
-        tags = card.get("tags", [])
-
-        is_land = "Land" in types
-        is_basic = "Basic" in types
+        count, types, tags = (
+            card.get("count", 1),
+            card.get("types", []),
+            card.get("tags", []),
+        )
+        text, name = (
+            str(card.get("oracle_text", card.get("text", ""))).lower(),
+            card.get("name", "").lower(),
+        )
+        card_colors, is_land = card.get("colors", []), "Land" in types
 
         specific_fixing_map = {
             "plainscycling": "W",
@@ -265,11 +233,9 @@ class ManaSourceAnalyzer:
                 self.total_fixing_cards += count
                 specific_match_found = True
 
-        is_universal = False
-        if any(phrase in text for phrase in constants.FIXING_KEYWORDS) or any(
-            fn in name for fn in constants.FIXING_NAMES
-        ):
-            is_universal = True
+        is_universal = any(
+            phrase in text for phrase in constants.FIXING_KEYWORDS
+        ) or any(fn in name for fn in constants.FIXING_NAMES)
 
         if (
             "fixing_ramp" in tags
@@ -285,7 +251,6 @@ class ManaSourceAnalyzer:
                 ):
                     self.sources[c_sym] += count
                     produces_specific = True
-
             if produces_specific:
                 self.total_fixing_cards += count
             else:
@@ -299,12 +264,11 @@ class ManaSourceAnalyzer:
                     self.any_color_enabler_pips[c] += count
             return
 
-        if is_land and not is_basic:
+        if is_land and "Basic" not in types:
             if not card_colors and "fixing_ramp" in tags and not specific_match_found:
                 self.any_color_sources += count
                 self.total_fixing_cards += count
                 return
-
             for c in card_colors:
                 if c in self.sources:
                     self.sources[c] += count
@@ -314,17 +278,14 @@ class ManaSourceAnalyzer:
 
 def count_fixing(pool):
     analyzer = ManaSourceAnalyzer(pool)
-    res = {
+    return {
         c: analyzer.sources[c] + analyzer.any_color_sources
         for c in constants.CARD_COLORS
     }
-    return res
 
 
 def get_strict_colors(spells):
-    pips = {c: 0 for c in constants.CARD_COLORS}
-    hybrid_pips_list = []
-
+    pips, hybrid_pips_list = {c: 0 for c in constants.CARD_COLORS}, []
     for card in spells:
         cost = card.get("mana_cost", "")
         if not cost:
@@ -332,9 +293,7 @@ def get_strict_colors(spells):
                 if c in pips:
                     pips[c] += 1
             continue
-
-        pip_matches = re.findall(r"\{(.*?)\}", cost)
-        for pip in pip_matches:
+        for pip in re.findall(r"\{(.*?)\}", cost):
             if any(ch.isdigit() or ch in ["X", "C"] for ch in pip.split("/")):
                 continue
             options = [c for c in pip.split("/") if c in constants.CARD_COLORS]
@@ -350,8 +309,7 @@ def get_strict_colors(spells):
         if not any(opt in strict_colors for opt in options):
             strict_colors.add(options[0])
 
-    sorted_strict = [c for c in constants.CARD_COLORS if c in strict_colors]
-    return sorted_strict
+    return [c for c in constants.CARD_COLORS if c in strict_colors]
 
 
 def select_useful_lands(pool, target_colors, metrics=None):
@@ -363,34 +321,25 @@ def select_useful_lands(pool, target_colors, metrics=None):
             baseline_wr = b
 
     for card in pool:
-        name = card.get("name", "")
-        types = card.get("types", [])
-
-        if name in constants.BASIC_LANDS:
+        name, types = card.get("name", ""), card.get("types", [])
+        if name in constants.BASIC_LANDS or "Land" not in types or "Basic" in types:
             continue
 
-        if "Land" not in types or "Basic" in types:
-            continue
-
-        text = str(card.get("oracle_text", card.get("text", ""))).lower()
-        card_colors = card.get("colors", [])
-
-        is_universal = False
-        if any(phrase in text for phrase in constants.FIXING_KEYWORDS) or any(
-            fn in name.lower() for fn in constants.FIXING_NAMES
-        ):
-            is_universal = True
-
+        text, card_colors = str(
+            card.get("oracle_text", card.get("text", ""))
+        ).lower(), card.get("colors", [])
+        is_universal = any(
+            phrase in text for phrase in constants.FIXING_KEYWORDS
+        ) or any(fn in name.lower() for fn in constants.FIXING_NAMES)
         gihwr = float(
             card.get("deck_colors", {}).get("All Decks", {}).get("gihwr", 0.0)
         )
 
-        if is_universal:
-            useful_lands.append(card)
-        elif card_colors and all(c in target_colors for c in card_colors):
-            if gihwr >= (baseline_wr - 2.0) or gihwr == 0.0:
-                useful_lands.append(card)
-        elif not card_colors:
+        if (
+            is_universal
+            or (card_colors and all(c in target_colors for c in card_colors))
+            or not card_colors
+        ):
             if gihwr >= (baseline_wr - 2.0) or gihwr == 0.0:
                 useful_lands.append(card)
 

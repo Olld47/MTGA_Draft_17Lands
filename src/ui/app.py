@@ -563,6 +563,7 @@ class DraftApp:
                 pi,
                 recommendations,
                 current_picked_cards,
+                scores,
             )
 
         # Broadcast refresh downwards
