@@ -1,170 +1,204 @@
-"""
-src/advisor/simulator.py
-Monte Carlo Simulation Engine for evaluating deck consistency and mana bases.
-"""
-
-import random
+import numpy as np
+from numba import njit
 import re
 from src.card_logic import get_functional_cmc
 
+# Mana Bitmask Mapping
+COLOR_BITS = {"W": 1, "U": 2, "B": 4, "R": 8, "G": 16}
 
-def simulate_deck(deck_list, iterations=10000):
+
+def _parse_deck_to_arrays(deck_list):
+    """Converts the deck from slow Python dicts to fast NumPy arrays."""
     flat_deck = []
     for c in deck_list:
-        is_land = "Land" in c.get("types", [])
-        is_ramp = False
-        text = str(c.get("oracle_text", c.get("text", ""))).lower()
-        if (
-            "fixing_ramp" in c.get("tags", [])
-            or "any color" in text
-            or "treasure" in text
-        ):
-            is_ramp = True
-
-        colors_produced = set()
-        if is_land or is_ramp:
-            colors_produced.update(c.get("colors", []))
-            if "any color" in text or "fixing_ramp" in c.get("tags", []):
-                colors_produced.update(["W", "U", "B", "R", "G"])
-
-        pips = []
-        if not is_land:
-            cost = c.get("mana_cost", "")
-            matches = re.findall(r"\{(.*?)\}", cost)
-            for pip in matches:
-                opts = [opt for opt in pip.split("/") if opt in "WUBRG"]
-                if opts:
-                    pips.append(opts)
-
-        for _ in range(int(c.get("count", 1))):
-            flat_deck.append(
-                {
-                    "is_land": is_land,
-                    "is_ramp": is_ramp and not is_land,
-                    "is_removal": "removal" in c.get("tags", []),
-                    "colors_produced": colors_produced,
-                    "cmc": get_functional_cmc(c),
-                    "pips": pips,
-                }
-            )
+        flat_deck.extend([c] * int(c.get("count", 1)))
 
     if len(flat_deck) < 40:
         return None
 
-    stats = {
-        "mulligans": 0,
-        "screw_t3": 0,
-        "screw_t4": 0,
-        "flood_t5": 0,
-        "cast_t2": 0,
-        "cast_t3": 0,
-        "cast_t4": 0,
-        "curve_out": 0,
-        "removal_t4": 0,
-        "color_screw_t3": 0,
-        "avg_hand_size": 0,
-    }
+    is_land = np.zeros(40, dtype=np.bool_)
+    is_ramp = np.zeros(40, dtype=np.bool_)
+    is_removal = np.zeros(40, dtype=np.bool_)
+    cmcs = np.zeros(40, dtype=np.int8)
+    mana_produced = np.zeros(40, dtype=np.int32)
+    primary_req = np.zeros(40, dtype=np.int32)
+
+    for i, c in enumerate(flat_deck[:40]):
+        types = c.get("types", [])
+        tags = c.get("tags", [])
+        text = str(c.get("oracle_text", c.get("text", ""))).lower()
+
+        is_land[i] = "Land" in types
+        is_ramp[i] = (
+            "fixing_ramp" in tags or "any color" in text or "treasure" in text
+        ) and not is_land[i]
+        is_removal[i] = "removal" in tags
+        cmcs[i] = get_functional_cmc(c)
+
+        # Calculate produced mana bitmask
+        if is_land[i] or is_ramp[i]:
+            if "any color" in text or "fixing_ramp" in tags:
+                mana_produced[i] = 31  # 1+2+4+8+16 (WUBRG)
+            else:
+                mask = 0
+                for color in c.get("colors", []):
+                    mask |= COLOR_BITS.get(color, 0)
+                mana_produced[i] = mask
+
+        # Calculate primary pip requirement bitmask
+        if not is_land[i]:
+            cost = c.get("mana_cost", "")
+            mask = 0
+            matches = re.findall(r"\{(.*?)\}", cost)
+            for pip in matches:
+                opts = [opt for opt in pip.split("/") if opt in COLOR_BITS]
+                if opts:
+                    mask |= COLOR_BITS[opts[0]]
+            primary_req[i] = mask
+
+    return is_land, is_ramp, is_removal, cmcs, mana_produced, primary_req
+
+
+@njit(cache=True)
+def _run_fast_monte_carlo(
+    is_land, is_ramp, is_removal, cmcs, mana_produced, primary_req, iterations
+):
+    mulligans = 0
+    screw_t3 = 0
+    screw_t4 = 0
+    flood_t5 = 0
+    cast_t2 = 0
+    cast_t3 = 0
+    cast_t4 = 0
+    curve_out = 0
+    removal_t4 = 0
+    color_screw_t3 = 0
+    total_kept_cards = 0
+
+    deck_indices = np.arange(40)
 
     for _ in range(iterations):
-        random.shuffle(flat_deck)
+        np.random.shuffle(deck_indices)
 
         mull_count = 0
-        hand = flat_deck[0:7]
-        lands = sum(1 for c in hand if c["is_land"])
+        hand_idx = deck_indices[0:7]
+        lands_in_hand = np.sum(is_land[hand_idx])
 
-        if lands < 2 or lands > 5:
+        if lands_in_hand < 2 or lands_in_hand > 5:
             mull_count = 1
-            hand = flat_deck[7:14]
-            lands = sum(1 for c in hand if c["is_land"])
-            if lands < 2 or lands > 4:
+            hand_idx = deck_indices[7:14]
+            lands_in_hand = np.sum(is_land[hand_idx])
+            if lands_in_hand < 2 or lands_in_hand > 4:
                 mull_count = 2
-                hand = flat_deck[14:21]
 
-        if mull_count > 0:
-            stats["mulligans"] += 1
         kept_size = 7 - mull_count
-        stats["avg_hand_size"] += kept_size
-        start_idx = mull_count * 7
-        current_7 = flat_deck[start_idx : start_idx + 7]
+        total_kept_cards += kept_size
+        if mull_count > 0:
+            mulligans += 1
 
-        if kept_size < 7:
-            current_7.sort(key=lambda x: x["cmc"])
-        kept_hand = current_7[:kept_size]
-        deck_rest = flat_deck[start_idx + 7 :]
-        game_state = kept_hand + deck_rest
+        start_ptr = mull_count * 7
 
-        t2_state, t3_state = game_state[: kept_size + 1], game_state[: kept_size + 2]
-        t4_state, t5_state = game_state[: kept_size + 3], game_state[: kept_size + 4]
+        # Turn 3 & 4 & 5 States
+        t3_idx = deck_indices[start_ptr : start_ptr + kept_size + 2]
+        t3_lands = np.sum(is_land[t3_idx])
+        if t3_lands < 3:
+            screw_t3 += 1
 
-        lands_t3 = [c for c in t3_state if c["is_land"]]
-        if len(lands_t3) < 3:
-            stats["screw_t3"] += 1
+        t4_idx = deck_indices[start_ptr : start_ptr + kept_size + 3]
+        if np.sum(is_land[t4_idx]) < 4:
+            screw_t4 += 1
+        if np.any(is_removal[t4_idx]):
+            removal_t4 += 1
 
-        lands_t4 = [c for c in t4_state if c["is_land"]]
-        if len(lands_t4) < 4:
-            stats["screw_t4"] += 1
+        t5_idx = deck_indices[start_ptr : start_ptr + kept_size + 4]
+        if np.sum(is_land[t5_idx]) >= 6:
+            flood_t5 += 1
 
-        lands_t5 = sum(1 for c in t5_state if c["is_land"])
-        if lands_t5 >= 6:
-            stats["flood_t5"] += 1
+        # Castability Logic (Bitwise Masking)
+        c2, c3, c4 = False, False, False
 
-        if any(c["is_removal"] for c in t4_state):
-            stats["removal_t4"] += 1
-
-        def can_cast(state, target_cmc):
-            available_mana = []
-            for c in state:
-                if c["is_land"]:
-                    available_mana.append(c)
-                elif c["is_ramp"] and c["cmc"] < target_cmc:
-                    available_mana.append(c)
-
-            if len(available_mana) < target_cmc:
-                return False
-
-            spells = [c for c in state if not c["is_land"] and c["cmc"] == target_cmc]
-            if not spells:
-                return False
-
-            color_sources = {"W": 0, "U": 0, "B": 0, "R": 0, "G": 0}
-            for m in available_mana:
-                for c in m["colors_produced"]:
-                    color_sources[c] += 1
-
-            for s in spells:
-                castable = True
-                temp_sources = color_sources.copy()
-                for pip_opts in s["pips"]:
-                    paid = False
-                    for opt in pip_opts:
-                        if temp_sources.get(opt, 0) > 0:
-                            temp_sources[opt] -= 1
-                            paid = True
-                            break
-                    if not paid:
-                        castable = False
+        t2_idx = deck_indices[start_ptr : start_ptr + kept_size + 1]
+        if np.sum(is_land[t2_idx]) >= 2:
+            t2_colors = 0
+            for idx in t2_idx:
+                if is_land[idx] or is_ramp[idx]:
+                    t2_colors |= mana_produced[idx]
+            for idx in t2_idx:
+                if not is_land[idx] and cmcs[idx] == 2:
+                    if (primary_req[idx] & t2_colors) == primary_req[idx]:
+                        c2 = True
                         break
-                if castable:
-                    return True
-            return False
 
-        c2, c3, c4 = can_cast(t2_state, 2), can_cast(t3_state, 3), can_cast(t4_state, 4)
+        if t3_lands >= 3:
+            t3_colors = 0
+            has_3_drop = False
+            for idx in t3_idx:
+                if is_land[idx] or (is_ramp[idx] and cmcs[idx] < 3):
+                    t3_colors |= mana_produced[idx]
+            for idx in t3_idx:
+                if not is_land[idx] and cmcs[idx] == 3:
+                    has_3_drop = True
+                    if (primary_req[idx] & t3_colors) == primary_req[idx]:
+                        c3 = True
+                        break
+            if has_3_drop and not c3:
+                color_screw_t3 += 1
+
+        if np.sum(is_land[t4_idx]) >= 4:
+            t4_colors = 0
+            for idx in t4_idx:
+                if is_land[idx] or (is_ramp[idx] and cmcs[idx] < 4):
+                    t4_colors |= mana_produced[idx]
+            for idx in t4_idx:
+                if not is_land[idx] and cmcs[idx] == 4:
+                    if (primary_req[idx] & t4_colors) == primary_req[idx]:
+                        c4 = True
+                        break
+
         if c2:
-            stats["cast_t2"] += 1
+            cast_t2 += 1
         if c3:
-            stats["cast_t3"] += 1
+            cast_t3 += 1
         if c4:
-            stats["cast_t4"] += 1
+            cast_t4 += 1
         if c2 and c3 and c4:
-            stats["curve_out"] += 1
+            curve_out += 1
 
-        if len(lands_t3) >= 3 and not c3:
-            has_3_drop = any(not c["is_land"] and c["cmc"] == 3 for c in t3_state)
-            if has_3_drop:
-                stats["color_screw_t3"] += 1
+    return (
+        mulligans,
+        screw_t3,
+        screw_t4,
+        flood_t5,
+        cast_t2,
+        cast_t3,
+        cast_t4,
+        curve_out,
+        removal_t4,
+        color_screw_t3,
+        total_kept_cards,
+    )
 
-    stats["avg_hand_size"] = stats["avg_hand_size"] / iterations
-    for k in list(stats.keys()):
-        if k != "avg_hand_size":
-            stats[k] = (stats[k] / iterations) * 100.0
-    return stats
+
+def simulate_deck(deck_list, iterations=10000):
+    arrays = _parse_deck_to_arrays(deck_list)
+    if not arrays:
+        return None
+
+    is_land, is_ramp, is_removal, cmcs, mana_produced, primary_req = arrays
+    results = _run_fast_monte_carlo(
+        is_land, is_ramp, is_removal, cmcs, mana_produced, primary_req, iterations
+    )
+
+    return {
+        "mulligans": (results[0] / iterations) * 100.0,
+        "screw_t3": (results[1] / iterations) * 100.0,
+        "screw_t4": (results[2] / iterations) * 100.0,
+        "flood_t5": (results[3] / iterations) * 100.0,
+        "cast_t2": (results[4] / iterations) * 100.0,
+        "cast_t3": (results[5] / iterations) * 100.0,
+        "cast_t4": (results[6] / iterations) * 100.0,
+        "curve_out": (results[7] / iterations) * 100.0,
+        "removal_t4": (results[8] / iterations) * 100.0,
+        "color_screw_t3": (results[9] / iterations) * 100.0,
+        "avg_hand_size": results[10] / iterations,
+    }

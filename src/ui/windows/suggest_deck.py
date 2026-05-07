@@ -105,7 +105,7 @@ class SuggestDeckPanel(ttk.Frame):
         if self.on_export_custom:
             self.btn_export_builder = ttk.Button(
                 self.arch_frame,
-                text="Export to Custom Builder",
+                text="Custom Builder",
                 bootstyle="info-outline",
                 command=lambda: self.on_export_custom(
                     self.current_deck_list, self.current_sb_list
