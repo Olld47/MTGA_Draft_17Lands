@@ -297,6 +297,7 @@ def suggest_deck(
         color_options = identify_top_pairs(taken_cards, metrics)
         all_variants, incomplete_variants = [], []
         seen_signatures = set()
+        simulated_cache = {}  # Cache to prevent random variance on identical decks
 
         def process_variant(variant_name, deck, sb, colors, arch_key):
             if not deck:
@@ -361,10 +362,20 @@ def suggest_deck(
                     )
 
             opt_deck, opt_sb, opt_note = deck, sb, ""
-            opt_stats = simulate_deck(opt_deck, iterations=10000)
-            score, breakdown = calculate_holistic_score(
-                opt_deck, active_colors, pool_size, metrics
+
+            # Generate a strict string signature of the 40-card deck
+            deck_sig = "|".join(
+                sorted([f"{c['name']}:{c.get('count', 1)}" for c in opt_deck])
             )
+
+            if deck_sig in simulated_cache:
+                opt_stats, score, breakdown = simulated_cache[deck_sig]
+            else:
+                opt_stats = simulate_deck(opt_deck, iterations=10000)
+                score, breakdown = calculate_holistic_score(
+                    opt_deck, active_colors, pool_size, metrics
+                )
+                simulated_cache[deck_sig] = (opt_stats, score, breakdown)
 
             if opt_stats:
                 mc_penalties = []
