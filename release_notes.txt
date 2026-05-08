@@ -1,17 +1,18 @@
 ===================== RELEASE NOTES 4.15 =====================
-* unrealities: [Alpha Feature] Added a workspace specifically designed for Sealed deckbuilding. Features an interactive visual drag-and-drop mode, detailed list views
-* unrealities: [Feature] AI Sealed Shell Generator: Automatically generate the top 3 mathematically optimal deck shells for your specific Sealed pool (e.g., Best 2-Color, Greedy Splash, Aggro Curve) using the Monte Carlo engine
+* unrealities: [Major Feature] Mana Base Optimization: The "Auto-Lands" and AI Deck Optimizer now actively simulate dozens of mathematical land permutations instead of relying on static heuristics
+* unrealities: [Alpha Feature] Added a workspace specifically designed for Sealed deckbuilding. Features an interactive visual drag-and-drop mode, detailed list views.
+* unrealities: [Feature] AI Sealed Shell Generator: Automatically generate the top 3 mathematically optimal deck shells for your specific Sealed pool (e.g., Best 2-Color, Greedy Splash, Aggro Curve) using the Monte Carlo engine.
 * unrealities: [Feature] Offline Day-1 Evaluation Engine: The Advisor can now accurately evaluate cards based purely on Scryfall metadata (CMC, Rarity, Tags) and Tier Lists to generate recommendations instantly on Day 1 before 17Lands data is fully populated.
-* unrealities: [Feature] Dynamic Splash Support: The Advisor engine now actively monitors your fixing ratio. If you draft off-color playables without enough fixing, it massively boosts the priority of dual lands, treasures, and universal fixing to proactively support your splash.
-* unrealities: [Feature] Practice Mode: Added "Tools" to the top menu bar allowing you to generate a random Sealed pool or import one from your clipboard to practice deckbuilding
-* unrealities: [Feature] Custom MTGA Data Folder Locator: Added a "File -> Locate MTGA Data Folder..." option. If you install MTG Arena on a custom drive (like a secondary Steam library) and datasets fail to download, you can now manually point the app to your game files.
-* unrealities: [UX/UI] Improved application error messaging when local Arena files cannot be automatically located, directing users to the new custom folder locator tool.
+* unrealities: [Feature] Practice Mode: Added "Tools" to the top menu bar allowing you to generate a random Sealed pool or import one from your clipboard to practice deckbuilding.
 * unrealities: [UX/UI] All data tables now automatically stretch their columns to fill the available window width, preventing empty space and improving readability.
+* unrealities: [UX/UI] Added a "System Paths" section to the Preferences window allowing users to manually paste the file paths for `Player.log` and `MTGA_Data`, solving issues where OS file pickers could not navigate to hidden system folders.
 * unrealities: [Bug] Fixed an issue where AutoScrollbars would sometimes throw mapping errors or fail to properly hide/show on resizing.
 * unrealities: [Bug] Resolved bugs regarding caching, file paths, and API fallback logic for smooth Day-1 performance.
 * unrealities: [Bug] Fixed issue where Tooltips for cards near the bottom of the screen would fail to display or instantly disappear. Also added support for proper tooltip rendering on negative multi-monitor setups.
 * unrealities: [Bug] Launch Error: No module named 'PIL._tkinter_finder' #176
+* unrealities: [Bug] Read Player.log menu item can't access a Player.log located inside a hidden folder #177
 * unrealities: [Performance] Fixed a severe memory leak where viewing hundreds of card tooltips over a long session would permanently pin high-resolution images in RAM. The app now uses a strict LRU cache to keep memory usage low.
+* unrealities: [Performance] Radically improved the Monte Carlo Simulator. Ported the core engine to a vectorized NumPy/Numba C-extension, dropping simulation time for 10,000 games
 * unrealities: [Bug] Hardened the Scryfall tag downloader against strict API rate limits (HTTP 429). The app now actively pauses and retries instead of silently failing, ensuring your datasets always have card roles (Removal, Evasion, etc.).
 * unrealities: [Bug] Fixed an AI evaluation bug where cost-reduction text containing specific mana pips (e.g., "costs {1} and {U} less") was ignored, causing the engine to incorrectly penalize the tempo of highly castable cards.
 * unrealities: [Bug] Fixed a blindspot in the Day-1 Heuristic engine where expensive creatures with powerful keywords (Reach, Vigilance, Ward, Lifelink) were incorrectly penalized as "vanilla" creatures.
