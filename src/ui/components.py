@@ -24,13 +24,13 @@ def identify_safe_coordinates(root, window_width, window_height, offset_x, offse
             root.winfo_screenheight(),
         )
         if pointer_x + offset_x + window_width > screen_width:
-            location_x = max(pointer_x - offset_x - window_width - 10, 0)
+            location_x = pointer_x - offset_x - window_width - 10
         else:
-            location_x = max(pointer_x + offset_x, 0)
+            location_x = pointer_x + offset_x
         if pointer_y + offset_y + window_height > screen_height:
-            location_y = max(pointer_y - offset_y - window_height - 10, 0)
+            location_y = pointer_y - offset_y - window_height - 10
         else:
-            location_y = max(pointer_y + offset_y, 0)
+            location_y = pointer_y + offset_y
         return location_x, location_y
     except:
         return offset_x, offset_y
@@ -39,12 +39,29 @@ def identify_safe_coordinates(root, window_width, window_height, offset_x, offse
 class AutoScrollbar(ttk.Scrollbar):
     """A scrollbar that hides itself if it's not needed. Only works within the grid geometry manager."""
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._is_mapped = True
+        self._job = None
+        self._needed = True
+
     def set(self, lo, hi):
-        if float(lo) <= 0.0 and float(hi) >= 1.0:
-            self.grid_remove()
-        else:
-            self.grid()
         super().set(lo, hi)
+        self._needed = not (float(lo) <= 0.0 and float(hi) >= 1.0)
+        if self._needed != self._is_mapped:
+            if self._job is None:
+                self._job = self.after(50, self._update_mapping)
+
+    def _update_mapping(self):
+        self._job = None
+        if not self.winfo_exists():
+            return
+        if self._needed != self._is_mapped:
+            if self._needed:
+                self.grid()
+            else:
+                self.grid_remove()
+            self._is_mapped = self._needed
 
     def pack(self, **kw):
         raise tkinter.TclError("AutoScrollbar cannot use pack. Use grid instead.")
@@ -198,16 +215,21 @@ class CardToolTip(tkinter.Toplevel):
     _active_tooltip = None
     _image_executor = ThreadPoolExecutor(max_workers=4)
 
+    # Added LRU Dictionary to manage in-memory image objects so we don't bleed RAM over long sessions
+    _in_memory_images = {}
+    _MAX_IN_MEMORY_IMAGES = 60
+
     @classmethod
     def create(cls, parent, card, images_enabled, scale):
         """Factory method ensures only one tooltip exists globally and avoids flickering loops."""
         if cls._active_tooltip and cls._active_tooltip.winfo_exists():
-            cls._active_tooltip.destroy()
-            cls._active_tooltip = None
+            cls._active_tooltip._close()
         cls._active_tooltip = cls(parent, card, images_enabled, scale)
 
     def __init__(self, parent, card, images_enabled, scale):
         super().__init__(parent)
+        self.parent = parent
+        self._leave_id = None
         try:
             self._build_ui(parent, card, images_enabled, scale)
         except Exception as e:
@@ -228,8 +250,14 @@ class CardToolTip(tkinter.Toplevel):
             self.destroy()
             return
 
+        self.transient(parent.winfo_toplevel())
         self.wm_overrideredirect(True)
-        self.attributes("-topmost", True)
+
+        try:
+            self.attributes("-topmost", True)
+        except Exception:
+            pass
+
         self.configure(
             bg=Theme.BG_PRIMARY, highlightthickness=1, highlightbackground=Theme.ACCENT
         )
@@ -402,11 +430,30 @@ class CardToolTip(tkinter.Toplevel):
         self._reposition()
 
         # Bind closing interactions securely
-        parent.bind("<Leave>", self._close, add="+")
+        self._leave_id = self.parent.bind("<Leave>", self._on_parent_leave, add="+")
         self.bind("<Button-1>", self._close)
-        self.bind("<Leave>", self._close)
+
+    def _on_parent_leave(self, event):
+        try:
+            x, y = self.winfo_pointerx(), self.winfo_pointery()
+            rx, ry = self.parent.winfo_rootx(), self.parent.winfo_rooty()
+            rw, rh = self.parent.winfo_width(), self.parent.winfo_height()
+
+            if rx <= x <= rx + rw and ry <= y <= ry + rh:
+                return
+        except Exception:
+            pass
+
+        self._close()
 
     def _close(self, event=None):
+        if self._leave_id:
+            try:
+                self.parent.unbind("<Leave>", self._leave_id)
+            except Exception:
+                pass
+            self._leave_id = None
+
         if self.winfo_exists():
             self.destroy()
 
@@ -418,55 +465,78 @@ class CardToolTip(tkinter.Toplevel):
         try:
             self.update_idletasks()
 
-            # Re-verify existence after idle tasks in case a <Leave> event instantly destroyed it
             if not self.winfo_exists():
                 return
 
-            ww = self.winfo_width()
-            wh = self.winfo_height()
+            # Use reqwidth/reqheight because winfo_width/height return 1px before the window is actually drawn.
+            # Since the image frame has a hardcoded size (pack_propagate(False)), the reqheight is perfectly accurate
+            # from the exact moment of creation, avoiding expansion overlaps.
+            ww = self.winfo_reqwidth()
+            wh = self.winfo_reqheight()
 
             sw = self.winfo_screenwidth()
             sh = self.winfo_screenheight()
 
-            # Offset aggressively to prevent cursor hovering over the tooltip immediately, causing a rapid <Leave> flicker
-            offset_x, offset_y = 35, 25
+            offset_x, offset_y = 25, 25
 
+            # Calculate X (Flip left if it bleeds off the right edge)
             if self._mouse_x + offset_x + ww > sw:
-                tx = max(self._mouse_x - offset_x - ww - 10, 0)
+                tx = self._mouse_x - offset_x - ww - 20
             else:
-                tx = max(self._mouse_x + offset_x, 0)
+                tx = self._mouse_x + offset_x
 
+            # Calculate Y (Flip ABOVE the cursor if it bleeds off the bottom edge)
             if self._mouse_y + offset_y + wh > sh:
-                ty = max(self._mouse_y - offset_y - wh - 10, 0)
+                ty = self._mouse_y - offset_y - wh - 20
             else:
-                ty = max(self._mouse_y + offset_y, 0)
+                ty = self._mouse_y + offset_y
 
-            self.geometry(f"+{tx}+{ty}")
+            self.geometry(f"+{int(tx)}+{int(ty)}")
+            self.lift()
         except tkinter.TclError:
             pass
 
     def _load_image_async(self, u, s):
         if "scryfall" in u:
             u = u.replace("/small/", "/large/").replace("/normal/", "/large/")
-        self._image_executor.submit(self._fetch_and_apply_image, u, s)
 
-    def _fetch_and_apply_image(self, u, s):
+        cache_key = hashlib.md5(u.encode("utf-8")).hexdigest()
+
+        if cache_key in self._in_memory_images:
+            # Memory Hit! Instant render.
+            self.after(0, lambda: self._apply_image(self._in_memory_images[cache_key]))
+            return
+
+        self._image_executor.submit(self._fetch_and_apply_image, u, s, cache_key)
+
+    def _fetch_and_apply_image(self, u, s, cache_key):
         """Moved the core logic into a clean worker method"""
         try:
             if not u:
                 return
-            sn = hashlib.md5(u.encode("utf-8")).hexdigest() + ".jpg"
+            sn = cache_key + ".jpg"
             cp = os.path.join(self.IMAGE_CACHE_DIR, sn)
             if os.path.exists(cp):
                 with open(cp, "rb") as fi:
                     r = fi.read()
             else:
-                r = requests.get(u, timeout=5).content
+                req = requests.get(u, timeout=5)
+                req.raise_for_status()
+                r = req.content
                 with open(cp, "wb") as fi:
                     fi.write(r)
 
             im = Image.open(io.BytesIO(r))
             im.thumbnail((int(240 * s), int(335 * s)), Image.Resampling.LANCZOS)
+
+            # Save to LRU dictionary
+            if len(CardToolTip._in_memory_images) > CardToolTip._MAX_IN_MEMORY_IMAGES:
+                # Remove oldest entry to prevent RAM bloat
+                CardToolTip._in_memory_images.pop(
+                    next(iter(CardToolTip._in_memory_images))
+                )
+
+            CardToolTip._in_memory_images[cache_key] = im
 
             # Safely route back to Tkinter Main Thread
             if hasattr(self, "winfo_exists"):
@@ -477,7 +547,7 @@ class CardToolTip(tkinter.Toplevel):
                     )
                 except RuntimeError:
                     pass
-        except Exception:
+        except Exception as e:
             pass
 
     def _apply_image(self, im):
@@ -486,6 +556,7 @@ class CardToolTip(tkinter.Toplevel):
             self.img_label.configure(image=self.tk_img)
             # The window height just expanded; recalculate safe bounds to flip it upward if needed
             self._reposition()
+            self.lift()
 
 
 class ModernTreeview(ttk.Treeview):
@@ -970,6 +1041,7 @@ class DynamicTreeviewManager(ttk.Frame):
 
         self.rowconfigure(0, weight=1)
         self.columnconfigure(0, weight=1)
+        self.columnconfigure(1, minsize=Theme.scaled_val(16), weight=0)
 
         self._scrollbar = AutoScrollbar(
             self, orient="vertical", command=self.tree.yview

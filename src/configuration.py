@@ -239,6 +239,17 @@ def write_configuration(
             logger.error(f"Config write error: {error}")
             print(f"Failed to save settings to {file_location}: {error}")
 
+            # ALERT THE USER IF SAVING FAILS (Anti-virus, OneDrive sync locks, etc.)
+            try:
+                import tkinter.messagebox
+
+                tkinter.messagebox.showerror(
+                    "Settings Save Error",
+                    f"Could not save preferences to {file_location}.\n\nThis is usually caused by an Anti-Virus or OneDrive temporarily locking the file.\n\nError: {error}",
+                )
+            except Exception:
+                pass
+
             # Clean up the temp file if the replace failed
             try:
                 if "tmp_path" in locals() and os.path.exists(tmp_path):

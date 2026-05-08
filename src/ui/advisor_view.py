@@ -70,7 +70,13 @@ class AdvisorPanel(tb.Frame):
 
         for i, rec in enumerate(recs[:limit]):
             item_frame = tb.Frame(self.container)
-            item_frame.pack(fill="x", side="top", anchor="nw", padx=Theme.scaled_val(20), pady=Theme.scaled_val((0, 12)))
+            item_frame.pack(
+                fill="x",
+                side="top",
+                anchor="nw",
+                padx=Theme.scaled_val(20),
+                pady=Theme.scaled_val((0, 12)),
+            )
 
             is_elite = rec.is_elite
             badge_bg = Theme.SUCCESS if is_elite else Theme.ACCENT
@@ -113,7 +119,12 @@ class AdvisorPanel(tb.Frame):
                 lbl_sep.configure(foreground=Theme.TEXT_MUTED)
             except tkinter.TclError:
                 pass
-            lbl_sep.pack(side="left", anchor="nw", padx=Theme.scaled_val(4), pady=Theme.scaled_val(1))
+            lbl_sep.pack(
+                side="left",
+                anchor="nw",
+                padx=Theme.scaled_val(4),
+                pady=Theme.scaled_val(1),
+            )
 
             # 4. The Card Name
             font_weight = "bold" if is_elite else "normal"
@@ -168,7 +179,9 @@ class AdvisorPanel(tb.Frame):
                     w.configure(cursor="hand2")
                     w.bind(
                         "<Button-1>",
-                        lambda e, n=rec.card_name, wdg=item_frame: self.on_click_callback(n, wdg),
+                        lambda e, n=rec.card_name, wdg=item_frame: self.on_click_callback(
+                            n, wdg
+                        ),
                     )
 
     def _on_theme_change(self, event=None):

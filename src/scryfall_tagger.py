@@ -94,7 +94,9 @@ class ScryfallTagger:
                     f"Failed to harvest Scryfall tag '{tag_name}' for {set_code}: {e}"
                 )
 
-            time.sleep(0.2)  # Respect Scryfall limits
+            # INCREASED SAFETY MARGIN: Scryfall dynamic rate limit is 10/sec, but a 429 response
+            # requires abandoning traffic. We use 0.5s to ensure we never accidentally hit the ceiling.
+            time.sleep(0.5)
 
         # 3. SAVE TO CACHE
         if card_tags and len(card_tags) > 0:
@@ -115,24 +117,37 @@ class ScryfallTagger:
         while url:
             retries = 3
             success = False
+            response = None
 
             while retries > 0:
                 try:
                     response = requests.get(url, headers=self.HEADERS, timeout=15)
+                    # Support 429 backoff actively
+                    if response.status_code == 429:
+                        logger.warning(
+                            "Scryfall 429 Rate Limit hit. Backing off for 3s..."
+                        )
+                        time.sleep(3)
+                        retries -= 1
+                        continue
+
+                    if response.status_code != 404:
+                        response.raise_for_status()
                     success = True
                     break
-                except requests.exceptions.RequestException:
+                except requests.exceptions.RequestException as e:
+                    logger.warning(
+                        f"Network issue querying Scryfall ({e}). Retries left: {retries-1}"
+                    )
                     retries -= 1
                     time.sleep(2)
 
-            if not success:
+            if not success or not response:
                 break
 
             if response.status_code == 404:
-                # 404 means no cards matched the tag in this chunk
                 logger.info(f"Scryfall returned 0 results (404) for query: {query}")
                 break
-            response.raise_for_status()
 
             data = response.json()
             for card in data.get("data", []):

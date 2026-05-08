@@ -147,6 +147,7 @@ class ArenaScanner:
             for handler in self.draft_log.handlers:
                 if isinstance(handler, logging.FileHandler):
                     self.draft_log.removeHandler(handler)
+                    handler.close()
             formatter = logging.Formatter(
                 "%(asctime)s,%(message)s", datefmt="<%d%m%Y %H:%M:%S>"
             )
@@ -477,6 +478,8 @@ class ArenaScanner:
             if not event_set:
                 for section in event_sections:
                     if any(ev in section for ev in events) or section.isdigit():
+                        continue
+                    if section.upper() in ["TRAD", "COMP", "BOT", "PICK", "TWO"]:
                         continue
                     if 3 <= len(section) <= 4 and section.isalnum():
                         event_set = [section.upper()]

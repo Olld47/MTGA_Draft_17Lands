@@ -4,8 +4,9 @@ Professional Configuration UI for the MTGA Draft Tool.
 Streamlined for Tactical Intelligence and Layered Styling.
 """
 
+import os
 import tkinter
-from tkinter import ttk, messagebox
+from tkinter import ttk, messagebox, filedialog
 from typing import Callable, Dict, List, Tuple
 
 from src import constants
@@ -100,7 +101,7 @@ class SettingsWindow(tkinter.Toplevel):
         size_om.grid(row=3, column=1, sticky="ew", pady=Theme.scaled_val(2))
 
         # --- SECTION: ADVISOR & HUD ---
-        r = 10
+        r = 4
         ttk.Label(
             container, text="INTELLIGENCE & HUD", font=Theme.scaled_font(9, "bold")
         ).grid(
@@ -128,6 +129,34 @@ class SettingsWindow(tkinter.Toplevel):
                 pady=Theme.scaled_val(2),
             )
 
+        r += len(features) + 1
+
+        # --- SECTION: SYSTEM PATHS ---
+        ttk.Label(
+            container, text="SYSTEM PATHS", font=Theme.scaled_font(9, "bold")
+        ).grid(
+            row=r, column=0, columnspan=2, sticky="w", pady=Theme.scaled_val((20, 10))
+        )
+        r += 1
+
+        ttk.Label(container, text="Player.log Location:").grid(
+            row=r, column=0, sticky="e", padx=Theme.scaled_val(5)
+        )
+        self.vars["arena_log_location"] = tkinter.StringVar()
+        ttk.Entry(
+            container, textvariable=self.vars["arena_log_location"], width=40
+        ).grid(row=r, column=1, sticky="w", pady=Theme.scaled_val(2))
+        r += 1
+
+        ttk.Label(container, text="MTGA_Data Location:").grid(
+            row=r, column=0, sticky="e", padx=Theme.scaled_val(5)
+        )
+        self.vars["database_location"] = tkinter.StringVar()
+        ttk.Entry(
+            container, textvariable=self.vars["database_location"], width=40
+        ).grid(row=r, column=1, sticky="w", pady=Theme.scaled_val(2))
+        r += 1
+
         # --- FOOTER ---
         footer = ttk.Frame(container)
         footer.grid(
@@ -150,6 +179,10 @@ class SettingsWindow(tkinter.Toplevel):
         self.vars["filter_format"].set(s.filter_format)
         self.vars["ui_size"].set(self.original_ui_size)
 
+        # Paths
+        self.vars["arena_log_location"].set(s.arena_log_location)
+        self.vars["database_location"].set(s.database_location)
+
         # Checkbox logic
         checkbox_keys = [
             "always_on_top",
@@ -161,7 +194,7 @@ class SettingsWindow(tkinter.Toplevel):
         ]
 
         for key in checkbox_keys:
-            val = getattr(s, key, True)
+            val = getattr(s, key)
             self.vars[key].set(int(val))
 
         self._toggle_traces(True)

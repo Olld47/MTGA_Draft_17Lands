@@ -3,14 +3,12 @@ import os
 import json
 from src.set_metrics import SetMetrics
 from src.dataset import Dataset
-from src.constants import (
-    DATA_FIELD_GIHWR,
-    DATA_FIELD_OHWR,
-    DATA_FIELD_GPWR
-)
+from src.constants import DATA_FIELD_GIHWR, DATA_FIELD_OHWR, DATA_FIELD_GPWR
 
 # 17Lands MKM data from 2024-2-5 to 2024-5-3
-MKM_PREMIER_SNAPSHOT = os.path.join(os.getcwd(), "tests", "data","MKM_PremierDraft_Data_2024_5_3.json")
+MKM_PREMIER_SNAPSHOT = os.path.join(
+    os.getcwd(), "tests", "data", "MKM_PremierDraft_Data_2024_5_3.json"
+)
 
 # These values were retrieved by going to the 17Lands card data page and hovering over an occupied entry in the GIH WR column (mean and std are represented as {mean}%+-{std})
 MKM_PREMIER_EXPECTED_RESULTS = [
@@ -38,7 +36,9 @@ MKM_PREMIER_EXPECTED_RESULTS = [
 ]
 
 # 17Lands OTJ data from 2024-4-16 to 2024-5-3
-OTJ_PREMIER_SNAPSHOT = os.path.join(os.getcwd(), "tests", "data","OTJ_PremierDraft_Data_2024_5_3.json")
+OTJ_PREMIER_SNAPSHOT = os.path.join(
+    os.getcwd(), "tests", "data", "OTJ_PremierDraft_Data_2024_5_3.json"
+)
 
 # These values were retrieved by going to the 17Lands card data page and hovering over an occupied entry in the win rate columns (mean and std are represented as {mean}%+-{std})
 OTJ_PREMIER_EXPECTED_RESULTS = [
@@ -86,7 +86,7 @@ OTJ_PREMIER_EXPECTED_RESULTS = [
     ("WUG", DATA_FIELD_GPWR, 50.8, 2.2),
     ("WBR", DATA_FIELD_GIHWR, 51.7, 2.5),
     # "WBR" OHWR - 17Lands isn't displaying the standard deviation or mean
-    ("WBR", DATA_FIELD_GPWR, 50.0, 2.0), 
+    ("WBR", DATA_FIELD_GPWR, 50.0, 2.0),
     ("WBG", DATA_FIELD_GIHWR, 55.9, 2.9),
     ("WBG", DATA_FIELD_OHWR, 54.9, 3.1),
     ("WBG", DATA_FIELD_GPWR, 54.3, 2.2),
@@ -107,56 +107,70 @@ OTJ_PREMIER_EXPECTED_RESULTS = [
     ("BRG", DATA_FIELD_GPWR, 50.8, 2.3),
 ]
 
+
 @pytest.fixture(name="mkm_premier", scope="module")
 def fixture_mkm_premier():
     dataset = Dataset()
     dataset.open_file(MKM_PREMIER_SNAPSHOT)
     return SetMetrics(dataset, 1)
-    
+
+
 @pytest.fixture(name="otj_premier", scope="module")
 def fixture_otj_premier():
     dataset = Dataset()
     dataset.open_file(OTJ_PREMIER_SNAPSHOT)
     return SetMetrics(dataset, 1)
-    
+
+
 @pytest.fixture(name="missing_set", scope="module")
 def fixture_missing_set():
     return SetMetrics(None)
 
-@pytest.mark.parametrize("colors, field, expected_mean, expected_std", MKM_PREMIER_EXPECTED_RESULTS)
+
+@pytest.mark.parametrize(
+    "colors, field, expected_mean, expected_std", MKM_PREMIER_EXPECTED_RESULTS
+)
 def test_metrics_mkm_premier(mkm_premier, colors, field, expected_mean, expected_std):
     # Compare the calculated values with the values from 17Lands
     mean, std = mkm_premier.get_metrics(colors, field)
-    
-    assert mean == pytest.approx(expected_mean, abs=0.1)  
-    assert std == pytest.approx(expected_std, abs=0.1)  
-    
-@pytest.mark.parametrize("colors, field, expected_mean, expected_std", OTJ_PREMIER_EXPECTED_RESULTS)
+
+    assert mean == pytest.approx(expected_mean, abs=0.1)
+    assert std == pytest.approx(expected_std, abs=0.1)
+
+
+@pytest.mark.parametrize(
+    "colors, field, expected_mean, expected_std", OTJ_PREMIER_EXPECTED_RESULTS
+)
 def test_metrics_otj_premier(otj_premier, colors, field, expected_mean, expected_std):
     # Compare the calculated values with the values from 17Lands
     mean, std = otj_premier.get_metrics(colors, field)
-    
+
     assert mean == pytest.approx(expected_mean, 0.1)
     assert std == pytest.approx(expected_std, 0.1)
-    
-@pytest.mark.parametrize("colors, field, expected_mean, expected_std", MKM_PREMIER_EXPECTED_RESULTS)
+
+
+@pytest.mark.parametrize(
+    "colors, field, expected_mean, expected_std", MKM_PREMIER_EXPECTED_RESULTS
+)
 def test_metrics_missing_set(missing_set, colors, field, expected_mean, expected_std):
     # SetMetrics will return a value of 0.0 for mean and std if a set file isn't specified
     mean, std = missing_set.get_metrics(colors, field)
-    
+
     assert mean == 0.0
-    assert std == 0.0 
-    
+    assert std == 0.0
+
+
 def test_metrics_unknown_color(otj_premier):
     # SetMetrics will return a value of 0.0 for mean and std if an unknown color argument is used
     mean, std = otj_premier.get_metrics("Unknown Color", DATA_FIELD_GIHWR)
-    
+
     assert mean == 0.0
     assert std == 0.0
-    
+
+
 def test_metrics_unknown_field(otj_premier):
     # SetMetrics will return a value of 0.0 for mean and std if an unknown field argument is used
     mean, std = otj_premier.get_metrics("All Decks", "Unknown Field")
-    
+
     assert mean == 0.0
-    assert std == 0.0 
+    assert std == 0.0

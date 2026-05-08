@@ -25,6 +25,7 @@ from src.ui.styles import Theme
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def make_config(sort_states=None):
     """Returns a minimal config object with optional pre-populated sort states."""
     settings = SimpleNamespace()
@@ -53,6 +54,7 @@ def get_col_values(tree, col_index=0):
 # Fixtures
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture
 def root():
     r = tkinter.Tk()
@@ -64,6 +66,7 @@ def root():
 # ---------------------------------------------------------------------------
 # active_sort_column tracking
 # ---------------------------------------------------------------------------
+
 
 class TestActiveSortColumn:
     def test_initially_none(self, root):
@@ -97,6 +100,7 @@ class TestActiveSortColumn:
 # Config persistence
 # ---------------------------------------------------------------------------
 
+
 class TestConfigPersistence:
     def test_sort_state_written_to_config(self, root):
         config = make_config()
@@ -118,10 +122,10 @@ class TestConfigPersistence:
         tree.insert("", "end", values=("Card A", "60.0", "80"))
 
         with patch(WRITE_CFG):
-            tree._handle_sort("gihwr")   # descending
+            tree._handle_sort("gihwr")  # descending
             assert config.settings.table_sort_states["pack"]["reverse"] is True
 
-            tree._handle_sort("gihwr")   # ascending
+            tree._handle_sort("gihwr")  # ascending
             assert config.settings.table_sort_states["pack"]["reverse"] is False
 
     def test_no_config_does_not_crash(self, root):
@@ -147,15 +151,19 @@ class TestConfigPersistence:
 # Sort group mapping
 # ---------------------------------------------------------------------------
 
+
 class TestSortGroupMapping:
-    @pytest.mark.parametrize("view_id,expected_group", [
-        ("pack_table",         "pack"),
-        ("overlay_table",      "pack"),
-        ("taken_table",        "pool"),
-        ("overlay_pool_table", "pool"),
-        ("missing_table",      "missing_table"),
-        (None,                 "default"),
-    ])
+    @pytest.mark.parametrize(
+        "view_id,expected_group",
+        [
+            ("pack_table", "pack"),
+            ("overlay_table", "pack"),
+            ("taken_table", "pool"),
+            ("overlay_pool_table", "pool"),
+            ("missing_table", "missing_table"),
+            (None, "default"),
+        ],
+    )
     def test_sort_group_values(self, root, view_id, expected_group):
         tree = make_tree(root, view_id=view_id)
         assert tree.sort_group == expected_group
@@ -180,6 +188,7 @@ class TestSortGroupMapping:
 # ---------------------------------------------------------------------------
 # reapply_sort()
 # ---------------------------------------------------------------------------
+
 
 class TestReapplySort:
     def test_reapply_restores_order_after_reload(self, root):
@@ -222,7 +231,9 @@ class TestReapplySort:
 
     def test_reapply_returns_false_when_saved_column_missing(self, root):
         """Config references a column not present in this table → graceful no-op."""
-        config = make_config(sort_states={"pack": {"column": "nonexistent_col", "reverse": True}})
+        config = make_config(
+            sort_states={"pack": {"column": "nonexistent_col", "reverse": True}}
+        )
         tree = make_tree(root, view_id="pack_table", config=config)
         tree.insert("", "end", values=("Card A", "60.0", "80"))
         result = tree.reapply_sort()
@@ -250,6 +261,7 @@ class TestReapplySort:
 # ---------------------------------------------------------------------------
 # force_reverse parameter
 # ---------------------------------------------------------------------------
+
 
 class TestForceReverse:
     def test_force_reverse_true_does_not_toggle(self, root):
@@ -283,6 +295,7 @@ class TestForceReverse:
 # ---------------------------------------------------------------------------
 # Sort arrow heading indicators
 # ---------------------------------------------------------------------------
+
 
 class TestSortArrowIndicators:
     def test_arrow_shown_on_active_column_descending(self, root):
