@@ -1151,91 +1151,81 @@ class CustomDeckPanel(ttk.Frame):
         self.notebook.select(self.hand_tab)
         self.sim_executor.submit(self._run_auto_lands_task)
 
-        def _run_auto_lands_task(self):
-            self.after(
-                0,
-                lambda: self._show_sim_loading(
-                    "Simulating perfect mana base permutations..."
-                ),
+    def _run_auto_lands_task(self):
+        self.after(
+            0,
+            lambda: self._show_sim_loading(
+                "Simulating perfect mana base permutations..."
+            ),
+        )
+
+        try:
+            from src.advisor.mana_base import brute_force_mana_base, get_strict_colors
+
+            # Extract non-basics
+            spells = [c for c in self.deck_list if "Land" not in c.get("types", [])]
+            non_basic_lands = [
+                c
+                for c in self.deck_list
+                if "Land" in c.get("types", [])
+                and "Basic" not in c.get("types", [])
+                and c.get("name") not in constants.BASIC_LANDS
+            ]
+
+            if not spells:
+                self.after(
+                    0, lambda: self._show_sim_error("Add spells to the deck first.")
+                )
+                return
+
+            deck_colors = get_strict_colors(spells)
+            if not deck_colors:
+                deck_colors = ["W", "U", "B", "R", "G"]
+
+            total_lands_needed = 40 - len(spells)
+
+            # Trim excess non-basics if needed
+            if len(non_basic_lands) > total_lands_needed:
+                non_basic_lands.sort(
+                    key=lambda x: float(
+                        x.get("deck_colors", {}).get("All Decks", {}).get("gihwr", 0.0)
+                    ),
+                    reverse=True,
+                )
+                non_basic_lands = non_basic_lands[:total_lands_needed]
+
+            needed_basics = max(0, total_lands_needed - len(non_basic_lands))
+
+            # Trigger the AI brute force
+            basics_to_add = brute_force_mana_base(
+                spells, non_basic_lands, deck_colors, forced_count=needed_basics
             )
 
-            try:
-                from src.advisor.mana_base import (
-                    brute_force_mana_base,
-                    get_strict_colors,
-                )
-
-                # Extract non-basics
-                spells = [c for c in self.deck_list if "Land" not in c.get("types", [])]
-                non_basic_lands = [
-                    c
-                    for c in self.deck_list
-                    if "Land" in c.get("types", [])
-                    and "Basic" not in c.get("types", [])
-                    and c.get("name") not in constants.BASIC_LANDS
+            def _finalize():
+                # Wipe old basics
+                self.deck_list = [
+                    c for c in self.deck_list if c["name"] not in constants.BASIC_LANDS
                 ]
 
-                if not spells:
-                    self.after(
-                        0, lambda: self._show_sim_error("Add spells to the deck first.")
+                # Append the optimal ones
+                for basic in basics_to_add:
+                    dest_card = next(
+                        (c for c in self.deck_list if c["name"] == basic["name"]), None
                     )
-                    return
+                    if dest_card:
+                        dest_card["count"] += 1
+                    else:
+                        self.deck_list.append(dict(basic))
 
-                deck_colors = get_strict_colors(spells)
-                if not deck_colors:
-                    deck_colors = ["W", "U", "B", "R", "G"]
+                self._update_tables()
+                self._render_deck_stats()
+                self._update_basics_toolbar()
+                self._run_monte_carlo_task(self.deck_list)
 
-                total_lands_needed = 40 - len(spells)
+            self.after(0, _finalize)
 
-                # Trim excess non-basics if needed
-                if len(non_basic_lands) > total_lands_needed:
-                    non_basic_lands.sort(
-                        key=lambda x: float(
-                            x.get("deck_colors", {})
-                            .get("All Decks", {})
-                            .get("gihwr", 0.0)
-                        ),
-                        reverse=True,
-                    )
-                    non_basic_lands = non_basic_lands[:total_lands_needed]
-
-                needed_basics = max(0, total_lands_needed - len(non_basic_lands))
-
-                # Trigger the AI brute force
-                basics_to_add = brute_force_mana_base(
-                    spells, non_basic_lands, deck_colors, forced_count=needed_basics
-                )
-
-                def _finalize():
-                    # Wipe old basics
-                    self.deck_list = [
-                        c
-                        for c in self.deck_list
-                        if c["name"] not in constants.BASIC_LANDS
-                    ]
-
-                    # Append the optimal ones
-                    for basic in basics_to_add:
-                        dest_card = next(
-                            (c for c in self.deck_list if c["name"] == basic["name"]),
-                            None,
-                        )
-                        if dest_card:
-                            dest_card["count"] += 1
-                        else:
-                            self.deck_list.append(dict(basic))
-
-                    self._update_tables()
-                    self._render_deck_stats()
-                    self._update_basics_toolbar()
-
-                    # Immediately run a full 10,000 game simulation on the new deck to show the results
-                    self._run_monte_carlo_task(self.deck_list)
-
-                self.after(0, _finalize)
-
-            except Exception as e:
-                self.after(0, lambda err=str(e): self._show_sim_error(err))
+        except Exception as e:
+            self.after(0, lambda err=str(e): self._show_sim_error(err))
 
     def _add_specific_basic(self, color_name):
         color_map = {

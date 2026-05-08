@@ -460,6 +460,17 @@ class DraftApp:
             if key in ["result_format", "card_colors_enabled"] or key is None:
                 self._refresh_ui_data()
 
+            if key == "arena_log_location":
+                if s.arena_log_location and os.path.exists(s.arena_log_location):
+                    self.orchestrator.set_file_and_scan(s.arena_log_location)
+
+            if key == "database_location":
+                if s.database_location and os.path.exists(s.database_location):
+                    self.orchestrator.scanner.set_data.db_path = s.database_location
+                    self.orchestrator.scanner.set_data.unknown_id_cache.clear()
+                    self.orchestrator.request_math_update()
+                    self._refresh_ui_data()
+
         parent_window = self.overlay_window if self.overlay_window else self.root
         SettingsWindow(parent_window, self.configuration, _on_settings_changed)
 
