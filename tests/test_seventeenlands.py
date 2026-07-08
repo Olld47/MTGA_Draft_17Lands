@@ -94,20 +94,19 @@ def test_build_card_ratings_url(seventeenlands):
     # Arrange
     set_code = "TLA"
     draft = "PremierDraft"
-    start_date = "2023-01-01"
-    end_date = "2025-11-28"
+    time_period = "ALL_TIME"
     user_group = constants.LIMITED_USER_GROUP_ALL
     color = constants.FILTER_OPTION_ALL_DECKS
 
     # Act
     url = seventeenlands.build_card_ratings_url(
-        set_code, draft, start_date, end_date, user_group, color
+        set_code, draft, time_period, user_group, color
     )
 
     # Assert
     expected_url = (
         "https://www.17lands.com/card_ratings/data?expansion=TLA"
-        "&format=PremierDraft&start_date=2023-01-01&end_date=2025-11-28"
+        "&format=PremierDraft&time_period=ALL_TIME"
     )
     assert url == expected_url
 
@@ -130,15 +129,14 @@ def test_download_card_ratings(mock_session, seventeenlands):
 
     set_code = "TLA"
     draft = "PremierDraft"
-    start_date = "2023-01-01"
-    end_date = "2025-11-28"
+    time_period = "ALL_TIME"
     user_group = constants.LIMITED_USER_GROUP_ALL
     color = constants.FILTER_OPTION_ALL_DECKS
     card_data = {}
 
     # Act
     seventeenlands.download_card_ratings(
-        set_code, color, draft, start_date, end_date, user_group, card_data
+        set_code, color, draft, time_period, user_group, card_data
     )
 
     # Assert
@@ -171,13 +169,12 @@ def test_download_color_ratings(mock_session, seventeenlands):
 
     set_code = "TLA"
     draft = "PremierDraft"
-    start_date = "2023-01-01"
-    end_date = "2025-11-28"
+    time_period = "ALL_TIME"
     user_group = constants.LIMITED_USER_GROUP_ALL
 
     # Act
     color_ratings, game_count = seventeenlands.download_color_ratings(
-        set_code, draft, start_date, end_date, user_group
+        set_code, draft, time_period, user_group
     )
 
     # Assert
@@ -201,7 +198,7 @@ def test_seventeenlands_color_ratings_normalization(mock_session, seventeenlands
     # We pass a filter that includes the *Normalized* key "WG"
     # The function should be able to map "GW" from API to "WG"
     ratings, game_count = seventeenlands.download_color_ratings(
-        "SET", "Draft", "Start", "End", "User", color_filter=["WG"]
+        "SET", "Draft", "ALL_TIME", "User", color_filter=["WG"]
     )
 
     # Check that the key in the returned dictionary is normalized to "WG"
@@ -281,12 +278,12 @@ def test_fetch_archetype_with_cache_hit(mock_stale, seventeenlands, tmp_path):
 
     # Override CACHE_DIR to our tmp_path
     seventeenlands.CACHE_DIR = str(tmp_path)
-    cache_path = tmp_path / "otj_premierdraft_2024-01-01_2024-02-01_all_all.json"
+    cache_path = tmp_path / "otj_premierdraft_all_time_all_all.json"
     cache_path.write_text(json.dumps([{"name": "Cached Card"}]))
 
     # Act
     data, from_cache = seventeenlands._fetch_archetype_with_cache(
-        "OTJ", "PremierDraft", "2024-01-01", "2024-02-01", "All", "All"
+        "OTJ", "PremierDraft", "ALL_TIME", "All", "All"
     )
 
     # Assert
@@ -308,7 +305,7 @@ def test_fetch_archetype_with_cache_miss_writes_to_disk(
 
     # Act
     data, from_cache = seventeenlands._fetch_archetype_with_cache(
-        "OTJ", "PremierDraft", "2024-01-01", "2024-02-01", "All", "All"
+        "OTJ", "PremierDraft", "ALL_TIME", "All", "All"
     )
 
     # Assert
@@ -317,7 +314,7 @@ def test_fetch_archetype_with_cache_miss_writes_to_disk(
     assert session.get.call_count == 1
 
     # Verify the cache file was actually created by the method
-    cache_path = tmp_path / "otj_premierdraft_2024-01-01_2024-02-01_all_all.json"
+    cache_path = tmp_path / "otj_premierdraft_all_time_all_all.json"
     assert cache_path.exists()
 
 
@@ -328,9 +325,9 @@ def test_download_color_ratings_http_errors(mock_session, seventeenlands):
     # 429 Too Many Requests
     response.status_code = 429
     with pytest.raises(Exception, match="Rate Limited"):
-        seventeenlands.download_color_ratings("TLA", "Draft", "Start", "End", "All")
+        seventeenlands.download_color_ratings("TLA", "Draft", "ALL_TIME", "All")
 
     # 403 Forbidden (WAF Block)
     response.status_code = 403
     with pytest.raises(Exception, match="Access Denied"):
-        seventeenlands.download_color_ratings("TLA", "Draft", "Start", "End", "All")
+        seventeenlands.download_color_ratings("TLA", "Draft", "ALL_TIME", "All")

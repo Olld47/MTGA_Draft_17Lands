@@ -64,7 +64,7 @@ def load_data(args, config, progress_callback):
             if len(msg) > 75:
                 msg = msg[:72] + "..."
             progress_callback(msg)
-            
+
     splash_handler = SplashLogHandler()
     splash_handler.setLevel(logging.INFO)
     logging.getLogger().addHandler(splash_handler)
@@ -92,13 +92,35 @@ def load_data(args, config, progress_callback):
         if db_loc and os.path.exists(os.path.join(db_loc, "Downloads", "Raw")):
             pass
         else:
-            db_loc = args.data or (retrieve_arena_directory(log_path) if log_path else None)
+            db_loc = args.data or (
+                retrieve_arena_directory(log_path) if log_path else None
+            )
             if db_loc:
                 config.settings.database_location = db_loc
                 write_configuration(config)
 
         # 3. SYNC OFFICIAL DATASETS
-        if config.settings.auto_sync_datasets:
+        upgraded = config.settings.last_run_version != constants.APPLICATION_VERSION
+        if upgraded:
+            # One-time migration after an update. v4.18 corrects 17Lands stats
+            # that were previously limited to a single day of data, so force a
+            # refresh even if auto-sync is off and clear the now-orphaned raw
+            # cache (keyed by the retired start_date/end_date scheme).
+            progress_callback("Applying corrected 17Lands data (one-time update)...")
+            try:
+                from src.utils import purge_raw_cache
+
+                purge_raw_cache()
+            except Exception as purge_e:
+                logger.debug(f"Raw cache purge skipped (non-fatal): {purge_e}")
+
+            from src.dataset_updater import DatasetUpdater
+
+            DatasetUpdater(config).sync_datasets(progress_callback)
+
+            config.settings.last_run_version = constants.APPLICATION_VERSION
+            write_configuration(config)
+        elif config.settings.auto_sync_datasets:
             from src.dataset_updater import DatasetUpdater
 
             updater = DatasetUpdater(config)
@@ -164,7 +186,9 @@ def load_data(args, config, progress_callback):
                 if os.path.exists(constants.DRAFT_LOG_FOLDER):
                     for f in os.listdir(constants.DRAFT_LOG_FOLDER):
                         if f.startswith("DraftLog_") and f.endswith(".log"):
-                            past_logs.append(os.path.join(constants.DRAFT_LOG_FOLDER, f))
+                            past_logs.append(
+                                os.path.join(constants.DRAFT_LOG_FOLDER, f)
+                            )
 
                 if past_logs:
                     past_logs.sort(key=os.path.getmtime, reverse=True)
@@ -278,10 +302,10 @@ def main():
 
         # Launch non-blocking Splash
         SplashWindow(
-            root, 
-            task=lambda cb: load_data(args, config, cb), 
+            root,
+            task=lambda cb: load_data(args, config, cb),
             on_complete=on_ready,
-            show_ui=getattr(config.settings, "show_splash_screen", True)
+            show_ui=getattr(config.settings, "show_splash_screen", True),
         )
 
     try:

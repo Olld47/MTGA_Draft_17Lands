@@ -110,3 +110,48 @@ def test_normalize_color_string(input_color, expected_output):
     Verify that color strings are normalized to WUBRG order.
     """
     assert normalize_color_string(input_color) == expected_output
+
+
+def test_purge_raw_cache_removes_files(tmp_path, monkeypatch):
+    """The upgrade migration should clear stale raw-cache entries."""
+    import src.constants as constants_module
+    from src.utils import purge_raw_cache
+
+    monkeypatch.setattr(constants_module, "BASE_DIR", str(tmp_path))
+    cache_dir = tmp_path / "Temp" / "RawCache"
+    cache_dir.mkdir(parents=True)
+    (cache_dir / "otj_premierdraft_2024-01-01_2024-02-01_all_all.json").write_text("[]")
+    (cache_dir / "otj_premierdraft_2024-01-02_2024-02-02_wu_all.json").write_text("[]")
+
+    removed = purge_raw_cache()
+
+    assert removed == 2
+    assert list(cache_dir.iterdir()) == []
+
+
+def test_purge_raw_cache_missing_dir_is_safe(tmp_path, monkeypatch):
+    """A missing cache directory must not raise, just report nothing removed."""
+    import src.constants as constants_module
+    from src.utils import purge_raw_cache
+
+    monkeypatch.setattr(constants_module, "BASE_DIR", str(tmp_path))
+    assert purge_raw_cache() == 0
+
+
+def test_clear_set_history_removes_datasets(tmp_path, monkeypatch):
+    """Clearing set history deletes datasets and the manifest but leaves other files."""
+    import src.utils as utils_module
+    from src.utils import clear_set_history
+
+    monkeypatch.setattr(utils_module, "SETS_FOLDER", str(tmp_path))
+    (tmp_path / "MSH_PremierDraft_All_Data.json").write_text("{}")
+    (tmp_path / "BLB_QuickDraft_Top_Data.json").write_text("{}")
+    (tmp_path / "local_manifest.json").write_text("{}")
+    (tmp_path / "unrelated.txt").write_text("keep me")
+
+    removed = clear_set_history()
+
+    assert removed == 2
+    assert not (tmp_path / "MSH_PremierDraft_All_Data.json").exists()
+    assert not (tmp_path / "local_manifest.json").exists()
+    assert (tmp_path / "unrelated.txt").exists()

@@ -33,8 +33,7 @@ class Seventeenlands:
         self,
         set_code: str,
         draft_format: str,
-        start_date: str,
-        end_date: str,
+        time_period: str,
         colors: List[str] = None,
         user_group: str = "All",
         progress_callback=None,
@@ -69,7 +68,7 @@ class Seventeenlands:
 
             # Fetch raw data (from cache or network)
             raw_data, from_cache = self._fetch_archetype_with_cache(
-                set_code, draft_format, start_date, end_date, color, user_group
+                set_code, draft_format, time_period, color, user_group
             )
 
             # Process into master map
@@ -88,15 +87,16 @@ class Seventeenlands:
         self,
         set_code: str,
         draft_format: str,
-        start_date: str,
-        end_date: str,
+        time_period: str,
         color: str,
         user_group: str = "All",
     ):
         """Retrieves data from 17Lands, prioritizing the local raw cache."""
         ug_label = user_group if user_group and user_group != "All" else "All"
 
-        cache_name = f"{set_code}_{draft_format}_{start_date}_{end_date}_{color}_{ug_label}.json".lower()
+        cache_name = (
+            f"{set_code}_{draft_format}_{time_period}_{color}_{ug_label}.json".lower()
+        )
 
         cache_path = os.path.join(self.CACHE_DIR, cache_name)
 
@@ -111,10 +111,11 @@ class Seventeenlands:
             except json.JSONDecodeError:
                 pass  # Cache corrupt, fetch new
 
-        # Build URL
+        # Build URL. 17Lands uses a time_period preset (ALL_TIME, LAST_DAY, ...)
+        # instead of start_date/end_date ranges, which it now ignores.
         url = (
             f"{self.URL_BASE}/card_ratings/data?expansion={set_code.upper()}"
-            f"&format={draft_format}&start_date={start_date}&end_date={end_date}"
+            f"&format={draft_format}&time_period={time_period}"
         )
         if color != "All" and color != "All Decks":
             url += f"&colors={color}"
@@ -209,8 +210,7 @@ class Seventeenlands:
         self,
         set_code,
         draft,
-        start_date,
-        end_date,
+        time_period,
         user_group,
         threshold=5000,
         color_filter=None,
@@ -219,8 +219,7 @@ class Seventeenlands:
         params = {
             "expansion": set_code,
             "event_type": draft,
-            "start_date": start_date,
-            "end_date": end_date,
+            "time_period": time_period,
             "combine_splash": True,
         }
         if user_group and user_group.lower() != "all":
@@ -275,7 +274,7 @@ class Seventeenlands:
 
     # RESTORED LEGACY METHOD
     def download_card_ratings(
-        self, set_code, color, draft, start_date, end_date, user_group, card_data
+        self, set_code, color, draft, time_period, user_group, card_data
     ):
         """
         Legacy method to populate a card dictionary with 17Lands data.
@@ -284,8 +283,7 @@ class Seventeenlands:
         params = {
             "expansion": set_code,
             "format": draft,
-            "start_date": start_date,
-            "end_date": end_date,
+            "time_period": time_period,
             "colors": color if color != "All Decks" else None,
         }
 
@@ -340,10 +338,8 @@ class Seventeenlands:
             }
             card_data[name][constants.DATA_SECTION_RATINGS].append({color: entry})
 
-    def build_card_ratings_url(
-        self, set_code, draft, start_date, end_date, user_group, color
-    ):
-        base = f"{self.URL_BASE}/card_ratings/data?expansion={set_code}&format={draft}&start_date={start_date}&end_date={end_date}"
+    def build_card_ratings_url(self, set_code, draft, time_period, user_group, color):
+        base = f"{self.URL_BASE}/card_ratings/data?expansion={set_code}&format={draft}&time_period={time_period}"
         if user_group and user_group != "All":
             base += f"&user_group={user_group}"
         if color and color != "All Decks":

@@ -26,6 +26,28 @@ WAF_COOLDOWN_SEC = 180.0  # 3 minutes of sleep if we get a 403/WAF block
 # Statistical Thresholds
 MIN_GAMES_THRESHOLD = 500  # Increased to reduce API spam and filter out noisy data
 
+# --- 17LANDS TIME PERIODS ---
+# 17Lands dropped custom start_date/end_date ranges in favour of these preset
+# "time_period" values (the drop-down on the card pages). These strings are the
+# query values sent by the site; confirm against the browser Network tab if a
+# preset ever stops returning data.
+TIME_PERIOD_ALL_TIME = "ALL_TIME"
+TIME_PERIOD_ALL_EXCEPT_FIRST_WEEK = "ALL_EXCEPT_FIRST_WEEK"
+TIME_PERIOD_LATEST_EVENT = "LATEST_EVENT"
+TIME_PERIOD_LAST_TWO_WEEKS = "LAST_TWO_WEEKS"
+TIME_PERIOD_LAST_WEEK = "LAST_WEEK"
+TIME_PERIOD_LAST_DAY = "LAST_DAY"
+TIME_PERIOD_FIRST_WEEK = "FIRST_WEEK"
+
+
+def default_time_period(set_code: str) -> str:
+    """The ETL pulls full history for standard sets, but Cube runs are distinct
+    short-lived events, so we take the latest event to avoid blending them."""
+    if "CUBE" in set_code.upper():
+        return TIME_PERIOD_LATEST_EVENT
+    return TIME_PERIOD_ALL_TIME
+
+
 # Data-quality validation. A brand-new set can legitimately look thin on day
 # one/two (few games, sparse archetypes), so validation only *blocks* a publish
 # once the set has at least this many days of data. Below that, issues are logged

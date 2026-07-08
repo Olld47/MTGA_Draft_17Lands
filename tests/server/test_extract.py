@@ -40,8 +40,7 @@ def test_extract_17lands_data(mock_client):
         draft_format="PremierDraft",
         valid_archetypes=["All Decks", "UR"],
         user_group="All",
-        start_date="2020-01-01",
-        end_date="2024-01-01",
+        time_period="ALL_TIME",
     )
 
     # Assert
@@ -76,8 +75,7 @@ def test_extract_17lands_data_uses_www_host_and_color_filter(mock_client):
         draft_format="PremierDraft",
         valid_archetypes=["All Decks", "WU"],
         user_group="All",
-        start_date="2026-06-23",
-        end_date="2026-07-08",
+        time_period="ALL_TIME",
     )
 
     calls = mock_client.respectful_get.call_args_list
@@ -93,8 +91,12 @@ def test_extract_17lands_data_uses_www_host_and_color_filter(mock_client):
     wu_params = calls[1].kwargs["params"]
     assert "colors" not in all_decks_params
     assert wu_params["colors"] == "WU"
-    assert wu_params["start_date"] == "2026-06-23"
-    assert wu_params["end_date"] == "2026-07-08"
+    # ALL_TIME preset must be sent so the endpoint returns full history rather
+    # than defaulting to its LAST_DAY drop-down value. Legacy date params are gone.
+    assert all_decks_params["time_period"] == "ALL_TIME"
+    assert wu_params["time_period"] == "ALL_TIME"
+    assert "start_date" not in wu_params
+    assert "end_date" not in wu_params
 
 
 def test_extract_color_ratings(mock_client):
@@ -112,7 +114,7 @@ def test_extract_color_ratings(mock_client):
     mock_client.respectful_get.return_value = mock_response
 
     ratings, games_played, total_games = extract_color_ratings(
-        mock_client, "M10", "PremierDraft", "All", "2020-01-01", "2024-01-01"
+        mock_client, "M10", "PremierDraft", "All", "ALL_TIME"
     )
 
     # Assertions

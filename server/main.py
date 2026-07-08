@@ -101,6 +101,9 @@ def run_pipeline():
 
     jobs = []
     for set_code, data in active_sets.items():
+        # The date range no longer drives the 17Lands request (it uses a
+        # time_period preset now), but we still record the true start date in
+        # each dataset's meta so the UI can show the window being represented.
         if "CUBE" in set_code.upper():
             true_start_date_str = data["start_date"]
         else:
@@ -119,9 +122,10 @@ def run_pipeline():
 
     for set_code, draft_format, user_group, start_date_str in jobs:
         logger.info(f"==== Processing {set_code} | {draft_format} | {user_group} ====")
-        window = "ALL-TIME" if "CUBE" not in set_code.upper() else "event window"
+        time_period = config.default_time_period(set_code)
         logger.info(
-            f"   Effective window ({window}): {start_date_str} -> {end_date_str}"
+            f"   Requesting 17Lands time_period={time_period} "
+            f"(represents {start_date_str} -> {end_date_str})"
         )
 
         try:
@@ -158,7 +162,7 @@ def run_pipeline():
                 )
 
             color_ratings, games_played, total_games = extract_color_ratings(
-                client, set_code, draft_format, user_group, start_date_str, end_date_str
+                client, set_code, draft_format, user_group, time_period
             )
 
             valid_archetypes = ["All Decks"]
@@ -185,8 +189,7 @@ def run_pipeline():
                 draft_format,
                 valid_archetypes,
                 user_group,
-                start_date_str,
-                end_date_str,
+                time_period,
             )
 
             if not seventeenlands_data.get("All Decks"):

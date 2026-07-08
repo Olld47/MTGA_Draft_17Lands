@@ -91,6 +91,27 @@ def invalidate_local_set_cache():
     _LOCAL_SET_CACHE["mtime"] = 0.0
 
 
+def clear_set_history() -> int:
+    """Deletes all downloaded 17Lands datasets and the local manifest so the app
+    re-syncs a clean copy. Frees disk and speeds up loading when many old sets
+    have accumulated. Returns the number of dataset files removed."""
+    if not os.path.isdir(SETS_FOLDER):
+        return 0
+
+    removed = 0
+    for name in os.listdir(SETS_FOLDER):
+        if name.endswith(SET_FILE_SUFFIX) or name == "local_manifest.json":
+            try:
+                os.remove(os.path.join(SETS_FOLDER, name))
+                if name.endswith(SET_FILE_SUFFIX):
+                    removed += 1
+            except OSError:
+                pass
+
+    invalidate_local_set_cache()
+    return removed
+
+
 def retrieve_local_set_list(codes=None, names=None):
     """Scans the Sets folder and returns a list of valid set files (Highly Cached)"""
     global _LOCAL_SET_CACHE
@@ -383,6 +404,29 @@ def is_cache_stale(filepath: str, hours: int = 24) -> bool:
         return True
     file_age_seconds = time.time() - os.path.getmtime(filepath)
     return file_age_seconds > (hours * 3600)
+
+
+def purge_raw_cache() -> int:
+    """Deletes the raw 17Lands response cache (Temp/RawCache) and returns the
+    number of files removed. Used on upgrade to drop entries keyed by the old
+    start_date/end_date scheme, which are orphaned once fetching switches to the
+    time_period presets."""
+    from src.constants import BASE_DIR
+
+    cache_dir = os.path.join(BASE_DIR, "Temp", "RawCache")
+    if not os.path.isdir(cache_dir):
+        return 0
+
+    removed = 0
+    for name in os.listdir(cache_dir):
+        path = os.path.join(cache_dir, name)
+        try:
+            if os.path.isfile(path):
+                os.remove(path)
+                removed += 1
+        except OSError:
+            pass
+    return removed
 
 
 def sanitize_card_name(name: str) -> str:
