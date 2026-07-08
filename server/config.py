@@ -26,6 +26,12 @@ WAF_COOLDOWN_SEC = 180.0  # 3 minutes of sleep if we get a 403/WAF block
 # Statistical Thresholds
 MIN_GAMES_THRESHOLD = 500  # Increased to reduce API spam and filter out noisy data
 
+# Data-quality validation. A brand-new set can legitimately look thin on day
+# one/two (few games, sparse archetypes), so validation only *blocks* a publish
+# once the set has at least this many days of data. Below that, issues are logged
+# but the dataset is still published.
+VALIDATION_ENFORCE_MIN_DAYS = 3
+
 # --- DATA TARGETS ---
 ARCHETYPES = [
     "All Decks",
