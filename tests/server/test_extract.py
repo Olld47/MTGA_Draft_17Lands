@@ -61,6 +61,42 @@ def test_extract_17lands_data(mock_client):
     )
 
 
+def test_extract_17lands_data_uses_www_host_and_color_filter(mock_client):
+    """Regression: card ratings must hit www.17lands.com (which honors start_date/
+    end_date and the colors filter), NOT api.17lands.com (a limited snapshot that
+    ignores them, collapsing every archetype into an identical tiny sample)."""
+
+    mock_response = MagicMock()
+    mock_response.json.return_value = [{"name": "Some Card", "mtga_id": 1}]
+    mock_client.respectful_get.return_value = mock_response
+
+    extract_17lands_data(
+        client=mock_client,
+        set_code="MSH",
+        draft_format="PremierDraft",
+        valid_archetypes=["All Decks", "WU"],
+        user_group="All",
+        start_date="2026-06-23",
+        end_date="2026-07-08",
+    )
+
+    calls = mock_client.respectful_get.call_args_list
+    assert calls, "expected at least one card_ratings request"
+
+    for call in calls:
+        url = call.args[0] if call.args else call.kwargs["url"]
+        assert url == "https://www.17lands.com/card_ratings/data"
+
+    # The "All Decks" request must not carry a colors filter; the "WU"
+    # request must, so the per-archetype data is actually distinct.
+    all_decks_params = calls[0].kwargs["params"]
+    wu_params = calls[1].kwargs["params"]
+    assert "colors" not in all_decks_params
+    assert wu_params["colors"] == "WU"
+    assert wu_params["start_date"] == "2026-06-23"
+    assert wu_params["end_date"] == "2026-07-08"
+
+
 def test_extract_color_ratings(mock_client):
     """Verifies that color ratings normalize color strings and filter out low sample sizes."""
 

@@ -185,7 +185,12 @@ def extract_17lands_data(
     end_date: str,
 ) -> dict:
     archetype_data = {}
-    base_url = "https://api.17lands.com/card_ratings/data"
+    # NOTE: Must use www.17lands.com (not api.17lands.com). The api host serves a
+    # limited default snapshot that ignores start_date/end_date and the colors
+    # filter, which silently collapses every archetype into a tiny "All Decks"
+    # sample. www.17lands.com honors the full query (matches color_ratings and
+    # the client in src/seventeenlands.py).
+    base_url = "https://www.17lands.com/card_ratings/data"
 
     for i, color in enumerate(valid_archetypes):
         logger.info(
