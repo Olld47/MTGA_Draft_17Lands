@@ -17,20 +17,25 @@ def test_extract_17lands_data(mock_client):
     """Verifies that raw 17Lands data is parsed into strict percentage floats and captures image URLs."""
 
     mock_response = MagicMock()
-    mock_response.json.return_value = [
-        {
-            "name": "Lightning Bolt",
-            "mtga_id": 12345,
-            "ever_drawn_win_rate": 0.6254,
-            "opening_hand_win_rate": 0.591,
-            "win_rate": 0.58,
-            "drawn_improvement_win_rate": 0.045,
-            "avg_seen": 2.1,
-            "avg_pick": 2.0,
-            "ever_drawn_game_count": 5000,
-            "url": "/static/images/cards/bolt.jpg",
-        }
-    ]
+    # /api/card_data wraps the card list in a {copyright, notes, data} envelope
+    mock_response.json.return_value = {
+        "copyright": "(c) 2026 17Lands LLC",
+        "notes": "usage notes",
+        "data": [
+            {
+                "name": "Lightning Bolt",
+                "mtga_id": 12345,
+                "ever_drawn_win_rate": 0.6254,
+                "opening_hand_win_rate": 0.591,
+                "win_rate": 0.58,
+                "drawn_improvement_win_rate": 0.045,
+                "avg_seen": 2.1,
+                "avg_pick": 2.0,
+                "ever_drawn_game_count": 5000,
+                "url": "/static/images/cards/bolt.jpg",
+            }
+        ],
+    }
     mock_client.respectful_get.return_value = mock_response
 
     # Act
@@ -60,13 +65,14 @@ def test_extract_17lands_data(mock_client):
     )
 
 
-def test_extract_17lands_data_uses_www_host_and_color_filter(mock_client):
-    """Regression: card ratings must hit www.17lands.com (which honors start_date/
-    end_date and the colors filter), NOT api.17lands.com (a limited snapshot that
-    ignores them, collapsing every archetype into an identical tiny sample)."""
+def test_extract_17lands_data_uses_api_card_data_endpoint(mock_client):
+    """Regression: card ratings must hit www.17lands.com/api/card_data with the
+    event_type param. The old /card_ratings/data route still answers 200 but
+    ignores colors/time_period, collapsing every archetype into an identical
+    stale snapshot (and api.17lands.com remains a different, unsuitable host)."""
 
     mock_response = MagicMock()
-    mock_response.json.return_value = [{"name": "Some Card", "mtga_id": 1}]
+    mock_response.json.return_value = {"data": [{"name": "Some Card", "mtga_id": 1}]}
     mock_client.respectful_get.return_value = mock_response
 
     extract_17lands_data(
@@ -79,11 +85,11 @@ def test_extract_17lands_data_uses_www_host_and_color_filter(mock_client):
     )
 
     calls = mock_client.respectful_get.call_args_list
-    assert calls, "expected at least one card_ratings request"
+    assert calls, "expected at least one card data request"
 
     for call in calls:
         url = call.args[0] if call.args else call.kwargs["url"]
-        assert url == "https://www.17lands.com/card_ratings/data"
+        assert url == "https://www.17lands.com/api/card_data"
 
     # The "All Decks" request must not carry a colors filter; the "WU"
     # request must, so the per-archetype data is actually distinct.
@@ -91,6 +97,10 @@ def test_extract_17lands_data_uses_www_host_and_color_filter(mock_client):
     wu_params = calls[1].kwargs["params"]
     assert "colors" not in all_decks_params
     assert wu_params["colors"] == "WU"
+    # The endpoint renamed format -> event_type; sending the old param would be
+    # silently ignored.
+    assert all_decks_params["event_type"] == "PremierDraft"
+    assert "format" not in all_decks_params
     # ALL_TIME preset must be sent so the endpoint returns full history rather
     # than defaulting to its LAST_DAY drop-down value. Legacy date params are gone.
     assert all_decks_params["time_period"] == "ALL_TIME"

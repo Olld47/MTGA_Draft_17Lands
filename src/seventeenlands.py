@@ -29,6 +29,14 @@ class Seventeenlands:
         if not os.path.exists(self.CACHE_DIR):
             os.makedirs(self.CACHE_DIR)
 
+    @staticmethod
+    def _unwrap_card_payload(payload) -> List[Dict]:
+        """/api/card_data wraps the card list in {copyright, notes, data};
+        older responses/caches are a bare list. Accept both."""
+        if isinstance(payload, dict):
+            return payload.get("data") or []
+        return payload or []
+
     def download_set_data(
         self,
         set_code: str,
@@ -94,8 +102,10 @@ class Seventeenlands:
         """Retrieves data from 17Lands, prioritizing the local raw cache."""
         ug_label = user_group if user_group and user_group != "All" else "All"
 
+        # The _v2 marker skips cache files fetched from the retired
+        # /card_ratings/data route, which served degraded data.
         cache_name = (
-            f"{set_code}_{draft_format}_{time_period}_{color}_{ug_label}.json".lower()
+            f"{set_code}_{draft_format}_{time_period}_{color}_{ug_label}_v2.json".lower()
         )
 
         cache_path = os.path.join(self.CACHE_DIR, cache_name)
@@ -111,11 +121,13 @@ class Seventeenlands:
             except json.JSONDecodeError:
                 pass  # Cache corrupt, fetch new
 
-        # Build URL. 17Lands uses a time_period preset (ALL_TIME, LAST_DAY, ...)
-        # instead of start_date/end_date ranges, which it now ignores.
+        # Build URL. Card ratings live at /api/card_data with an `event_type`
+        # param and a time_period preset (ALL_TIME, LATEST_EVENT, ...). The old
+        # /card_ratings/data route still answers 200 but ignores the colors and
+        # time_period filters, so it must not be used.
         url = (
-            f"{self.URL_BASE}/card_ratings/data?expansion={set_code.upper()}"
-            f"&format={draft_format}&time_period={time_period}"
+            f"{self.URL_BASE}/api/card_data?expansion={set_code.upper()}"
+            f"&event_type={draft_format}&time_period={time_period}"
         )
         if color != "All" and color != "All Decks":
             url += f"&colors={color}"
@@ -124,7 +136,7 @@ class Seventeenlands:
 
         response = self.session.get(url, timeout=30)
         response.raise_for_status()
-        data = response.json()
+        data = self._unwrap_card_payload(response.json())
 
         # Only save to cache if we actually received data
         if data and len(data) > 0:
@@ -282,7 +294,7 @@ class Seventeenlands:
         """
         params = {
             "expansion": set_code,
-            "format": draft,
+            "event_type": draft,
             "time_period": time_period,
             "colors": color if color != "All Decks" else None,
         }
@@ -290,10 +302,10 @@ class Seventeenlands:
         if user_group and user_group.lower() != "all":
             params["user_group"] = user_group
 
-        url = f"{self.URL_BASE}/card_ratings/data"
+        url = f"{self.URL_BASE}/api/card_data"
         response = self.session.get(url, params=params, timeout=30)
         response.raise_for_status()
-        data = response.json()
+        data = self._unwrap_card_payload(response.json())
         self.process_card_ratings(color, data, card_data)
 
     def process_card_ratings(self, color, data, card_data):
@@ -339,7 +351,7 @@ class Seventeenlands:
             card_data[name][constants.DATA_SECTION_RATINGS].append({color: entry})
 
     def build_card_ratings_url(self, set_code, draft, time_period, user_group, color):
-        base = f"{self.URL_BASE}/card_ratings/data?expansion={set_code}&format={draft}&time_period={time_period}"
+        base = f"{self.URL_BASE}/api/card_data?expansion={set_code}&event_type={draft}&time_period={time_period}"
         if user_group and user_group != "All":
             base += f"&user_group={user_group}"
         if color and color != "All Decks":
