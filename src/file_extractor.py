@@ -232,6 +232,7 @@ class FileExtractor(UIProgress):
         self.session = ""
         self.start_date = ""
         self.end_date = ""
+        self.time_period = constants.TIME_PERIOD_DEFAULT
         self.user_group = ""
         self.directory = directory
         self.card_ratings = {}
@@ -272,6 +273,14 @@ class FileExtractor(UIProgress):
             self.end_date = end_date
             self.combined_data["meta"]["end_date"] = self.end_date
         return result
+
+    def set_time_period(self, time_period):
+        """Sets the 17Lands time_period preset (ALL_TIME, LATEST_EVENT, ...) used
+        for fetching. Replaces the old custom start_date/end_date range, which
+        17Lands no longer honors. The start/end dates are still recorded in meta
+        for display purposes."""
+        self.time_period = time_period or constants.TIME_PERIOD_DEFAULT
+        self.combined_data["meta"]["time_period"] = self.time_period
 
     def set_user_group(self, user_group):
         """Sets the user_group filter in a set file (all/bottom/middle/top)"""
@@ -362,8 +371,7 @@ class FileExtractor(UIProgress):
             deep_ratings = sl.download_set_data(
                 set_code,
                 self.draft,
-                self.start_date,
-                self.end_date,
+                self.time_period,
                 colors=target_colors,
                 user_group=self.user_group,
                 progress_callback=update_ui,
@@ -1150,8 +1158,7 @@ class FileExtractor(UIProgress):
                             set_code,
                             color,
                             self.draft,
-                            self.start_date,
-                            self.end_date,
+                            self.time_period,
                             self.user_group,
                             self.card_ratings,
                         )
@@ -1218,8 +1225,7 @@ class FileExtractor(UIProgress):
                     seventeenlands.download_color_ratings(
                         self.selected_sets.seventeenlands[0],
                         self.draft,
-                        self.start_date,
-                        self.end_date,
+                        self.time_period,
                         self.user_group,
                         threshold=self.threshold,
                     )

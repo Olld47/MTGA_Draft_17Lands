@@ -177,6 +177,43 @@ class TestDownloadPanel:
             mock_remove.assert_called_once_with(target_file)
             mock_update.assert_called_once()
 
+    @patch("src.ui.windows.download.write_configuration")
+    @patch("src.utils.clear_set_history", return_value=3)
+    @patch("tkinter.messagebox.showinfo")
+    @patch("tkinter.messagebox.askyesno", return_value=True)
+    def test_clear_set_history_button(
+        self,
+        mock_ask,
+        mock_info,
+        mock_clear,
+        mock_write,
+        root,
+        mock_sets_data,
+        config,
+    ):
+        """Clear Set History wipes datasets and resets the version marker so the
+        next launch performs a fresh refresh."""
+        panel = DownloadWindow(root, mock_sets_data, config, MagicMock())
+
+        with patch.object(panel, "_update_table"):
+            panel._clear_set_history()
+
+        mock_clear.assert_called_once()
+        assert config.settings.last_run_version == ""
+        assert config.card_data.latest_dataset == ""
+        mock_write.assert_called_once()
+        mock_info.assert_called_once()
+
+    @patch("tkinter.messagebox.askyesno", return_value=False)
+    def test_clear_set_history_button_cancelled(
+        self, mock_ask, root, mock_sets_data, config
+    ):
+        """Declining the confirmation must not delete anything."""
+        panel = DownloadWindow(root, mock_sets_data, config, MagicMock())
+        with patch("src.utils.clear_set_history") as mock_clear:
+            panel._clear_set_history()
+            mock_clear.assert_not_called()
+
     @patch("tkinter.messagebox.showwarning")
     def test_delete_dataset_blocked_if_active(
         self, mock_warn, root, mock_sets_data, config

@@ -181,16 +181,15 @@ def extract_17lands_data(
     draft_format: str,
     valid_archetypes: list,
     user_group: str,
-    start_date: str,
-    end_date: str,
+    time_period: str,
 ) -> dict:
     archetype_data = {}
-    # NOTE: Must use www.17lands.com (not api.17lands.com). The api host serves a
-    # limited default snapshot that ignores start_date/end_date and the colors
-    # filter, which silently collapses every archetype into a tiny "All Decks"
-    # sample. www.17lands.com honors the full query (matches color_ratings and
-    # the client in src/seventeenlands.py).
-    base_url = "https://www.17lands.com/card_ratings/data"
+    # NOTE: Must use www.17lands.com/api/card_data with the `event_type` param
+    # and a `time_period` preset (see config.TIME_PERIOD_*). The retired
+    # /card_ratings/data route still answers 200 but ignores the colors and
+    # time_period filters (every archetype collapses into a stale copy of All
+    # Decks), and api.17lands.com remains a different, unsuitable host.
+    base_url = "https://www.17lands.com/api/card_data"
 
     for i, color in enumerate(valid_archetypes):
         logger.info(
@@ -199,9 +198,8 @@ def extract_17lands_data(
 
         params = {
             "expansion": set_code,
-            "format": draft_format,
-            "start_date": start_date,
-            "end_date": end_date,
+            "event_type": draft_format,
+            "time_period": time_period,
         }
         if color != "All Decks":
             params["colors"] = color
@@ -209,7 +207,9 @@ def extract_17lands_data(
             params["user_group"] = user_group.lower()
 
         try:
-            data = client.respectful_get(base_url, params=params).json()
+            payload = client.respectful_get(base_url, params=params).json()
+            # /api/card_data wraps the card list in {copyright, notes, data}
+            data = payload.get("data") or [] if isinstance(payload, dict) else payload
             if color == "All Decks" and not data:
                 break
 
@@ -269,8 +269,7 @@ def extract_color_ratings(
     set_code: str,
     draft_format: str,
     user_group: str,
-    start_date: str,
-    end_date: str,
+    time_period: str,
 ) -> tuple[dict, dict, int]:
     logger.info(
         f"Fetching color ratings for {set_code} {draft_format} ({user_group})..."
@@ -279,8 +278,7 @@ def extract_color_ratings(
     params = {
         "expansion": set_code,
         "event_type": draft_format,
-        "start_date": start_date,
-        "end_date": end_date,
+        "time_period": time_period,
         "combine_splash": "true",
     }
     if user_group != "All":
