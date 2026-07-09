@@ -1,4 +1,5 @@
 ===================== RELEASE NOTES 4.19 =====================
+* unrealities: [Bug] Fixed Contender Drafts not being recognized during live drafting (#187). The scanner never ran its pack/pick parsers for Contender events, so no pack suggestions appeared and the deck builder saw zero picks until the initial deck was submitted. Contender Drafts are now handled like the other human live draft formats.
 * unrealities: [UX/UI] Manual downloads are now labeled with their Time Period preset (e.g. "All (Latest Event)") in the Datasets table instead of a placeholder date range, record the set's true start date, and no longer overwrite each other when different presets are downloaded on the same day.
 
 ===================== RELEASE NOTES 4.18 =====================

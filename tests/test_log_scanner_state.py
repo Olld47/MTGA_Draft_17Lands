@@ -48,6 +48,30 @@ def test_stale_pool_wipe_time_travel_backwards(scanner):
     assert scanner.current_pack == 0
 
 
+def test_load_state_normalizes_legacy_string_draft_type(tmp_path):
+    """States saved before v4.19 could persist an event-name string (e.g.
+    "ContenderDraft") as draft_type, which matches no parser dispatch branch.
+    Loading must coerce it to the int type code."""
+    import json
+    from src import constants
+
+    state_file = tmp_path / "active_draft_state.json"
+    state_file.write_text(
+        json.dumps(
+            {
+                "draft_type": "ContenderDraft",
+                "current_draft_id": "draft_A",
+                "event_string": "ContenderDraft_MSH_20260707",
+            }
+        )
+    )
+
+    s = ArenaScanner("mock.log", MagicMock(), retrieve_unknown=False)
+    s.state_file = str(state_file)
+    assert s._load_state() is True
+    assert s.draft_type == constants.LIMITED_TYPE_DRAFT_CONTENDER
+
+
 def test_stale_pool_no_wipe_historical_replay(scanner):
     """If we time-travel backwards but the cards MATCH our history exactly, DO NOT WIPE. We are just re-parsing the log."""
     scanner.current_draft_id = ""

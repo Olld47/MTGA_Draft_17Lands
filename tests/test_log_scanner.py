@@ -9,6 +9,7 @@ from unittest.mock import patch, MagicMock
 from src.log_scanner import ArenaScanner
 from tests.test_log_scanner_data import (
     TEST_SETS,
+    MSH_CONTENDER_DRAFT_ENTRIES_2026_7_7,
     TDM_PREMIER_DRAFT_ENTRIES_2025_4_8,
     OTJ_PREMIER_DRAFT_ENTRIES_2024_5_7,
     MKM_PREMIER_DRAFT_ENTRIES,
@@ -298,6 +299,33 @@ def test_tmt_pick_two_draft(session_scanner, entry_label, expected, entry_string
         expected,
         entry_string,
     )
+
+
+@pytest.mark.parametrize(
+    "entry_label, expected, entry_string", MSH_CONTENDER_DRAFT_ENTRIES_2026_7_7
+)
+def test_msh_contender_draft(session_scanner, entry_label, expected, entry_string):
+    """Regression for issue #187: Contender drafts must be parsed as human live
+    drafts so packs and picks are recognized during the draft."""
+    event_test_cases(
+        session_scanner,
+        "MSH ContenderDraft",
+        entry_label,
+        expected,
+        entry_string,
+    )
+
+
+def test_contender_draft_type_is_human_draft_int():
+    """The ContenderDraft mapping must be an integer type code in the human
+    draft family — a string value silently matches no parser dispatch branch."""
+    from src import constants
+
+    draft_type = constants.LIMITED_TYPES_DICT[
+        constants.LIMITED_TYPE_STRING_DRAFT_CONTENDER
+    ]
+    assert isinstance(draft_type, int)
+    assert draft_type != constants.LIMITED_TYPE_UNKNOWN
 
 
 @pytest.mark.parametrize(

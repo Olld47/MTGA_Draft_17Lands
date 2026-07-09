@@ -174,6 +174,12 @@ class ArenaScanner:
                 self.draft_type = state.get(
                     "draft_type", constants.LIMITED_TYPE_UNKNOWN
                 )
+                # States saved before v4.19 could hold an event-name string
+                # (e.g. "ContenderDraft"), which matches no parser dispatch.
+                if not isinstance(self.draft_type, int):
+                    self.draft_type = constants.LIMITED_TYPES_DICT.get(
+                        self.draft_type, constants.LIMITED_TYPE_UNKNOWN
+                    )
                 self.draft_sets = state.get("draft_sets", [])
                 self.draft_label = state.get("draft_label", "")
                 self.event_string = state.get("event_string", "")
@@ -829,6 +835,8 @@ class ArenaScanner:
             constants.LIMITED_TYPE_DRAFT_PICK_TWO,
             constants.LIMITED_TYPE_DRAFT_TRADITIONAL,
             constants.LIMITED_TYPE_DRAFT_PICK_TWO_TRAD,
+            # Contender drafts are human live drafts (Premier protocol)
+            constants.LIMITED_TYPE_DRAFT_CONTENDER,
         ]:
             explicit_update |= self._search_pick_human()
             explicit_update |= self._search_pack_notify()
