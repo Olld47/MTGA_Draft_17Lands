@@ -29,23 +29,27 @@ TIER_TO_GIHWR = {
 
 def get_card_rating(card, colors, metrics=None, tier_data=None):
     global_mean = 54.0
+    set_has_data = False
     if metrics:
         mean_val, _ = metrics.get_metrics("All Decks", "gihwr")
         if mean_val > 0:
             global_mean = mean_val
+            set_has_data = True
 
     stats = card.get("deck_colors", {})
-    global_wr = float(stats.get("All Decks", {}).get("gihwr", 0.0))
+    global_wr = float(stats.get("All Decks", {}).get("gihwr") or 0.0)
 
     arch_key = (
         "".join(sorted(colors)) if len(colors) <= 2 else "".join(sorted(colors[:2]))
     )
-    arch_wr = float(stats.get(arch_key, {}).get("gihwr", 0.0))
+    arch_wr = float(stats.get(arch_key, {}).get("gihwr") or 0.0)
 
     if arch_wr > 30.0 and global_wr > 30.0:
         return (arch_wr * 0.7) + (global_wr * 0.3)
     elif global_wr > 30.0:
         return global_wr
+    elif arch_wr > 30.0:
+        return arch_wr
 
     if tier_data:
         name, tier_scores = card.get("name", ""), []
@@ -57,6 +61,13 @@ def get_card_rating(card, colors, metrics=None, tier_data=None):
                     tier_scores.append(score)
         if tier_scores:
             return sum(tier_scores) / len(tier_scores)
+
+    # In an established format (the set already has win-rate data), a card with
+    # no data of its own is one nobody drafts or plays — effectively unplayable
+    # (e.g. Worlds Within Worlds). Don't invent a generous score from a metadata
+    # heuristic; that fallback is only for Day 1 before any data exists.
+    if set_has_data:
+        return 0.0
 
     return HeuristicEvaluator.evaluate(card)
 

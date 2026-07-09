@@ -1310,9 +1310,15 @@ class FileExtractor(UIProgress):
         try:
             import time
 
-            s_clean = self.start_date.replace("-", "")
+            # Stamp with the time_period preset (underscore-free so the
+            # filename still splits into 5 segments) plus the fetch date, so
+            # different presets downloaded the same day don't overwrite each
+            # other.
+            period_stamp = "".join(
+                part.capitalize() for part in self.time_period.split("_")
+            )
             e_clean = self.end_date.replace("-", "")
-            custom_stamp = f"Custom-{s_clean}-{e_clean}"
+            custom_stamp = f"Custom-{period_stamp}-{e_clean}"
 
             output_file = "_".join(
                 (

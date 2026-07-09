@@ -20,7 +20,9 @@ def calculate_dynamic_mana_base(spells, non_basic_lands, colors, forced_count=17
     hybrid_pips = []
 
     analyzer = ManaSourceAnalyzer(spells + non_basic_lands)
-    existing_sources, any_color = analyzer.sources, analyzer.any_color_sources
+    existing_sources = analyzer.sources
+    any_color_lands = analyzer.any_color_land_sources
+    any_color_spells = analyzer.any_color_spell_sources
     any_color_enabler_pips = analyzer.any_color_enabler_pips
 
     for card in spells:
@@ -70,7 +72,9 @@ def calculate_dynamic_mana_base(spells, non_basic_lands, colors, forced_count=17
         max_pip_in_single_card[best_opt] = max(1, max_pip_in_single_card[best_opt])
         lowest_cmc[best_opt] = min(cmc, lowest_cmc[best_opt])
 
-    active_colors = [c for c in colors if strict_pips[c] > 0]
+    # Cover every color the deck actually pips, not just the declared ones —
+    # splash/hybrid spells outside the declared colors still need sources.
+    active_colors = [c for c in constants.CARD_COLORS if strict_pips[c] > 0]
     if not active_colors:
         active_colors = [c for c in colors] if colors else ["W", "U", "B", "R", "G"]
     sorted_active = sorted(active_colors, key=lambda c: strict_pips[c], reverse=True)
@@ -106,12 +110,19 @@ def calculate_dynamic_mana_base(spells, non_basic_lands, colors, forced_count=17
 
     allocations = {c: 0 for c in sorted_active}
     for c in sorted_active:
-        effective_any = max(0, any_color - any_color_enabler_pips.get(c, 0))
+        # One-shot fixers (Treasure makers etc.) are worth roughly half a
+        # permanent source and can't be the backbone of a color; only lands
+        # that produce any color count at full weight.
+        effective_spell_fixers = max(
+            0, any_color_spells - any_color_enabler_pips.get(c, 0)
+        )
+        effective_any = any_color_lands + min(2, effective_spell_fixers // 2)
         provided = existing_sources.get(c, 0) + effective_any
         deficit = targets[c] - provided
 
+        color_max_pip = max_pip_in_single_card.get(c, 0)
         if c not in sorted_active[:2]:
-            allocations[c] = max(0, min(deficit, 4 if max_pip >= 2 else 2))
+            allocations[c] = max(0, min(deficit, 4 if color_max_pip >= 2 else 2))
         else:
             allocations[c] = max(0, deficit)
 
@@ -131,11 +142,30 @@ def calculate_dynamic_mana_base(spells, non_basic_lands, colors, forced_count=17
                     allocations[c] -= 1
                     diff -= 1
     elif total_allocated < forced_count:
+        # Distribute the remaining slots where they help most: the color with
+        # the most pips per source it already has (instead of dumping the
+        # whole remainder onto the primary color).
         diff = forced_count - total_allocated
-        for c in sorted_active[:2]:
-            if diff > 0:
+        while diff > 0:
+            best_c = max(
+                sorted_active,
+                key=lambda c: strict_pips[c]
+                / (existing_sources.get(c, 0) + allocations[c] + 1.0),
+            )
+            allocations[best_c] += 1
+            diff -= 1
+
+    # Never leave a pipped color with zero sources of any kind.
+    for c in sorted_active:
+        if (
+            allocations[c] == 0
+            and existing_sources.get(c, 0) == 0
+            and any_color_lands == 0
+        ):
+            donor = max(allocations, key=lambda k: allocations[k])
+            if allocations[donor] > 1:
+                allocations[donor] -= 1
                 allocations[c] += 1
-                diff -= 1
 
     lands = []
     for c, count in allocations.items():
@@ -197,11 +227,19 @@ class ManaSourceAnalyzer:
     def __init__(self, pool):
         self.pool = pool
         self.sources = {c: 0 for c in constants.CARD_COLORS}
-        self.any_color_sources = 0
+        # Lands that produce any color are dependable sources; spells that fix
+        # (Treasure makers, dorks) are transient and must be discounted by the
+        # mana base math.
+        self.any_color_land_sources = 0
+        self.any_color_spell_sources = 0
         self.any_color_enabler_pips = {c: 0 for c in constants.CARD_COLORS}
         self.total_fixing_cards = 0
         for card in self.pool:
             self._evaluate(card)
+
+    @property
+    def any_color_sources(self):
+        return self.any_color_land_sources + self.any_color_spell_sources
 
     def _evaluate(self, card):
         count, types, tags = (
@@ -259,7 +297,10 @@ class ManaSourceAnalyzer:
                 is_universal = True
 
         if is_universal and not specific_match_found:
-            self.any_color_sources += count
+            if is_land:
+                self.any_color_land_sources += count
+            else:
+                self.any_color_spell_sources += count
             self.total_fixing_cards += count
             for c in card_colors:
                 if c in self.any_color_enabler_pips:
@@ -268,7 +309,7 @@ class ManaSourceAnalyzer:
 
         if is_land and "Basic" not in types:
             if not card_colors and "fixing_ramp" in tags and not specific_match_found:
-                self.any_color_sources += count
+                self.any_color_land_sources += count
                 self.total_fixing_cards += count
                 return
             for c in card_colors:

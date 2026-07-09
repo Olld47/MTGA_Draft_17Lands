@@ -90,6 +90,73 @@ def test_retrieve_local_set_list_skip_old(mock_integrity, mock_listdir, mock_exi
     assert file_list == MOCKED_DATASETS_LIST_VALID
 
 
+@patch("src.utils.os.path.exists")
+@patch("src.utils.os.listdir")
+@patch("src.utils.check_file_integrity")
+def test_retrieve_local_set_list_custom_preset_label(
+    mock_integrity, mock_listdir, mock_exists
+):
+    """Custom datasets downloaded with a time_period preset must display the
+    preset label (e.g. 'All (Latest Event)') instead of the placeholder date
+    range, which no longer describes what was fetched."""
+    import src.utils
+
+    src.utils._LOCAL_SET_CACHE = {"mtime": 0.0, "files": []}
+
+    mock_exists.return_value = True
+    mock_listdir.return_value = ["MSH_ContenderDraft_All_Custom-LatestEvent-20260708_Data.json"]
+    mock_integrity.return_value = (
+        Result.VALID,
+        {
+            "meta": {
+                "version": 3.0,
+                "start_date": "2019-01-01",
+                "end_date": "2026-07-08",
+                "time_period": "LATEST_EVENT",
+                "collection_date": "2026-07-08 19:36:27.000000",
+            }
+        },
+    )
+
+    file_list, error_list = retrieve_local_set_list(["MSH"])
+
+    assert not error_list
+    assert len(file_list) == 1
+    assert file_list[0][2] == "All (Latest Event)"
+
+
+@patch("src.utils.os.path.exists")
+@patch("src.utils.os.listdir")
+@patch("src.utils.check_file_integrity")
+def test_retrieve_local_set_list_custom_legacy_date_label(
+    mock_integrity, mock_listdir, mock_exists
+):
+    """Older custom datasets without meta.time_period keep the date-range label."""
+    import src.utils
+
+    src.utils._LOCAL_SET_CACHE = {"mtime": 0.0, "files": []}
+
+    mock_exists.return_value = True
+    mock_listdir.return_value = ["OTJ_PremierDraft_All_Custom-20240416-20240503_Data.json"]
+    mock_integrity.return_value = (
+        Result.VALID,
+        {
+            "meta": {
+                "version": 2,
+                "start_date": "2024-04-16",
+                "end_date": "2024-05-03",
+                "collection_date": "2024-05-03 10:15:45.788070",
+            }
+        },
+    )
+
+    file_list, error_list = retrieve_local_set_list(["OTJ"])
+
+    assert not error_list
+    assert len(file_list) == 1
+    assert file_list[0][2] == "All (04/16-05/03)"
+
+
 @pytest.mark.parametrize(
     "input_color, expected_output",
     [

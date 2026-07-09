@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from src import constants
 from src.configuration import write_configuration
 from src.file_extractor import FileExtractor
-from src.utils import retrieve_local_set_list
+from src.utils import retrieve_local_set_list, read_local_manifest
 from src.ui.components import DynamicTreeviewManager, AutoScrollbar
 from src.ui.styles import Theme
 
@@ -100,14 +100,7 @@ class DownloadWindow(ttk.Frame):
         set_options = list(self.sets_data.keys())
         active_set_codes = []
 
-        try:
-            manifest_path = os.path.join(constants.SETS_FOLDER, "local_manifest.json")
-            if os.path.exists(manifest_path):
-                with open(manifest_path, "r", encoding="utf-8") as f:
-                    manifest_data = json.load(f)
-                    active_set_codes = manifest_data.get("active_sets", [])
-        except Exception:
-            pass
+        active_set_codes = read_local_manifest().get("active_sets", [])
 
         active_options = []
         inactive_options = []
@@ -345,6 +338,25 @@ class DownloadWindow(ttk.Frame):
     def _manual_download(self):
         self._start_download()
 
+    def _resolve_start_date(self, set_key: str) -> str:
+        """Best-known start date for a set. The set list can be stuck on the
+        placeholder default (stale cache, 17Lands feed gap), so fall back to
+        the earliest start_date the synced dataset manifest records for it."""
+        s_info = self.sets_data.get(set_key)
+        if s_info and s_info.start_date != constants.START_DATE_DEFAULT:
+            return s_info.start_date
+
+        codes = {c.upper() for c in (s_info.seventeenlands if s_info else [])}
+        manifest_dates = [
+            entry["start_date"]
+            for key, entry in read_local_manifest().get("datasets", {}).items()
+            if key.split("_")[0].upper() in codes and entry.get("start_date")
+        ]
+        if manifest_dates:
+            return min(manifest_dates)
+
+        return self.vars["start"].get()
+
     def _clear_set_history(self):
         """Deletes all locally downloaded datasets and schedules a fresh refresh on
         the next launch's splash screen. Useful when accumulated old sets slow
@@ -442,7 +454,7 @@ class DownloadWindow(ttk.Frame):
         ctx = {
             "set_key": self.vars["set"].get(),
             "event": self.vars["event"].get(),
-            "start": self.vars["start"].get(),
+            "start": self._resolve_start_date(self.vars["set"].get()),
             "end": self.vars["end"].get(),
             "time_period": constants.time_period_value(self.vars["period"].get()),
             "group": self.vars["group"].get(),

@@ -66,6 +66,65 @@ class TestDownloadPanel:
         assert panel.vars["start"].get() == "2023-12-01"
         assert panel.vars["event"].get() == "PremierDraft"
 
+    def test_resolve_start_date_prefers_set_info(self, root, mock_sets_data, config):
+        """A set with a real start date uses it directly."""
+        panel = DownloadWindow(root, mock_sets_data, config, MagicMock())
+        assert panel._resolve_start_date("Outlaws") == "2024-04-16"
+
+    def test_resolve_start_date_manifest_fallback(self, root, config):
+        """A set stuck on the placeholder date (e.g. stale set-list cache) falls
+        back to the earliest start_date in the synced dataset manifest."""
+        from src.constants import START_DATE_DEFAULT
+
+        sets_data = MagicMock(
+            data={
+                "Marvel Super Heroes": SetInfo(
+                    arena=["ALL"],
+                    seventeenlands=["MSH"],
+                    formats=[],
+                    set_code="MARVEL",
+                    start_date=START_DATE_DEFAULT,
+                ),
+            }
+        )
+        panel = DownloadWindow(root, sets_data, config, MagicMock())
+
+        manifest = {
+            "datasets": {
+                "MSH_PremierDraft_All": {"start_date": "2026-06-23"},
+                "MSH_TradDraft_All": {"start_date": "2026-06-24"},
+                "TMT_PremierDraft_All": {"start_date": "2026-03-03"},
+            }
+        }
+        with patch(
+            "src.ui.windows.download.read_local_manifest", return_value=manifest
+        ):
+            assert panel._resolve_start_date("Marvel Super Heroes") == "2026-06-23"
+
+    def test_resolve_start_date_placeholder_without_manifest(self, root, config):
+        """No real set date and no manifest entry: keep the placeholder."""
+        from src.constants import START_DATE_DEFAULT
+
+        sets_data = MagicMock(
+            data={
+                "Marvel Super Heroes": SetInfo(
+                    arena=["ALL"],
+                    seventeenlands=["MSH"],
+                    formats=[],
+                    set_code="MARVEL",
+                    start_date=START_DATE_DEFAULT,
+                ),
+            }
+        )
+        panel = DownloadWindow(root, sets_data, config, MagicMock())
+
+        with patch(
+            "src.ui.windows.download.read_local_manifest", return_value={}
+        ):
+            assert (
+                panel._resolve_start_date("Marvel Super Heroes") == START_DATE_DEFAULT
+            )
+
     def test_threshold_sanitization(self, root, mock_sets_data, config):
         panel = DownloadWindow(root, mock_sets_data, config, MagicMock())
         panel.vars["threshold"].set("abc")

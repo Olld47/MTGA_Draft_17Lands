@@ -35,6 +35,7 @@ TEST_SETS = SetDictionary(
             seventeenlands=["Cube - Powered"], set_code="CUBE-POWERED"
         ),
         "OM1": SetInfo(seventeenlands=["OM1"], set_code="OM1"),
+        "MSH": SetInfo(seventeenlands=["MSH"], set_code="MSH"),
         "TMT": SetInfo(seventeenlands=["TMT"], set_code="TMT"),
         "TDM": SetInfo(seventeenlands=["TDM"], set_code="TDM"),
         "DSK": SetInfo(seventeenlands=["DSK"], set_code="DSK"),
@@ -84,6 +85,73 @@ OTJ_P1P1_CARD_NAMES = [
 ]
 
 # --- DATASETS ---
+
+# Regression data for issue #187: Contender drafts are human live drafts
+# (Premier protocol: Draft.Notify packs + Event_PlayerDraftMakePick picks).
+# Event name and card IDs taken from a real MSH ContenderDraft session log.
+MSH_CONTENDER_DRAFT_ENTRIES_2026_7_7 = [
+    (
+        "Event Start",
+        EventResults(new_event=True, current_set="MSH", current_event="ContenderDraft"),
+        r'[UnityCrossThreadLogger]==> EventJoin {"id":"7c1b2f7d-9a44-4e0b-a54e-2f5b7c31e187","request":"{\"EventName\":\"ContenderDraft_MSH_20260707\",\"EntryCurrencyType\":\"Gem\",\"EntryCurrencyPaid\":3000,\"CustomTokenId\":null}"}',
+    ),
+    (
+        "P1P1 - Pack",
+        EventResults(
+            data_update=True,
+            current_set="MSH",
+            current_event="ContenderDraft",
+            current_pack=1,
+            current_pick=1,
+            pack=[
+                "105119",
+                "104941",
+                "105089",
+                "105157",
+                "105124",
+                "105077",
+                "105056",
+                "105167",
+                "104967",
+                "105010",
+                "104977",
+                "104994",
+                "104952",
+                "105072",
+            ],
+        ),
+        r'[UnityCrossThreadLogger]Draft.Notify {"draftId":"01d1f7ac-e22f-416f-8e86-39980bf42ef4","SelfPick":1,"SelfPack":1,"PackCards":"105119,104941,105089,105157,105124,105077,105056,105167,104967,105010,104977,104994,104952,105072"}',
+    ),
+    (
+        "P1P1 - Pick",
+        EventResults(
+            data_update=True,
+            current_set="MSH",
+            current_event="ContenderDraft",
+            current_pack=1,
+            current_pick=1,
+            picks=["105056"],
+            pack=[
+                "105119",
+                "104941",
+                "105089",
+                "105157",
+                "105124",
+                "105077",
+                "105056",
+                "105167",
+                "104967",
+                "105010",
+                "104977",
+                "104994",
+                "104952",
+                "105072",
+            ],
+            card_pool=["105056"],
+        ),
+        r'[UnityCrossThreadLogger]==> Event_PlayerDraftMakePick {"id":"e2ffb7de-06a1-40aa-93b2-8f6b2c31e187","request":"{\"DraftId\":\"01d1f7ac-e22f-416f-8e86-39980bf42ef4\",\"GrpId\":105056,\"Pack\":1,\"Pick\":1}"}',
+    ),
+]
 
 TDM_PREMIER_DRAFT_ENTRIES_2025_4_8 = [
     (
