@@ -21,6 +21,7 @@ from src.constants import (
     DATA_FIELD_MANA_COST,
     DATA_SECTION_IMAGES,
     FILTER_OPTION_ALL_DECKS,
+    time_period_label,
 )
 from src.logger import create_logger
 
@@ -110,6 +111,19 @@ def clear_set_history() -> int:
 
     invalidate_local_set_cache()
     return removed
+
+
+def read_local_manifest() -> dict:
+    """Reads the synced dataset manifest (Sets/local_manifest.json), returning
+    an empty dict if it's missing or unreadable."""
+    manifest_path = os.path.join(SETS_FOLDER, "local_manifest.json")
+    try:
+        if os.path.exists(manifest_path):
+            with open(manifest_path, "r", encoding="utf-8") as f:
+                return json.load(f)
+    except Exception:
+        pass
+    return {}
 
 
 def retrieve_local_set_list(codes=None, names=None):
@@ -357,12 +371,19 @@ def read_dataset_info(filename: str, codes=None, names=None):
             game_count = 0
 
         if is_custom:
-            try:
-                s = f"{start_date[5:7]}/{start_date[8:10]}"
-                e = f"{end_date[5:7]}/{end_date[8:10]}"
-                user_group = f"{user_group} ({s}-{e})"
-            except Exception:
-                user_group = f"{user_group} (Custom)"
+            # Preset-era downloads record meta.time_period; its label is the
+            # honest description of what was fetched. Older files fall back to
+            # the date-range suffix.
+            time_period = json_data["meta"].get("time_period")
+            if time_period:
+                user_group = f"{user_group} ({time_period_label(time_period)})"
+            else:
+                try:
+                    s = f"{start_date[5:7]}/{start_date[8:10]}"
+                    e = f"{end_date[5:7]}/{end_date[8:10]}"
+                    user_group = f"{user_group} ({s}-{e})"
+                except Exception:
+                    user_group = f"{user_group} (Custom)"
 
         return (
             set_name,

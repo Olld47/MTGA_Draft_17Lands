@@ -1,6 +1,7 @@
 ===================== RELEASE NOTES 4.18 =====================
 * unrealities: [Bug] Fixed a major issue where 17Lands card and color statistics only reflected the most recent day of data (e.g. ~500 games instead of the full set). The tool now requests the correct "All Time" period, matching the numbers shown on 17Lands.
 * unrealities: [Bug] Migrated card statistics to 17Lands' new `/api/card_data` endpoint. The retired endpoint had stopped honoring the color archetype and time period filters, which made every archetype display identical "All Decks" numbers and left win rates empty in some formats.
+* unrealities: [UX/UI] Manual downloads are now labeled with their Time Period preset (e.g. "All (Latest Event)") in the Datasets table instead of a placeholder date range, record the set's true start date, and no longer overwrite each other when different presets are downloaded on the same day.
 * unrealities: [UX/UI] The dataset download screen now offers a Time Period drop-down (All Time, Latest Event, Last Week, etc.) in place of manual start/end dates, mirroring 17Lands.
 * unrealities: [UX/UI] On first launch after updating, the app performs a one-time refresh of the corrected 17Lands datasets and clears the stale local cache automatically.
 

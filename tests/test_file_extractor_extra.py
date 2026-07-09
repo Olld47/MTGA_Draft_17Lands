@@ -125,12 +125,15 @@ def test_export_card_data(mock_open, mock_dump, mock_invalidate, mock_integrity)
     extractor.end_date = "2024-02-01"
     extractor.draft = "PremierDraft"
     extractor.user_group = "All"
+    extractor.time_period = "LATEST_EVENT"
     extractor.selected_sets = MagicMock()
     extractor.selected_sets.seventeenlands = ["OTJ"]
 
     filename = extractor.export_card_data()
 
-    assert "OTJ_PremierDraft_All_Custom-20240101-20240201_Data.json" in filename
+    # The stamp encodes the time_period preset so downloads of different
+    # presets on the same day don't overwrite each other.
+    assert "OTJ_PremierDraft_All_Custom-LatestEvent-20240201_Data.json" in filename
     mock_dump.assert_called_once()
     mock_invalidate.assert_called_once()
 
