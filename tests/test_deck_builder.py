@@ -165,37 +165,22 @@ def test_mana_source_analyzer():
     assert fixing["R"] == 1
 
 
-def _variant(label, rating, colors, breakdown=""):
+def _variant(label, rating, colors, breakdown="", identity_colors=None):
     return (
         label,
         {
             "rating": rating,
             "colors": colors,
+            "identity_colors": (
+                identity_colors if identity_colors is not None else colors
+            ),
             "breakdown": breakdown,
             "deck_cards": [],
         },
     )
 
 
-def test_safe_deck_gating_rejects_incomplete_and_weak():
-    """Regression: a Power-12, Est 0-3, land-padded incomplete deck was crowned
-    'Safe Core' and promoted to slot 2 purely for having <=2 colors."""
-    from src.advisor.deck_builder import select_safe_deck_index
-
-    final_list = [
-        _variant("BG Good Stuff", 83.0, ["G", "B", "U", "W", "R"]),
-        _variant("UG Splash W", 82.0, ["G", "U", "W"]),
-        _variant(
-            "G Splash W",
-            12.0,
-            ["G", "W"],
-            breakdown="Incomplete Deck (-20.0) | Flood Risk (-50.7)",
-        ),
-    ]
-    assert select_safe_deck_index(final_list) == -1
-
-
-def test_safe_deck_gating_accepts_reasonable_two_color():
+def test_safe_deck_prefers_best_two_color():
     from src.advisor.deck_builder import select_safe_deck_index
 
     final_list = [
@@ -205,13 +190,94 @@ def test_safe_deck_gating_accepts_reasonable_two_color():
     assert select_safe_deck_index(final_list) == 1
 
 
-def test_safe_deck_gating_rejects_far_behind_decks():
-    """A 2-color deck massively behind the best option is not 'safe' advice."""
+def test_safe_deck_uses_identity_colors_ignoring_incidental_splash():
+    """A deck labeled 3-color only because one gold card adds a single off-color
+    pip (identity_colors == 2) still counts as the safe 2-color option."""
     from src.advisor.deck_builder import select_safe_deck_index
 
     final_list = [
-        _variant("BG Good Stuff", 90.0, ["G", "B", "U"]),
-        _variant("UG Consistent", 40.0, ["G", "U"], breakdown="Solid"),
+        _variant(
+            "BG Good Stuff",
+            83.0,
+            ["G", "B", "U", "W", "R"],
+            identity_colors=["G", "B", "U"],
+        ),
+        _variant(
+            "BG Splash W",
+            79.0,
+            ["G", "B", "W"],
+            breakdown="Solid",
+            identity_colors=["G", "B"],
+        ),
+    ]
+    assert select_safe_deck_index(final_list) == 1
+
+
+def test_safe_deck_prefers_complete_over_incomplete():
+    """A complete 2-color deck beats a higher-rated but incomplete one."""
+    from src.advisor.deck_builder import select_safe_deck_index
+
+    final_list = [
+        _variant("Soup", 83.0, ["G", "B", "U"]),
+        _variant(
+            "GU Incomplete", 50.0, ["G", "U"], breakdown="Incomplete Deck (-20.0)"
+        ),
+        _variant("GB Complete", 45.0, ["G", "B"], breakdown="Solid"),
+    ]
+    assert select_safe_deck_index(final_list) == 2
+
+
+def test_safe_deck_surfaces_incomplete_two_color_when_only_option():
+    """User always wants at least one <=2-color deck: an incomplete, weak, or
+    far-behind 2-color deck is still surfaced when it's the only non-soupy option."""
+    from src.advisor.deck_builder import select_safe_deck_index
+
+    final_list = [
+        _variant("BG Good Stuff", 83.0, ["G", "B", "U", "W", "R"]),
+        _variant("UG Splash W", 82.0, ["G", "U", "W"]),
+        _variant(
+            "G Splash W",
+            14.0,
+            ["G", "W"],
+            breakdown="Incomplete Deck (-20.0) | Flood Risk (-50.7)",
+            identity_colors=["G"],
+        ),
+    ]
+    assert select_safe_deck_index(final_list) == 2
+
+
+def test_safe_deck_tiebreak_prefers_tighter_mana():
+    """Two near-equal 2-color-identity decks: prefer the one with fewer actual
+    colors (fewer incidental splashes) so 'Safe' has the tightest mana."""
+    from src.advisor.deck_builder import select_safe_deck_index
+
+    final_list = [
+        _variant(
+            "BG Splash WU",
+            82.0,
+            ["G", "B", "W", "U"],
+            breakdown="Solid",
+            identity_colors=["G", "B"],
+        ),
+        _variant(
+            "UG Splash W",
+            82.0,
+            ["G", "U", "W"],
+            breakdown="Solid",
+            identity_colors=["G", "U"],
+        ),
+    ]
+    # Same rounded rating; UG has fewer displayed colors -> tighter -> chosen.
+    assert select_safe_deck_index(final_list) == 1
+
+
+def test_safe_deck_none_when_all_soupy():
+    """Only returns -1 when the pool genuinely can't form any <=2-color deck."""
+    from src.advisor.deck_builder import select_safe_deck_index
+
+    final_list = [
+        _variant("Soup A", 83.0, ["G", "B", "U"]),
+        _variant("Soup B", 80.0, ["W", "U", "R"]),
     ]
     assert select_safe_deck_index(final_list) == -1
 

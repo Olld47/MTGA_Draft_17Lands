@@ -63,6 +63,52 @@ def test_get_card_rating_tier_fallback(mock_metrics):
     assert rating == 68.0
 
 
+def test_get_card_rating_no_data_in_established_set_is_unplayable(mock_metrics):
+    """A card with no win-rate data in a set that otherwise HAS data (mean > 0)
+    is one nobody plays (e.g. Worlds Within Worlds) — it must not be scored
+    generously from a metadata heuristic."""
+    # mock_metrics reports a 55.0 mean, i.e. the set has data.
+    card = make_card("Worlds Within Worlds", colors=["G", "U"], cmc=7, gihwr=0.0)
+
+    rating = get_card_rating(card, colors=["G", "U"], metrics=mock_metrics)
+
+    assert rating == 0.0, f"Dataless card scored {rating}; should be unplayable."
+
+
+def test_get_card_rating_no_data_day1_uses_heuristic():
+    """On Day 1 (no metrics / set mean == 0) a dataless card should still get a
+    heuristic score so the offline evaluator works."""
+    card = make_card("Fresh Uncommon", colors=["G"], cmc=2, gihwr=0.0)
+
+    # No metrics at all => Day 1 fallback.
+    rating = get_card_rating(card, colors=["G"], metrics=None)
+
+    assert rating > 0.0
+
+
+def test_get_card_rating_no_data_zero_mean_metrics_uses_heuristic():
+    """A metrics object that reports a 0.0 mean (brand-new set) also counts as
+    Day 1 and must not brand every card unplayable."""
+    day1_metrics = MagicMock()
+    day1_metrics.get_metrics.return_value = (0.0, 0.0)
+    card = make_card("Fresh Uncommon", colors=["G"], cmc=2, gihwr=0.0)
+
+    rating = get_card_rating(card, colors=["G"], metrics=day1_metrics)
+
+    assert rating > 0.0
+
+
+def test_get_card_rating_archetype_only_data_is_kept(mock_metrics):
+    """A card with real archetype data but no All-Decks number must still be
+    rated on its archetype data, not treated as unplayable."""
+    card = make_card("Niche Payoff", colors=["U"], gihwr=0.0)
+    card["deck_colors"]["GU"] = {"gihwr": 60.0}
+
+    rating = get_card_rating(card, colors=["G", "U"], metrics=mock_metrics)
+
+    assert rating == pytest.approx(60.0)
+
+
 def test_identify_top_pairs(mock_metrics):
     """Verify it successfully isolates the highest-performing 2-color pair in a messy pool."""
     pool = [

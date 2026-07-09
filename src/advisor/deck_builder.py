@@ -28,28 +28,47 @@ from src.advisor.simulator import simulate_deck
 logger = logging.getLogger(__name__)
 GLOBAL_DECK_CACHE = {}
 
-# A "safe" recommendation must itself be a playable deck: complete, above a
-# minimum power floor, and not hopelessly behind the best option.
-SAFE_DECK_MIN_RATING = 30.0
-SAFE_DECK_MAX_GAP = 35.0
+# The safe deck is promoted to the top only when it's competitive; otherwise it
+# is still shown (the user always wants a non-soupy option) but left in place so
+# it doesn't masquerade as the best deck.
+SAFE_DECK_PROMOTE_TO_TOP_GAP = 6.0
+SAFE_DECK_PROMOTE_TO_SECOND_GAP = 20.0
+
+
+def deck_identity_colors(data):
+    """A deck's mana identity, ignoring incidental single-pip splashes."""
+    ident = data.get("identity_colors")
+    return ident if ident is not None else data.get("colors", [])
 
 
 def select_safe_deck_index(final_list):
-    """Returns the index of the best <=2-color deck that is actually worth
-    recommending as 'safe', or -1 when none qualifies. Guards against crowning
-    an incomplete or bottom-tier deck just because it has few colors."""
-    if not final_list:
+    """Index of the <=2-color deck to feature as the 'safe' (non-soupy) option.
+
+    The user always wants at least one single- or dual-color deck, even with
+    poor mana, so this returns -1 only when the pool genuinely can't form one.
+    Among the <=2-color decks it prefers complete decks over incomplete ones,
+    then higher power."""
+    candidates = [
+        i
+        for i, (_, data) in enumerate(final_list)
+        if len(deck_identity_colors(data)) <= 2
+    ]
+    if not candidates:
         return -1
-    best_rating = final_list[0][1]["rating"]
-    for i, (_, data) in enumerate(final_list):
-        if len(data.get("colors", [])) > 2:
-            continue
-        if "Incomplete Deck" in (data.get("breakdown") or ""):
-            continue
-        rating = data.get("rating", 0.0)
-        if rating < SAFE_DECK_MIN_RATING or rating < best_rating - SAFE_DECK_MAX_GAP:
-            continue
-        return i
+
+    def rank(i):
+        data = final_list[i][1]
+        complete = "Incomplete Deck" not in (data.get("breakdown") or "")
+        # Among near-equal decks (rating rounded), prefer the one with the
+        # fewest actual colors so the "safe" pick has the tightest mana rather
+        # than the most incidental splashes.
+        return (
+            complete,
+            round(data.get("rating", 0.0)),
+            -len(data.get("colors", [])),
+        )
+
+    return max(candidates, key=rank)
     return -1
 
 
@@ -436,6 +455,14 @@ def suggest_deck(
                 reverse=True,
             )
 
+            # A deck's true color identity ignores incidental single pips from a
+            # lone gold/hybrid card (e.g. one 5-color card adding a stray white
+            # pip to a Golgari deck). Such a deck is still mechanically 2-color
+            # and should qualify as a non-soupy "safe" option.
+            identity_colors = [c for c in active_colors if pips.get(c, 0) >= 2]
+            if not identity_colors:
+                identity_colors = active_colors[:2] if active_colors else []
+
             if not active_colors:
                 true_arch_key, true_variant_name = arch_key, variant_name
             else:
@@ -524,6 +551,7 @@ def suggest_deck(
                 "deck_cards": opt_deck,
                 "sideboard_cards": opt_sb,
                 "colors": active_colors,
+                "identity_colors": identity_colors,
                 "breakdown": breakdown,
                 "stats": opt_stats,
                 "optimization_note": opt_note,
@@ -592,7 +620,20 @@ def suggest_deck(
         # Incomplete (land-padded) variants are only worth showing when there
         # is almost nothing else to offer.
         if len(all_variants) >= 3:
-            final_list = all_variants
+            final_list = list(all_variants)
+            # Always keep at least one non-soupy option: if none of the complete
+            # decks is <=2 colors, retain the best <=2-color incomplete deck so
+            # the user always has a single/dual-color suggestion (poor mana OK).
+            if not any(len(deck_identity_colors(v[1])) <= 2 for v in final_list):
+                two_color_incomplete = [
+                    v
+                    for v in incomplete_variants
+                    if len(deck_identity_colors(v[1])) <= 2
+                ]
+                if two_color_incomplete:
+                    final_list.append(
+                        max(two_color_incomplete, key=lambda v: v[1]["rating"])
+                    )
         else:
             final_list = all_variants + incomplete_variants
         if not final_list:
@@ -668,11 +709,13 @@ def suggest_deck(
             final_list[best_safe_idx] = updated_safe
 
             if best_safe_idx > 0:
-                top_deck = final_list[0]
-                if (top_deck[1]["rating"] - updated_safe[1]["rating"]) <= 6.0:
+                gap = final_list[0][1]["rating"] - updated_safe[1]["rating"]
+                if gap <= SAFE_DECK_PROMOTE_TO_TOP_GAP:
                     final_list.insert(0, final_list.pop(best_safe_idx))
-                elif best_safe_idx > 1:
+                elif gap <= SAFE_DECK_PROMOTE_TO_SECOND_GAP and best_safe_idx > 1:
                     final_list.insert(1, final_list.pop(best_safe_idx))
+                # Otherwise leave it in its natural position: still shown and
+                # labeled, but not masquerading as a top pick.
 
         for label, data in final_list:
             sorted_decks[label] = data
