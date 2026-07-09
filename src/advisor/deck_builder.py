@@ -28,6 +28,30 @@ from src.advisor.simulator import simulate_deck
 logger = logging.getLogger(__name__)
 GLOBAL_DECK_CACHE = {}
 
+# A "safe" recommendation must itself be a playable deck: complete, above a
+# minimum power floor, and not hopelessly behind the best option.
+SAFE_DECK_MIN_RATING = 30.0
+SAFE_DECK_MAX_GAP = 35.0
+
+
+def select_safe_deck_index(final_list):
+    """Returns the index of the best <=2-color deck that is actually worth
+    recommending as 'safe', or -1 when none qualifies. Guards against crowning
+    an incomplete or bottom-tier deck just because it has few colors."""
+    if not final_list:
+        return -1
+    best_rating = final_list[0][1]["rating"]
+    for i, (_, data) in enumerate(final_list):
+        if len(data.get("colors", [])) > 2:
+            continue
+        if "Incomplete Deck" in (data.get("breakdown") or ""):
+            continue
+        rating = data.get("rating", 0.0)
+        if rating < SAFE_DECK_MIN_RATING or rating < best_rating - SAFE_DECK_MAX_GAP:
+            continue
+        return i
+    return -1
+
 
 def clear_deck_cache():
     GLOBAL_DECK_CACHE.clear()
@@ -565,15 +589,20 @@ def suggest_deck(
                 soup_arch_key,
             )
 
-        final_list = all_variants + incomplete_variants
+        # Incomplete (land-padded) variants are only worth showing when there
+        # is almost nothing else to offer.
+        if len(all_variants) >= 3:
+            final_list = all_variants
+        else:
+            final_list = all_variants + incomplete_variants
         if not final_list:
             return {}
 
         final_list.sort(key=lambda x: x[1]["rating"], reverse=True)
         best_score = final_list[0][1]["rating"]
 
-        safe_decks = [v for v in final_list if len(v[1]["colors"]) <= 2]
-        best_safe = safe_decks[0] if safe_decks else None
+        safe_idx = select_safe_deck_index(final_list)
+        best_safe = final_list[safe_idx] if safe_idx >= 0 else None
 
         filtered_list, accepted_signatures = [], []
 
@@ -613,11 +642,10 @@ def suggest_deck(
                     break
 
         final_list = filtered_list
-        safe_decks_filtered = [v for v in final_list if len(v[1]["colors"]) <= 2]
+        best_safe_idx = select_safe_deck_index(final_list)
 
-        if safe_decks_filtered:
-            actual_best_safe = safe_decks_filtered[0]
-            best_safe_idx = final_list.index(actual_best_safe)
+        if best_safe_idx >= 0:
+            actual_best_safe = final_list[best_safe_idx]
 
             old_label = actual_best_safe[0]
             new_label = old_label.replace("Consistent", "🛡️ Safe Core").replace(

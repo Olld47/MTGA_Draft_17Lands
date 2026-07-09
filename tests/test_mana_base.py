@@ -4,8 +4,83 @@ Challenges the status quo of Mana Base generation and Monte Carlo simulations.
 """
 
 import pytest
+from collections import Counter
 from src.card_logic import build_variant_greedy, simulate_deck
+from src.advisor.mana_base import calculate_dynamic_mana_base
 from unittest.mock import MagicMock
+
+
+def _spell(name, color, cmc=2, tags=None, text=""):
+    return {
+        "name": name,
+        "types": ["Creature"],
+        "colors": [color],
+        "cmc": cmc,
+        "mana_cost": f"{{{cmc - 1}}}{{{color}}}",
+        "tags": tags or [],
+        "oracle_text": text,
+        "deck_colors": {"All Decks": {"gihwr": 56.0}},
+    }
+
+
+def test_treasure_spells_do_not_replace_basic_lands():
+    """Regression: one-shot Treasure makers were credited as full permanent
+    any-color sources, zeroing the basics for secondary colors (a real MSH
+    pool produced 13 Forest / 1 Island under five blue spells)."""
+    spells = (
+        [_spell(f"G Bear {i}", "G") for i in range(12)]
+        + [_spell(f"U Flyer {i}", "U") for i in range(5)]
+        + [
+            _spell(
+                f"G Treasure Maker {i}",
+                "G",
+                tags=["fixing_ramp"],
+                text="When this enters, create a Treasure token.",
+            )
+            for i in range(6)
+        ]
+    )
+
+    basics = calculate_dynamic_mana_base(spells, [], ["G", "U"], forced_count=17)
+    counts = Counter(c["name"] for c in basics)
+
+    assert sum(counts.values()) == 17
+    # 5 hard blue pips demand real blue sources, treasures notwithstanding
+    assert counts["Island"] >= 4, f"Blue starved: {dict(counts)}"
+    assert counts["Forest"] >= 8, f"Green starved: {dict(counts)}"
+
+
+def test_every_pipped_color_gets_a_source():
+    """Regression: a 5-color soup deck received basics for only 2 of its 5
+    pipped colors (12 Forest / 2 Swamp), leaving W/U/R spells with zero
+    sources of any kind."""
+    spells = (
+        [_spell(f"G Bear {i}", "G") for i in range(10)]
+        + [_spell(f"U Card {i}", "U", cmc=3) for i in range(4)]
+        + [_spell(f"B Card {i}", "B", cmc=4) for i in range(3)]
+        + [_spell("W Card", "W", cmc=2)]
+        + [_spell("R Card", "R", cmc=2)]
+        + [
+            _spell(
+                f"Fixer {i}",
+                "G",
+                tags=["fixing_ramp"],
+                text="Create a Treasure token.",
+            )
+            for i in range(5)
+        ]
+    )
+
+    basics = calculate_dynamic_mana_base(
+        spells, [], ["W", "U", "B", "R", "G"], forced_count=17
+    )
+    counts = Counter(c["colors"][0] for c in basics)
+
+    assert sum(counts.values()) == 17
+    for color in ["W", "U", "B", "R", "G"]:
+        assert counts.get(color, 0) >= 1, (
+            f"{color} has pips but zero sources: {dict(counts)}"
+        )
 
 
 @pytest.fixture

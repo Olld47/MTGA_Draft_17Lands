@@ -163,3 +163,54 @@ def test_mana_source_analyzer():
     assert fixing["G"] == 2
     assert fixing["B"] == 2
     assert fixing["R"] == 1
+
+
+def _variant(label, rating, colors, breakdown=""):
+    return (
+        label,
+        {
+            "rating": rating,
+            "colors": colors,
+            "breakdown": breakdown,
+            "deck_cards": [],
+        },
+    )
+
+
+def test_safe_deck_gating_rejects_incomplete_and_weak():
+    """Regression: a Power-12, Est 0-3, land-padded incomplete deck was crowned
+    'Safe Core' and promoted to slot 2 purely for having <=2 colors."""
+    from src.advisor.deck_builder import select_safe_deck_index
+
+    final_list = [
+        _variant("BG Good Stuff", 83.0, ["G", "B", "U", "W", "R"]),
+        _variant("UG Splash W", 82.0, ["G", "U", "W"]),
+        _variant(
+            "G Splash W",
+            12.0,
+            ["G", "W"],
+            breakdown="Incomplete Deck (-20.0) | Flood Risk (-50.7)",
+        ),
+    ]
+    assert select_safe_deck_index(final_list) == -1
+
+
+def test_safe_deck_gating_accepts_reasonable_two_color():
+    from src.advisor.deck_builder import select_safe_deck_index
+
+    final_list = [
+        _variant("BG Good Stuff", 83.0, ["G", "B", "U", "W", "R"]),
+        _variant("UG Consistent", 65.0, ["G", "U"], breakdown="Solid"),
+    ]
+    assert select_safe_deck_index(final_list) == 1
+
+
+def test_safe_deck_gating_rejects_far_behind_decks():
+    """A 2-color deck massively behind the best option is not 'safe' advice."""
+    from src.advisor.deck_builder import select_safe_deck_index
+
+    final_list = [
+        _variant("BG Good Stuff", 90.0, ["G", "B", "U"]),
+        _variant("UG Consistent", 40.0, ["G", "U"], breakdown="Solid"),
+    ]
+    assert select_safe_deck_index(final_list) == -1
