@@ -769,10 +769,18 @@ def build_variant_greedy(pool, colors, metrics, tier_data=None):
     ]
     main_spells.sort(key=lambda x: get_card_rating(x, colors, metrics), reverse=True)
 
+    # A splash is 2-3 cards depending on fixing, not a third color pillar.
+    # Filling thin main colors with unlimited splash cards produced "splash"
+    # decks with 6 off-color spells on 2 sources.
+    splash_cap = 3 if fixing_sources.get(best_splash_col, 0) >= 3 else 2
+
     deck_spells = main_spells[:23]
     needed = 23 - len(deck_spells)
     if needed > 0:
-        deck_spells.extend(valid_splashes[:needed])
+        deck_spells.extend(valid_splashes[: min(needed, splash_cap)])
+        if sum(c.get("count", 1) for c in deck_spells) < 20:
+            # Even a capped splash can't make this pair a real deck.
+            return None, ""
     elif valid_splashes:
         deck_spells = main_spells[:22] + [valid_splashes[0]]
 

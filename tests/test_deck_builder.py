@@ -214,3 +214,79 @@ def test_safe_deck_gating_rejects_far_behind_decks():
         _variant("UG Consistent", 40.0, ["G", "U"], breakdown="Solid"),
     ]
     assert select_safe_deck_index(final_list) == -1
+
+
+def _greedy_pool(main_g, main_b, splash_u):
+    """Pool with castable GB main spells, strong mono-U splash candidates, and
+    one GU dual so the splash is mechanically enabled."""
+    pool = [
+        {
+            "name": f"G Bear {i}",
+            "types": ["Creature"],
+            "colors": ["G"],
+            "cmc": 2,
+            "mana_cost": "{1}{G}",
+            "deck_colors": {"All Decks": {"gihwr": 56.0}},
+        }
+        for i in range(main_g)
+    ]
+    pool += [
+        {
+            "name": f"B Bruiser {i}",
+            "types": ["Creature"],
+            "colors": ["B"],
+            "cmc": 3,
+            "mana_cost": "{2}{B}",
+            "deck_colors": {"All Decks": {"gihwr": 56.0}},
+        }
+        for i in range(main_b)
+    ]
+    pool += [
+        {
+            "name": f"U Bomb {i}",
+            "types": ["Creature"],
+            "colors": ["U"],
+            "cmc": 3,
+            "mana_cost": "{2}{U}",
+            "deck_colors": {"All Decks": {"gihwr": 62.0}},
+        }
+        for i in range(splash_u)
+    ]
+    pool.append(
+        {
+            "name": "GU Dual",
+            "types": ["Land"],
+            "colors": ["G", "U"],
+            "deck_colors": {"All Decks": {"gihwr": 54.0}},
+        }
+    )
+    return pool
+
+
+def test_greedy_splash_is_capped(mock_metrics):
+    """Regression: with thin main colors the greedy builder filled the deck
+    with every splash candidate (6 'splash' cards on 2 sources)."""
+    from src.card_logic import build_variant_greedy
+
+    pool = _greedy_pool(main_g=9, main_b=9, splash_u=6)
+    deck, splash_col = build_variant_greedy(pool, ["B", "G"], mock_metrics)
+
+    assert deck is not None
+    assert splash_col == "U"
+    u_spells = sum(
+        c.get("count", 1)
+        for c in deck
+        if c.get("colors") == ["U"] and "Land" not in c.get("types", [])
+    )
+    assert u_spells <= 2, f"Splash not capped: {u_spells} blue spells"
+
+
+def test_greedy_skips_unsupported_pair_instead_of_over_splashing(mock_metrics):
+    """If the main colors can't reach ~20 spells even with a capped splash,
+    the pair isn't a real deck — skip it rather than over-splash."""
+    from src.card_logic import build_variant_greedy
+
+    pool = _greedy_pool(main_g=7, main_b=7, splash_u=6)
+    deck, splash_col = build_variant_greedy(pool, ["B", "G"], mock_metrics)
+
+    assert deck is None
