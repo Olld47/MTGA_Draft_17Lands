@@ -142,3 +142,35 @@ def test_get_config_path():
         # On Linux logic: expanduser("~/.config") -> "/User/Home/.config"
         expected = os.path.join("/User/Home/.config", "MTGA_Draft_Tool", "config.json")
         assert get_config_path() == expected
+
+
+def test_write_configuration_error_notifier(tmp_path, example_configuration):
+    """A registered error notifier is invoked when the config write fails."""
+    from src import configuration as config_module
+
+    calls = []
+    config_module.set_error_notifier(lambda title, msg: calls.append((title, msg)))
+    try:
+        # Force a write failure via an unwritable path replacement
+        with patch("os.replace", side_effect=OSError("locked")):
+            success = write_configuration(
+                example_configuration, str(tmp_path / "config.json")
+            )
+        assert success is False
+        assert len(calls) == 1
+        assert calls[0][0] == "Settings Save Error"
+        assert "locked" in calls[0][1]
+    finally:
+        config_module.set_error_notifier(None)
+
+
+def test_write_configuration_no_notifier(tmp_path, example_configuration):
+    """Without a notifier, a failed write is logged but raises nothing."""
+    from src import configuration as config_module
+
+    config_module.set_error_notifier(None)
+    with patch("os.replace", side_effect=OSError("locked")):
+        success = write_configuration(
+            example_configuration, str(tmp_path / "config.json")
+        )
+    assert success is False

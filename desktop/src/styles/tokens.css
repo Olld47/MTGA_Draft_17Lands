@@ -1,0 +1,121 @@
+/* ==========================================================================
+   MTGA Draft Tool — design tokens
+   Palette: card-sleeve black + card-frame parchment + restrained gold foil.
+   WUBRG hues appear ONLY where they carry color identity (mana symbols,
+   signal lanes, row tints) — never decoratively.
+   ========================================================================== */
+
+@import url("https://fonts.googleapis.com/css2?family=Spectral:wght@600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap");
+
+:root {
+  /* Surfaces */
+  --ink: #101318; /* app background — cool near-black */
+  --felt: #1a1f27; /* raised panels, tables */
+  --felt-hover: #222834;
+  --line: #2c3440; /* hairlines */
+
+  /* Text */
+  --parchment: #e8e4d8; /* primary text — warm card-frame paper */
+  --gruff: #8b93a1; /* secondary/muted */
+
+  /* The one accent — mythic gold foil. Max two elements per screen. */
+  --gold-foil: #c9a44c;
+  --gold-foil-dim: #8a7136;
+
+  /* Status */
+  --ok: #5a9e6f;
+  --err: #c25b4a;
+
+  /* WUBRG — functional only */
+  --mana-w: #f5efd8;
+  --mana-u: #4a90c4;
+  --mana-b: #9c7bb5; /* violet-shifted so "black" reads on dark */
+  --mana-r: #d4553f;
+  --mana-g: #5a9e6f;
+
+  /* Type */
+  --font-display: "Spectral", Georgia, serif;
+  --font-body: "Inter", -apple-system, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", monospace;
+
+  /* Scale */
+  --text-xs: 11px;
+  --text-sm: 12.5px;
+  --text-md: 14px;
+  --text-lg: 17px;
+  --text-xl: 26px;
+
+  --radius: 6px;
+  --gap: 12px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--ink);
+  color: var(--parchment);
+  font-family: var(--font-body);
+  font-size: var(--text-md);
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: var(--gold-foil-dim);
+  color: var(--parchment);
+}
+
+:focus-visible {
+  outline: 2px solid var(--gold-foil);
+  outline-offset: 1px;
+  border-radius: 2px;
+}
+
+button {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--parchment);
+  background: var(--felt);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 6px 14px;
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) {
+  background: var(--felt-hover);
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+select,
+input[type="text"] {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--parchment);
+  background: var(--felt);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 5px 9px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}

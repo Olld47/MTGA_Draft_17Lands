@@ -184,3 +184,8 @@ repomix-output.*
 
 # Personal todo list
 todo.md
+
+# CLAUDE
+.claude/
+CLAUDE.md
+CHANGELOG.md

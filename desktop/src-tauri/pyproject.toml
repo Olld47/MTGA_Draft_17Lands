@@ -1,0 +1,30 @@
+[project]
+name = "mtga-bridge"
+version = "0.1.0"
+description = "pytauri bridge for the MTGA Draft Tool (shares src/ logic with the tkinter app)"
+readme = "README.md"
+authors = [
+    { name = "unrealities" }
+]
+requires-python = ">=3.12,<3.15"
+dependencies = [
+    "pytauri == 0.8.*",
+    "anyio == 4.*",
+    # Pins below mirror the root poetry pyproject.toml — keep them in sync.
+    "pydantic == 2.13.4",
+    "numpy == 2.4.4",
+    "Pillow == 12.2.0",
+    "requests == 2.33.1",
+    "numba == 0.65.1",
+    "scipy == 1.17.1",
+]
+
+[project.entry-points.pytauri]
+ext_mod = "mtga_bridge.ext_mod"
+
+[build-system]
+requires = ["setuptools >= 80", "setuptools-scm >= 8"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages]
+find = { where = ["src-python"] }

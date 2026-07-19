@@ -6,13 +6,24 @@ import sys
 import tempfile
 import threading
 from pydantic import BaseModel, field_validator, Field
-from typing import List, Dict, Tuple
+from typing import Callable, List, Dict, Optional, Tuple
 from src import constants
 from src.logger import create_logger
 from src.constants import BASE_DIR
 
 logger = create_logger()
 CONFIG_LOCK = threading.RLock()
+
+# Pluggable UI-agnostic error notifier. The tkinter entry point registers a
+# messagebox here; the pytauri entry point registers an event emitter. When
+# unset, errors are only logged.
+_error_notifier: Optional[Callable[[str, str], None]] = None
+
+
+def set_error_notifier(notifier: Optional[Callable[[str, str], None]]):
+    """Registers a callable(title, message) used to surface config errors to the user."""
+    global _error_notifier
+    _error_notifier = notifier
 
 
 def get_config_path():
@@ -245,15 +256,14 @@ def write_configuration(
             print(f"Failed to save settings to {file_location}: {error}")
 
             # ALERT THE USER IF SAVING FAILS (Anti-virus, OneDrive sync locks, etc.)
-            try:
-                import tkinter.messagebox
-
-                tkinter.messagebox.showerror(
-                    "Settings Save Error",
-                    f"Could not save preferences to {file_location}.\n\nThis is usually caused by an Anti-Virus or OneDrive temporarily locking the file.\n\nError: {error}",
-                )
-            except Exception:
-                pass
+            if _error_notifier:
+                try:
+                    _error_notifier(
+                        "Settings Save Error",
+                        f"Could not save preferences to {file_location}.\n\nThis is usually caused by an Anti-Virus or OneDrive temporarily locking the file.\n\nError: {error}",
+                    )
+                except Exception:
+                    pass
 
             # Clean up the temp file if the replace failed
             try:
