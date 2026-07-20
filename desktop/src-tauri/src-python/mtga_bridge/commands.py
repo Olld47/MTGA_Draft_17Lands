@@ -14,8 +14,10 @@ from pytauri import AppHandle, Commands, Manager, State
 from pytauri.ipc import InvokeException, JavaScriptChannelId, WebviewWindow
 
 from mtga_bridge import datasets as datasets_svc
+from mtga_bridge import recap as recap_svc
 from mtga_bridge import services
 from mtga_bridge import snapshot
+from mtga_bridge import tier_service
 from mtga_bridge.runtime import AppRuntime
 from mtga_bridge.viewmodels import (
     Ack,
@@ -27,13 +29,38 @@ from mtga_bridge.viewmodels import (
     DownloadRequest,
     DownloadResult,
     DraftLogListVM,
+    DraftRecordBody,
+    DraftRecordVM,
     DraftStateVM,
+    BasicLandBody,
+    DeckExportVM,
+    DeckStateVM,
+    CompareAddBody,
+    CompareRemoveBody,
+    CompareStateVM,
     FilterOptionsVM,
+    MoveCardBody,
+    RecapVM,
+    SampleHandVM,
+    SealedActionVM,
+    SealedDeckTechVM,
+    SealedExportVM,
+    SealedImportBody,
+    SealedMoveBody,
+    SealedRenameBody,
+    SealedStateVM,
+    SealedVariantBody,
     SelectDatasetBody,
     SetLogFileBody,
     SettingsPatch,
     SettingsVM,
+    SimResultVM,
     TakenCardsVM,
+    TierActionVM,
+    TierDeleteBody,
+    TierFilterBody,
+    TierImportBody,
+    TierListsVM,
 )
 
 logger = logging.getLogger(__name__)
@@ -215,3 +242,374 @@ async def delete_dataset(body: DeleteDatasetBody, runtime: RuntimeState) -> Data
     return await anyio.to_thread.run_sync(
         datasets_svc.list_local_datasets, runtime.config
     )
+
+
+# --- Recap -------------------------------------------------------------------
+
+
+@commands.command()
+async def get_recap(runtime: RuntimeState) -> RecapVM:
+    _require_booted(runtime)
+
+    def _build():
+        taken, metrics, draft_id, event_type = snapshot.snapshot_recap_inputs(
+            runtime.scanner
+        )
+        return recap_svc.build_recap(taken, metrics, draft_id, event_type)
+
+    return await anyio.to_thread.run_sync(_build)
+
+
+@commands.command()
+async def get_draft_record(
+    body: DraftRecordBody, runtime: RuntimeState
+) -> DraftRecordVM:
+    _require_booted(runtime)
+    return await anyio.to_thread.run_sync(recap_svc.fetch_draft_record, body.draft_id)
+
+
+# --- Custom deck builder -----------------------------------------------------
+
+
+def _deck_state(runtime: AppRuntime) -> DeckStateVM:
+    return runtime.deck_session().build_state()
+
+
+@commands.command()
+async def get_deck_state(runtime: RuntimeState) -> DeckStateVM:
+    _require_booted(runtime)
+    return await anyio.to_thread.run_sync(_deck_state, runtime)
+
+
+@commands.command()
+async def deck_refresh_pool(runtime: RuntimeState) -> DeckStateVM:
+    _require_booted(runtime)
+
+    def _run():
+        session = runtime.deck_session()
+        with session.scanner.lock:
+            session.refresh_pool()
+        return session.build_state()
+
+    return await anyio.to_thread.run_sync(_run)
+
+
+@commands.command()
+async def deck_move_card(body: MoveCardBody, runtime: RuntimeState) -> DeckStateVM:
+    _require_booted(runtime)
+
+    def _run():
+        session = runtime.deck_session()
+        session.move_card(body.card_name, body.to_sideboard)
+        return session.build_state()
+
+    return await anyio.to_thread.run_sync(_run)
+
+
+@commands.command()
+async def deck_clear(runtime: RuntimeState) -> DeckStateVM:
+    _require_booted(runtime)
+
+    def _run():
+        session = runtime.deck_session()
+        session.clear_deck()
+        return session.build_state()
+
+    return await anyio.to_thread.run_sync(_run)
+
+
+@commands.command()
+async def deck_add_basic(body: BasicLandBody, runtime: RuntimeState) -> DeckStateVM:
+    _require_booted(runtime)
+
+    def _run():
+        session = runtime.deck_session()
+        session.add_basic(body.color_name)
+        return session.build_state()
+
+    return await anyio.to_thread.run_sync(_run)
+
+
+@commands.command()
+async def deck_remove_basic(body: BasicLandBody, runtime: RuntimeState) -> DeckStateVM:
+    _require_booted(runtime)
+
+    def _run():
+        session = runtime.deck_session()
+        session.remove_basic(body.color_name)
+        return session.build_state()
+
+    return await anyio.to_thread.run_sync(_run)
+
+
+@commands.command()
+async def deck_simulate(runtime: RuntimeState) -> SimResultVM:
+    _require_booted(runtime)
+    return await anyio.to_thread.run_sync(lambda: runtime.deck_session().run_simulation())
+
+
+@commands.command()
+async def deck_auto_optimize(runtime: RuntimeState) -> SimResultVM:
+    _require_booted(runtime)
+    return await anyio.to_thread.run_sync(lambda: runtime.deck_session().auto_optimize())
+
+
+@commands.command()
+async def deck_auto_lands(runtime: RuntimeState) -> SimResultVM:
+    _require_booted(runtime)
+    return await anyio.to_thread.run_sync(lambda: runtime.deck_session().apply_auto_lands())
+
+
+@commands.command()
+async def deck_sample_hand(runtime: RuntimeState) -> SampleHandVM:
+    _require_booted(runtime)
+    return await anyio.to_thread.run_sync(lambda: runtime.deck_session().sample_hand())
+
+
+@commands.command()
+async def deck_export(runtime: RuntimeState) -> DeckExportVM:
+    _require_booted(runtime)
+    return await anyio.to_thread.run_sync(lambda: runtime.deck_session().export())
+
+
+# --- Sealed studio -----------------------------------------------------------
+
+
+@commands.command()
+async def get_sealed_state(runtime: RuntimeState) -> SealedStateVM:
+    _require_booted(runtime)
+
+    def _run():
+        session = runtime.sealed_session()
+        with session.scanner.lock:
+            session.ensure_pool()
+        return session.build_state()
+
+    return await anyio.to_thread.run_sync(_run)
+
+
+@commands.command()
+async def sealed_reload_pool(runtime: RuntimeState) -> SealedStateVM:
+    _require_booted(runtime)
+
+    def _run():
+        session = runtime.sealed_session()
+        with session.scanner.lock:
+            session.reload_pool()
+        return session.build_state()
+
+    return await anyio.to_thread.run_sync(_run)
+
+
+@commands.command()
+async def sealed_auto_generate(runtime: RuntimeState) -> SealedActionVM:
+    _require_booted(runtime)
+
+    def _run():
+        session = runtime.sealed_session()
+        with session.scanner.lock:
+            return session.auto_generate()
+
+    return await anyio.to_thread.run_sync(_run)
+
+
+@commands.command()
+async def sealed_select_variant(
+    body: SealedVariantBody, runtime: RuntimeState
+) -> SealedActionVM:
+    _require_booted(runtime)
+    return await anyio.to_thread.run_sync(
+        lambda: runtime.sealed_session().select_variant(body.name)
+    )
+
+
+@commands.command()
+async def sealed_create_variant(
+    body: SealedVariantBody, runtime: RuntimeState
+) -> SealedActionVM:
+    _require_booted(runtime)
+    return await anyio.to_thread.run_sync(
+        lambda: runtime.sealed_session().create_variant(body.name, body.copy_from)
+    )
+
+
+@commands.command()
+async def sealed_delete_variant(
+    body: SealedVariantBody, runtime: RuntimeState
+) -> SealedActionVM:
+    _require_booted(runtime)
+    return await anyio.to_thread.run_sync(
+        lambda: runtime.sealed_session().delete_variant(body.name)
+    )
+
+
+@commands.command()
+async def sealed_rename_variant(
+    body: SealedRenameBody, runtime: RuntimeState
+) -> SealedActionVM:
+    _require_booted(runtime)
+    return await anyio.to_thread.run_sync(
+        lambda: runtime.sealed_session().rename_variant(body.old_name, body.new_name)
+    )
+
+
+@commands.command()
+async def sealed_move_card(
+    body: SealedMoveBody, runtime: RuntimeState
+) -> SealedActionVM:
+    _require_booted(runtime)
+    return await anyio.to_thread.run_sync(
+        lambda: runtime.sealed_session().move_card(
+            body.card_name, body.to_sideboard, body.count
+        )
+    )
+
+
+@commands.command()
+async def sealed_clear_deck(runtime: RuntimeState) -> SealedActionVM:
+    _require_booted(runtime)
+    return await anyio.to_thread.run_sync(
+        lambda: runtime.sealed_session().clear_deck()
+    )
+
+
+@commands.command()
+async def sealed_auto_lands(runtime: RuntimeState) -> SealedActionVM:
+    _require_booted(runtime)
+
+    def _run():
+        session = runtime.sealed_session()
+        with session.scanner.lock:
+            return session.apply_auto_lands()
+
+    return await anyio.to_thread.run_sync(_run)
+
+
+@commands.command()
+async def sealed_import_deck(
+    body: SealedImportBody, runtime: RuntimeState
+) -> SealedActionVM:
+    _require_booted(runtime)
+    return await anyio.to_thread.run_sync(
+        lambda: runtime.sealed_session().import_deck(body.text)
+    )
+
+
+@commands.command()
+async def sealed_export(runtime: RuntimeState) -> SealedExportVM:
+    _require_booted(runtime)
+    return await anyio.to_thread.run_sync(
+        lambda: runtime.sealed_session().export()
+    )
+
+
+@commands.command()
+async def sealed_export_sealeddeck(runtime: RuntimeState) -> SealedDeckTechVM:
+    _require_booted(runtime)
+
+    def _run():
+        payload = runtime.sealed_session().export_payload()
+        return services.export_to_sealeddeck_tech(payload)
+
+    return await anyio.to_thread.run_sync(_run)
+
+
+# --- Compare workspace -------------------------------------------------------
+
+
+@commands.command()
+async def get_compare_state(runtime: RuntimeState) -> CompareStateVM:
+    _require_booted(runtime)
+
+    def _run():
+        session = runtime.compare_session()
+        with session.scanner.lock:
+            return session.build_state()
+
+    return await anyio.to_thread.run_sync(_run)
+
+
+@commands.command()
+async def compare_add_card(
+    body: CompareAddBody, runtime: RuntimeState
+) -> CompareStateVM:
+    _require_booted(runtime)
+
+    def _run():
+        session = runtime.compare_session()
+        with session.scanner.lock:
+            session.add_card(body.name)
+            return session.build_state()
+
+    return await anyio.to_thread.run_sync(_run)
+
+
+@commands.command()
+async def compare_remove_card(
+    body: CompareRemoveBody, runtime: RuntimeState
+) -> CompareStateVM:
+    _require_booted(runtime)
+
+    def _run():
+        session = runtime.compare_session()
+        with session.scanner.lock:
+            session.remove_card(body.name)
+            return session.build_state()
+
+    return await anyio.to_thread.run_sync(_run)
+
+
+@commands.command()
+async def compare_clear(runtime: RuntimeState) -> CompareStateVM:
+    _require_booted(runtime)
+
+    def _run():
+        session = runtime.compare_session()
+        with session.scanner.lock:
+            session.clear()
+            return session.build_state()
+
+    return await anyio.to_thread.run_sync(_run)
+
+
+# --- Tier lists --------------------------------------------------------------
+
+
+@commands.command()
+async def get_tier_lists(body: TierFilterBody, runtime: RuntimeState) -> TierListsVM:
+    return await anyio.to_thread.run_sync(
+        lambda: tier_service.list_tier_lists(body.set_code)
+    )
+
+
+def _refresh_tier_views(runtime: AppRuntime) -> None:
+    """Tier data feeds the draft-state math, so a change must recompute it —
+    mirrors the tkinter panel's on_update_callback."""
+    if runtime.orchestrator is not None:
+        runtime.orchestrator.request_math_update()
+    runtime.invalidate_state()
+
+
+@commands.command()
+async def import_tier_list(
+    body: TierImportBody, runtime: RuntimeState
+) -> TierActionVM:
+    _require_booted(runtime)
+    result = await anyio.to_thread.run_sync(
+        tier_service.import_tier_list, body.url, body.label
+    )
+    if result.ok:
+        _refresh_tier_views(runtime)
+    return result
+
+
+@commands.command()
+async def delete_tier_lists(
+    body: TierDeleteBody, runtime: RuntimeState
+) -> TierActionVM:
+    result = await anyio.to_thread.run_sync(
+        tier_service.delete_tier_lists, body.file_names
+    )
+    if result.ok:
+        _refresh_tier_views(runtime)
+    return result

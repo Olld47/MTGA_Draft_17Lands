@@ -12,16 +12,37 @@ import {
 } from "./api/events";
 import { useDraftState } from "./state/useDraftState";
 import { useSettings } from "./state/useSettings";
+import { useMiniMode } from "./state/useMiniMode";
 import { DashboardPage } from "./features/dashboard/DashboardPage";
+import { MiniOverlay } from "./features/overlay/MiniOverlay";
 import { TakenPage } from "./features/taken/TakenPage";
 import { SettingsPage } from "./features/settings/SettingsPage";
 import { DatasetsPage } from "./features/datasets/DatasetsPage";
+import { RecapPage } from "./features/recap/RecapPage";
+import { DeckPage } from "./features/deck/DeckPage";
+import { SealedPage } from "./features/sealed/SealedPage";
+import { ComparePage } from "./features/compare/ComparePage";
+import { TiersPage } from "./features/tiers/TiersPage";
 
-type Tab = "draft" | "taken" | "datasets" | "settings";
+type Tab =
+  | "draft"
+  | "taken"
+  | "recap"
+  | "deck"
+  | "sealed"
+  | "compare"
+  | "tiers"
+  | "datasets"
+  | "settings";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "draft", label: "Draft" },
   { id: "taken", label: "Taken" },
+  { id: "recap", label: "Recap" },
+  { id: "deck", label: "Deck" },
+  { id: "sealed", label: "Sealed" },
+  { id: "compare", label: "Compare" },
+  { id: "tiers", label: "Tiers" },
   { id: "datasets", label: "Datasets" },
   { id: "settings", label: "Settings" },
 ];
@@ -52,6 +73,7 @@ export default function App() {
 
   const { state, statusText } = useDraftState(booted);
   const { settings } = useSettings();
+  const { mini, toggle: toggleMini, startDragging } = useMiniMode();
 
   // Boot lifecycle
   useEffect(() => {
@@ -101,6 +123,18 @@ export default function App() {
     state && state.eventSet && !state.datasetName ? state.eventSet : undefined;
   const colorTint = settings?.cardColorsEnabled ?? false;
 
+  if (mini) {
+    return (
+      <MiniOverlay
+        state={state}
+        colorTint={colorTint}
+        live={live}
+        onRestore={toggleMini}
+        onDragStart={startDragging}
+      />
+    );
+  }
+
   return (
     <div className="app-shell">
       <header className="masthead">
@@ -127,6 +161,9 @@ export default function App() {
           title={live ? "Arena log is live" : "Arena log idle"}
         />
         <span className="status-text">{statusText}</span>
+        <button onClick={() => toggleMini()} title="Shrink to always-on-top Mini Mode">
+          Mini
+        </button>
         <button onClick={() => forceReload()} title="Deep-rescan the Arena log">
           Rescan
         </button>
@@ -152,6 +189,11 @@ export default function App() {
             <div className="empty-state">Waiting for draft data...</div>
           ))}
         {tab === "taken" && <TakenPage colorTint={colorTint} />}
+        {tab === "recap" && <RecapPage />}
+        {tab === "deck" && <DeckPage colorTint={colorTint} />}
+        {tab === "sealed" && <SealedPage colorTint={colorTint} />}
+        {tab === "compare" && <ComparePage colorTint={colorTint} />}
+        {tab === "tiers" && <TiersPage />}
         {tab === "datasets" && <DatasetsPage missingSet={missingSet} />}
         {tab === "settings" && <SettingsPage />}
       </main>

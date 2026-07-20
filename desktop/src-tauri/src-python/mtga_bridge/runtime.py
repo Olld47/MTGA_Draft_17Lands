@@ -18,6 +18,9 @@ class AppRuntime:
     scanner: Any = None
     orchestrator: Any = None
     adapter: Any = None
+    _deck_session: Any = None
+    _sealed_session: Any = None
+    _compare_session: Any = None
     booted: threading.Event = field(default_factory=threading.Event)
     boot_error: Optional[str] = None
     last_boot_message: str = ""
@@ -46,3 +49,27 @@ class AppRuntime:
 
     def invalidate_state(self):
         self.bump_refresh()
+
+    def deck_session(self):
+        """Lazily-created stateful custom-deck model, one per runtime."""
+        if self._deck_session is None:
+            from mtga_bridge.deck_session import DeckSession
+
+            self._deck_session = DeckSession(self.scanner, self.config)
+        return self._deck_session
+
+    def sealed_session(self):
+        """Lazily-created stateful sealed-studio model, one per runtime."""
+        if self._sealed_session is None:
+            from mtga_bridge.sealed_session import SealedStudioSession
+
+            self._sealed_session = SealedStudioSession(self.scanner, self.config)
+        return self._sealed_session
+
+    def compare_session(self):
+        """Lazily-created stateful card-comparison model, one per runtime."""
+        if self._compare_session is None:
+            from mtga_bridge.compare_session import CompareSession
+
+            self._compare_session = CompareSession(self.scanner, self.config)
+        return self._compare_session

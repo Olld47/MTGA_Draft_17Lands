@@ -217,6 +217,16 @@ def build_draft_state(scanner, config, include_pool_summary: bool = True) -> Dra
     )
 
 
+def snapshot_recap_inputs(scanner):
+    """Snapshots the scanner state a recap needs, under the lock."""
+    with scanner.lock:
+        _, event_type = scanner.retrieve_current_limited_event()
+        metrics = scanner.retrieve_set_metrics()
+        taken_cards = scanner.retrieve_taken_cards()
+        draft_id = scanner.current_draft_id
+    return taken_cards, metrics, draft_id, event_type
+
+
 def build_taken_cards(scanner, config) -> TakenCardsVM:
     """Snapshot of the drafted pool with per-filter stats, name-deduped with counts."""
     with scanner.lock:

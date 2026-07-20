@@ -20,6 +20,7 @@ from mtga_bridge.viewmodels import (
     DraftLogListVM,
     DraftLogVM,
     FilterOptionsVM,
+    SealedDeckTechVM,
     SettingsPatch,
     SettingsVM,
 )
@@ -175,3 +176,35 @@ def list_available_sets(runtime) -> AvailableSetsVM:
         codes = getattr(info, "seventeenlands", []) or []
         sets.append(AvailableSetVM(code=codes[0] if codes else name, name=name))
     return AvailableSetsVM(sets=sets)
+
+
+def export_to_sealeddeck_tech(payload: str) -> SealedDeckTechVM:
+    """Blocking POST of an MTGA deck payload to sealeddeck.tech. Returns the
+    shareable URL, or the payload for clipboard fallback on failure. Call off
+    the event loop. Port of SealedStudio._export_to_sealeddeck_tech."""
+    if not payload.strip():
+        return SealedDeckTechVM(ok=False, message="Deck is empty.")
+    import requests
+
+    try:
+        response = requests.post(
+            "https://sealeddeck.tech/api/pools",
+            json={"pool": payload},
+            timeout=10,
+        )
+        if response.status_code == 200:
+            url = response.json().get("url")
+            if url:
+                return SealedDeckTechVM(ok=True, url=url, text=payload)
+            raise ValueError("No URL returned from API")
+        raise RuntimeError(f"HTTP {response.status_code}")
+    except Exception as exc:
+        logger.warning("sealeddeck.tech export failed: %s", exc)
+        return SealedDeckTechVM(
+            ok=False,
+            text=payload,
+            message=(
+                "Could not reach sealeddeck.tech. The deck has been copied to your "
+                "clipboard; paste it manually at sealeddeck.tech."
+            ),
+        )

@@ -1,6 +1,6 @@
 [project]
 name = "mtga-bridge"
-version = "0.1.0"
+version = "0.2.0"
 description = "pytauri bridge for the MTGA Draft Tool (shares src/ logic with the tkinter app)"
 readme = "README.md"
 authors = [

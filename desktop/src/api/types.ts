@@ -157,3 +157,193 @@ export interface Ack {
   ok: boolean;
   message: string;
 }
+
+// --- Post-draft recap -------------------------------------------------------
+
+export interface RecapCard {
+  name: string;
+  winRate: number | null;
+}
+
+export interface RecapPick {
+  name: string;
+  pack: number;
+  pick: number;
+  reference: number;
+  delta: number;
+}
+
+export interface RecapArchetype {
+  name: string;
+  winRate: number | null;
+}
+
+export interface RecapRole {
+  label: string;
+  count: number;
+}
+
+export interface Recap {
+  hasData: boolean;
+  poolPower: number;
+  grade: string;
+  gradeStyle: string;
+  top23Avg: number;
+  formatAvg: number;
+  archetypes: RecapArchetype[];
+  bestCards: RecapCard[];
+  steals: RecapPick[];
+  reaches: RecapPick[];
+  tribes: RecapRole[];
+  roles: RecapRole[];
+  staples: RecapCard[];
+  nonBasicLands: RecapCard[];
+  rares: RecapCard[];
+  cmcDistribution: number[];
+  typeCounts: Record<string, number>;
+  isSealed: boolean;
+  draftId: string;
+}
+
+export interface DraftRecord {
+  found: boolean;
+  wins: number;
+  losses: number;
+  url: string;
+}
+
+// --- Custom deck builder ------------------------------------------------------
+
+export interface DeckRow {
+  name: string;
+  count: number;
+  cmc: number;
+  types: string[];
+  colors: string[];
+  manaCost: string;
+  gihwr: number | null;
+  rowTag: string;
+}
+
+export interface DeckPip {
+  symbol: string;
+  name: string;
+  count: number;
+}
+
+export interface DeckStats {
+  totalCards: number;
+  creatures: number;
+  noncreatures: number;
+  lands: number;
+  avgCmc: number;
+  pips: DeckPip[];
+  curve: Record<string, number>;
+  tribes: RecapRole[];
+  tags: RecapRole[];
+  basics: Record<string, number>;
+}
+
+export interface SimStats {
+  mulligans: number;
+  screwT3: number;
+  screwT4: number;
+  floodT5: number;
+  castT2: number;
+  castT3: number;
+  castT4: number;
+  curveOut: number;
+  removalT4: number;
+  colorScrewT3: number;
+  avgHandSize: number;
+}
+
+export interface SimResult {
+  ok: boolean;
+  message: string;
+  stats: SimStats | null;
+  optimizationNote: string;
+  advice: string[];
+}
+
+export interface DeckState {
+  deck: DeckRow[];
+  sideboard: DeckRow[];
+  stats: DeckStats;
+  mainCount: number;
+  sideboardCount: number;
+  activeFilter: string;
+}
+
+export interface SampleHand {
+  cards: DeckRow[];
+  message: string;
+}
+
+export interface DeckExport {
+  text: string;
+}
+
+// --- Sealed studio ------------------------------------------------------------
+
+export interface SealedVariant {
+  name: string;
+  isActive: boolean;
+  mainCount: number;
+}
+
+export interface SealedState {
+  hasPool: boolean;
+  poolSize: number;
+  sessionId: string;
+  variants: SealedVariant[];
+  activeVariant: string;
+  deck: DeckRow[];
+  sideboard: DeckRow[];
+  stats: DeckStats;
+  mainCount: number;
+  sideboardCount: number;
+  activeFilter: string;
+}
+
+export interface SealedAction {
+  ok: boolean;
+  message: string;
+  state: SealedState;
+}
+
+export interface SealedDeckTech {
+  ok: boolean;
+  url: string;
+  text: string;
+  message: string;
+}
+
+// --- Compare workspace ---------------------------------------------------------
+
+export interface CompareState {
+  cards: Card[];
+  activeFilter: string;
+  availableNames: string[];
+}
+
+// --- Tier lists ------------------------------------------------------------------
+
+export interface TierListEntry {
+  setCode: string;
+  label: string;
+  date: string;
+  fileName: string;
+}
+
+export interface TierLists {
+  lists: TierListEntry[];
+  sets: string[];
+  activeFilter: string;
+}
+
+export interface TierAction {
+  ok: boolean;
+  message: string;
+  lists: TierLists;
+}

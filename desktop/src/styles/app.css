@@ -539,3 +539,429 @@
   font-size: var(--text-sm);
   z-index: 10;
 }
+
+/* --- Shared helpers (recap / deck / sealed / compare / tiers) ------------- */
+
+.spacer {
+  flex: 1;
+}
+
+.ghost-btn {
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--parchment);
+  border-radius: var(--radius);
+  padding: 3px 9px;
+  font-size: var(--text-xs);
+  cursor: pointer;
+}
+
+.ghost-btn:hover {
+  background: var(--felt-hover);
+}
+
+.ghost-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.empty-inline {
+  color: var(--gruff);
+  font-size: var(--text-sm);
+  padding: 6px 0;
+}
+
+.filter-note {
+  color: var(--gruff);
+  font-size: var(--text-sm);
+  font-weight: normal;
+}
+
+.stat-label {
+  color: var(--gruff);
+  font-size: var(--text-xs);
+}
+
+/* --- Recap --------------------------------------------------------------- */
+
+.recap-hero {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.recap-grade {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px 20px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  min-width: 140px;
+}
+
+.recap-grade .grade-label {
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+}
+
+.recap-grade .grade-power {
+  font-family: var(--font-mono);
+  font-size: var(--text-xl);
+  color: var(--gold-foil);
+}
+
+.recap-grade.tint-success { border-color: var(--ok); }
+.recap-grade.tint-info { border-color: var(--mana-u); }
+.recap-grade.tint-warning { border-color: var(--gold-foil); }
+.recap-grade.tint-danger { border-color: var(--err); }
+
+.recap-hero-stats {
+  display: flex;
+  gap: 28px;
+}
+
+.recap-hero-stats > div {
+  display: flex;
+  flex-direction: column;
+}
+
+.recap-hero-stats .stat-value {
+  font-family: var(--font-mono);
+  font-size: var(--text-lg);
+}
+
+.recap-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--gap);
+}
+
+.recap-card-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.recap-card-list li {
+  display: flex;
+  justify-content: space-between;
+  padding: 2px 0;
+  font-size: var(--text-sm);
+}
+
+.recap-card-list .num {
+  font-family: var(--font-mono);
+  color: var(--gruff);
+}
+
+.recap-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.recap-chips span {
+  background: var(--felt-hover);
+  border-radius: var(--radius);
+  padding: 2px 8px;
+  font-size: var(--text-xs);
+}
+
+/* --- Deck / Sealed layout ------------------------------------------------ */
+
+.deck-layout {
+  display: grid;
+  grid-template-columns: 1fr 300px;
+  gap: var(--gap);
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .deck-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.deck-main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+}
+
+.deck-rail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+  position: sticky;
+  top: 0;
+}
+
+.deck-toolbar,
+.variant-tabs,
+.basics-row,
+.compare-search {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.basics-row {
+  margin-top: 8px;
+}
+
+.basic-stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--text-xs);
+}
+
+.basic-stepper span {
+  font-family: var(--font-mono);
+  min-width: 16px;
+  text-align: center;
+}
+
+.deck-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.deck-stat-tiles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: var(--text-xs);
+  color: var(--gruff);
+}
+
+.deck-stat-tiles b {
+  color: var(--parchment);
+  font-family: var(--font-mono);
+}
+
+.deck-curve {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  height: 70px;
+}
+
+.curve-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  flex: 1;
+  height: 100%;
+}
+
+.curve-col i {
+  width: 100%;
+  background: var(--gold-foil-dim);
+  border-radius: 2px 2px 0 0;
+  min-height: 2px;
+}
+
+.curve-col .curve-label {
+  font-size: var(--text-xs);
+  color: var(--gruff);
+  margin-top: 3px;
+}
+
+.deck-pips {
+  display: flex;
+  gap: 6px;
+}
+
+.pip-count {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  padding: 2px 6px;
+  border-radius: var(--radius);
+  background: var(--felt-hover);
+}
+
+.pip-count.w { color: var(--mana-w); }
+.pip-count.u { color: var(--mana-u); }
+.pip-count.b { color: var(--mana-b); }
+.pip-count.r { color: var(--mana-r); }
+.pip-count.g { color: var(--mana-g); }
+
+.sim-note {
+  font-size: var(--text-sm);
+  color: var(--gold-foil);
+  margin-top: 8px;
+}
+
+.sim-table {
+  width: 100%;
+  font-size: var(--text-sm);
+}
+
+.sim-table .num {
+  font-family: var(--font-mono);
+  text-align: right;
+}
+
+.sim-advice {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  font-size: var(--text-sm);
+  color: var(--gruff);
+}
+
+/* --- Sealed variant tabs ------------------------------------------------- */
+
+.variant-tab {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.variant-tab.active {
+  border-color: var(--gold-foil);
+}
+
+.variant-tab > button {
+  background: transparent;
+  border: none;
+  color: var(--parchment);
+  padding: 4px 10px;
+  cursor: pointer;
+  font-size: var(--text-sm);
+}
+
+.variant-tab em {
+  color: var(--gruff);
+  font-style: normal;
+}
+
+.variant-edit {
+  background: transparent;
+  border: none;
+  border-left: 1px solid var(--line);
+  color: var(--gruff);
+  padding: 4px 6px;
+  cursor: pointer;
+}
+
+.variant-edit:hover {
+  color: var(--parchment);
+}
+
+/* --- Compare / Tiers inputs --------------------------------------------- */
+
+.compare-search input,
+.download-form input {
+  background: var(--felt-hover);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--parchment);
+  padding: 5px 9px;
+  font-size: var(--text-sm);
+}
+
+.compare-search input {
+  flex: 1;
+  min-width: 200px;
+}
+
+/* --- Mini Mode overlay -------------------------------------------------- */
+/* Compact always-on-top view over the Arena client (port of CompactOverlay). */
+
+.mini-overlay {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: var(--felt);
+  color: var(--parchment);
+  overflow: hidden;
+}
+
+.mini-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  background: var(--felt-hover);
+  border-bottom: 1px solid var(--line);
+  cursor: move;
+  user-select: none;
+}
+
+.mini-info {
+  font-size: var(--text-sm);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--parchment-dim);
+}
+
+.mini-status {
+  font-family: var(--mono, monospace);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.mini-btn {
+  background: none;
+  border: none;
+  color: var(--parchment-dim);
+  font-size: var(--text-md);
+  cursor: pointer;
+  padding: 0 4px;
+}
+
+.mini-btn:hover {
+  color: var(--gold);
+}
+
+.mini-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--line);
+  flex-shrink: 0;
+}
+
+.mini-tabs button {
+  flex: 1;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--parchment-dim);
+  padding: 6px 4px;
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.mini-tabs button.active {
+  color: var(--parchment);
+  border-bottom-color: var(--gold);
+}
+
+.mini-tabs button:hover {
+  color: var(--parchment);
+}
+
+.mini-body {
+  flex: 1;
+  overflow: auto;
+  padding: 6px;
+}
+
+.mini-stats h3 {
+  font-size: var(--text-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--gold);
+  margin: 8px 0 4px;
+}
+
+.mini-stats h3:first-child {
+  margin-top: 0;
+}

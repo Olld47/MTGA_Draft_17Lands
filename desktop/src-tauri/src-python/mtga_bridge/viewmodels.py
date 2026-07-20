@@ -264,3 +264,270 @@ class SelectDatasetBody(_VM):
 
 class DeleteDatasetBody(_VM):
     path: str
+
+
+# ---------------------------------------------------------------------------
+# Post-draft recap
+# ---------------------------------------------------------------------------
+
+
+class RecapCardVM(_VM):
+    name: str
+    win_rate: Optional[float] = None
+
+
+class RecapPickVM(_VM):
+    name: str
+    pack: int
+    pick: int
+    reference: float  # ALSA (steals) or ATA (reaches)
+    delta: float
+
+
+class RecapArchetypeVM(_VM):
+    name: str
+    win_rate: Optional[float] = None
+
+
+class RecapRoleVM(_VM):
+    label: str
+    count: int
+
+
+class RecapVM(_VM):
+    has_data: bool = False
+    pool_power: float = 0.0
+    grade: str = ""
+    grade_style: str = ""
+    top_23_avg: float = 0.0
+    format_avg: float = 0.0
+    archetypes: List[RecapArchetypeVM] = []
+    best_cards: List[RecapCardVM] = []
+    steals: List[RecapPickVM] = []
+    reaches: List[RecapPickVM] = []
+    tribes: List[RecapRoleVM] = []
+    roles: List[RecapRoleVM] = []
+    staples: List[RecapCardVM] = []
+    non_basic_lands: List[RecapCardVM] = []
+    rares: List[RecapCardVM] = []
+    cmc_distribution: List[int] = []
+    type_counts: Dict[str, int] = {}
+    is_sealed: bool = False
+    draft_id: str = ""
+
+
+class DraftRecordVM(_VM):
+    found: bool = False
+    wins: int = 0
+    losses: int = 0
+    url: str = ""
+
+
+class DraftRecordBody(_VM):
+    draft_id: str
+
+
+# ---------------------------------------------------------------------------
+# Custom deck builder
+# ---------------------------------------------------------------------------
+
+
+class DeckRowVM(_VM):
+    name: str
+    count: int = 1
+    cmc: float = 0.0
+    types: List[str] = []
+    colors: List[str] = []
+    mana_cost: str = ""
+    gihwr: Optional[float] = None
+    row_tag: str = ""
+
+
+class DeckPipVM(_VM):
+    symbol: str
+    name: str
+    count: int
+
+
+class DeckStatsVM(_VM):
+    total_cards: int = 0
+    creatures: int = 0
+    noncreatures: int = 0
+    lands: int = 0
+    avg_cmc: float = 0.0
+    pips: List[DeckPipVM] = []
+    curve: Dict[str, int] = {}  # "1".."6" -> count of non-land cards
+    tribes: List[RecapRoleVM] = []
+    tags: List[RecapRoleVM] = []
+    basics: Dict[str, int] = {}  # basic land name -> count in deck
+
+
+class SimStatsVM(_VM):
+    """1:1 with simulate_deck output percentages."""
+
+    mulligans: float = 0.0
+    screw_t3: float = 0.0
+    screw_t4: float = 0.0
+    flood_t5: float = 0.0
+    cast_t2: float = 0.0
+    cast_t3: float = 0.0
+    cast_t4: float = 0.0
+    curve_out: float = 0.0
+    removal_t4: float = 0.0
+    color_screw_t3: float = 0.0
+    avg_hand_size: float = 0.0
+
+
+class SimResultVM(_VM):
+    ok: bool = True
+    message: str = ""
+    stats: Optional[SimStatsVM] = None
+    optimization_note: str = ""
+    advice: List[str] = []
+
+
+class DeckStateVM(_VM):
+    deck: List[DeckRowVM] = []
+    sideboard: List[DeckRowVM] = []
+    stats: DeckStatsVM = DeckStatsVM()
+    main_count: int = 0
+    sideboard_count: int = 0
+    active_filter: str = "All Decks"
+
+
+class SampleHandVM(_VM):
+    cards: List[DeckRowVM] = []
+    message: str = ""
+
+
+class DeckExportVM(_VM):
+    text: str = ""
+
+
+class MoveCardBody(_VM):
+    card_name: str
+    to_sideboard: bool  # True: deck->sb, False: sb->deck
+
+
+class BasicLandBody(_VM):
+    color_name: str  # "Plains" | "Island" | "Swamp" | "Mountain" | "Forest"
+
+
+# ---------------------------------------------------------------------------
+# Sealed studio
+# ---------------------------------------------------------------------------
+
+
+class SealedVariantVM(_VM):
+    name: str
+    is_active: bool = False
+    main_count: int = 0
+
+
+class SealedStateVM(_VM):
+    has_pool: bool = False
+    pool_size: int = 0
+    session_id: str = ""
+    variants: List[SealedVariantVM] = []
+    active_variant: str = ""
+    deck: List[DeckRowVM] = []
+    sideboard: List[DeckRowVM] = []
+    stats: DeckStatsVM = DeckStatsVM()
+    main_count: int = 0
+    sideboard_count: int = 0
+    active_filter: str = "All Decks"
+
+
+class SealedActionVM(_VM):
+    """Result of a sealed mutation: the new state plus an optional message."""
+
+    ok: bool = True
+    message: str = ""
+    state: SealedStateVM = SealedStateVM()
+
+
+class SealedMoveBody(_VM):
+    card_name: str
+    to_sideboard: bool  # True: main->sideboard, False: sideboard->main
+    count: int = 1
+
+
+class SealedVariantBody(_VM):
+    name: str
+    copy_from: Optional[str] = None
+
+
+class SealedRenameBody(_VM):
+    old_name: str
+    new_name: str
+
+
+class SealedImportBody(_VM):
+    text: str
+
+
+class SealedExportVM(_VM):
+    text: str = ""
+
+
+class SealedDeckTechVM(_VM):
+    ok: bool = False
+    url: str = ""
+    text: str = ""  # MTGA payload, returned so the UI can fall back to clipboard
+    message: str = ""
+
+
+# ---------------------------------------------------------------------------
+# Compare workspace
+# ---------------------------------------------------------------------------
+
+
+class CompareStateVM(_VM):
+    cards: List[CardVM] = []
+    active_filter: str = "All Decks"
+    available_names: List[str] = []  # for the search autocomplete
+
+
+class CompareAddBody(_VM):
+    name: str
+
+
+class CompareRemoveBody(_VM):
+    name: str
+
+
+# ---------------------------------------------------------------------------
+# Tier lists
+# ---------------------------------------------------------------------------
+
+
+class TierListEntryVM(_VM):
+    set_code: str
+    label: str
+    date: str
+    file_name: str
+
+
+class TierListsVM(_VM):
+    lists: List[TierListEntryVM] = []
+    sets: List[str] = []  # distinct set codes for the filter dropdown
+    active_filter: str = ""
+
+
+class TierActionVM(_VM):
+    ok: bool = True
+    message: str = ""
+    lists: TierListsVM = TierListsVM()
+
+
+class TierImportBody(_VM):
+    url: str
+    label: str
+
+
+class TierDeleteBody(_VM):
+    file_names: List[str]
+
+
+class TierFilterBody(_VM):
+    set_code: str = ""
