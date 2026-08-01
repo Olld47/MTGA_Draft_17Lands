@@ -12,19 +12,19 @@ frontend re-renders from.
 
 import copy
 import logging
-import random
 from typing import Dict, List
 
 from src import constants
 from src.card_logic import (
     copy_deck,
     get_strict_colors,
-    is_castable,
     stack_cards,
 )
 
 from mtga_bridge.deck_view import (
     BASIC_COLOR_MAP as _BASIC_COLOR_MAP,
+    build_sample_hand,
+    build_sim_result,
     build_stats,
     card_sort_key as _card_sort_key,
     row_vm,
@@ -36,7 +36,6 @@ from mtga_bridge.viewmodels import (
     DeckStatsVM,
     SampleHandVM,
     SimResultVM,
-    SimStatsVM,
 )
 
 logger = logging.getLogger(__name__)
@@ -234,126 +233,10 @@ class DeckSession:
         return self._sim_result(stats, "")
 
     def _sim_result(self, stats: dict, optimization_note: str) -> SimResultVM:
-        return SimResultVM(
-            ok=True,
-            stats=SimStatsVM(**{k: round(float(v), 2) for k, v in stats.items()}),
-            optimization_note=optimization_note or "",
-            advice=self._build_advice(stats, optimization_note),
-        )
-
-    def _build_advice(self, stats: dict, optimization_note: str) -> List[str]:
-        """Port of the ADVISOR SUMMARY heuristics in _show_sim_results."""
-        advice: List[str] = []
-        if stats["cast_t2"] < 50:
-            advice.append("• Add more 2-drops to improve early board presence.")
-
-        non_basics = [
-            c
-            for c in self.deck_list
-            if "Land" in c.get("types", [])
-            and "Basic" not in c.get("types", [])
-            and c.get("name") not in constants.BASIC_LANDS
-        ]
-        colorless_lands = [c for c in non_basics if not c.get("colors")]
-
-        if stats["color_screw_t3"] > 10.0:
-            if colorless_lands:
-                advice.append(
-                    f"• Color screw risk is elevated. Consider cutting a colorless utility land (like {colorless_lands[0].get('name', '')}) for a basic land."
-                )
-            else:
-                advice.append(
-                    "• High color screw risk. Consider cutting a splash card or adding more fixing."
-                )
-
-        is_18_lands = optimization_note and "18 Lands" in optimization_note
-        is_16_lands = optimization_note and "16 Lands" in optimization_note
-        if stats["screw_t3"] > 22.0 and not is_16_lands:
-            advice.append("• Frequently missing land drops. Consider running an extra land.")
-        if stats["flood_t5"] > 28.0 and not is_18_lands:
-            advice.append("• High flood risk. Consider cutting a land or adding mana sinks.")
-        if stats["removal_t4"] < 45:
-            advice.append("• Low early interaction. Prioritize cheap removal.")
-
-        deck_colors = set()
-        for c in self.deck_list:
-            if "Land" not in c.get("types", []):
-                for col in c.get("colors", []):
-                    deck_colors.add(col)
-        if len(deck_colors) >= 3:
-            advice.append(
-                "⚠️ Mana Base: You are playing 3+ colors. This inherently increases your risk of color screw. Ensure you have at least 3-4 strong fixing sources."
-            )
-
-        if not optimization_note and (stats["cast_t2"] < 50 or stats["flood_t5"] > 25):
-            expensive_cards = [
-                c
-                for c in self.deck_list
-                if int(c.get("cmc", 0)) >= 5 and "Land" not in c.get("types", [])
-            ]
-            if expensive_cards:
-                deck_spells = [c for c in self.deck_list if "Land" not in c.get("types", [])]
-                deck_colors_strict = (
-                    get_strict_colors(deck_spells) if deck_spells else ["W", "U", "B", "R", "G"]
-                )
-                worst_expensive = min(
-                    expensive_cards,
-                    key=lambda x: float(
-                        x.get("deck_colors", {}).get("All Decks", {}).get("gihwr", 0)
-                    ),
-                )
-                cheap_sb = [
-                    c
-                    for c in self.sb_list
-                    if int(c.get("cmc", 0)) <= 3
-                    and "Land" not in c.get("types", [])
-                    and "Creature" in c.get("types", [])
-                    and is_castable(c, deck_colors_strict, strict=True)
-                ]
-                if cheap_sb:
-                    best_cheap = max(
-                        cheap_sb,
-                        key=lambda x: float(
-                            x.get("deck_colors", {}).get("All Decks", {}).get("gihwr", 0)
-                        ),
-                    )
-                    advice.append(
-                        f"• Swap: Cut [{worst_expensive['name']}] for [{best_cheap['name']}] to lower curve."
-                    )
-        return advice
+        return build_sim_result(self.deck_list, self.sb_list, stats, optimization_note)
 
     def sample_hand(self) -> SampleHandVM:
-        if not self.deck_list:
-            return SampleHandVM(cards=[], message="Generate a deck first.")
-        flat_deck = []
-        for c in self.deck_list:
-            flat_deck.extend([c] * int(c.get("count", 1)))
-        if len(flat_deck) < 7:
-            return SampleHandVM(cards=[], message="Deck has fewer than 7 cards.")
-
-        hand = random.sample(flat_deck, 7)
-
-        def hand_sort_key(c):
-            types = c.get("types", [])
-            name = c.get("name", "")
-            cmc = int(c.get("cmc", 0))
-            is_land = "Land" in types
-            is_basic = "Basic" in types or name in constants.BASIC_LANDS
-            if is_land:
-                if is_basic:
-                    color_order = 5
-                    for i, land in enumerate(
-                        ("Plains", "Island", "Swamp", "Mountain", "Forest")
-                    ):
-                        if land in name:
-                            color_order = i
-                            break
-                    return (0, color_order, name)
-                return (1, 0, name)
-            return (2, cmc, name)
-
-        hand.sort(key=hand_sort_key)
-        return SampleHandVM(cards=[self._row_vm(c) for c in hand])
+        return build_sample_hand(self.deck_list, self._active_filter())
 
     def export(self) -> DeckExportVM:
         return DeckExportVM(text=copy_deck(self.deck_list, self.sb_list))

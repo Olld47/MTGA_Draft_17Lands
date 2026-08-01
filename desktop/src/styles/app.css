@@ -527,6 +527,10 @@
   text-align: center;
 }
 
+.empty-state p {
+  margin: 0 0 12px;
+}
+
 .error-toast {
   position: fixed;
   bottom: 16px;
@@ -872,6 +876,57 @@
   min-width: 200px;
 }
 
+/* --- Suggest deck ------------------------------------------------------- */
+
+.archetype-select {
+  background: var(--felt-hover);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--parchment);
+  padding: 5px 9px;
+  font-size: var(--text-sm);
+  flex: 1;
+  min-width: 240px;
+}
+
+/* Overlapping fan, echoing the tkinter panel's stacked sample hand. */
+.hand-fan {
+  display: flex;
+  padding-right: 96px;
+}
+
+.hand-card {
+  margin: 0 -96px 0 0;
+  width: 180px;
+  flex: 0 0 auto;
+  transition: transform 120ms ease;
+}
+
+.hand-card:hover,
+.hand-card:focus-within {
+  transform: translateY(-8px);
+  z-index: 1;
+}
+
+.hand-card img {
+  width: 100%;
+  display: block;
+  border-radius: 9px;
+}
+
+.hand-card figcaption {
+  font-size: var(--text-xs);
+  color: var(--gruff);
+  text-align: center;
+  margin-top: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hand-card {
+    transition: none;
+  }
+}
+
 /* --- Mini Mode overlay -------------------------------------------------- */
 /* Compact always-on-top view over the Arena client (port of CompactOverlay). */
 
@@ -964,4 +1019,71 @@
 
 .mini-stats h3:first-child {
   margin-top: 0;
+}
+
+/* --- Practice dialog ------------------------------------------------------ */
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgb(0 0 0 / 55%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 20;
+}
+
+.modal {
+  background: var(--felt);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+  width: min(480px, 90vw);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.modal h2 {
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  margin: 0;
+}
+
+.modal-field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: var(--text-sm);
+}
+
+.modal-modes {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: var(--text-sm);
+}
+
+.modal-modes label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.modal-textarea {
+  background: var(--felt-hover);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--parchment);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  padding: 8px;
+  resize: vertical;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }

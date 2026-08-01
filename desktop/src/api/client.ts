@@ -17,6 +17,7 @@ import type {
   DraftRecord,
   DraftState,
   FilterOptions,
+  PracticeSets,
   Recap,
   SampleHand,
   SealedAction,
@@ -25,6 +26,8 @@ import type {
   Settings,
   SettingsPatch,
   SimResult,
+  SuggestProgress,
+  SuggestState,
   TakenCards,
   TierAction,
   TierLists,
@@ -109,6 +112,28 @@ export const deckSampleHand = () => pyInvoke<SampleHand>("deck_sample_hand");
 
 export const deckExport = () => pyInvoke<DeckExport>("deck_export");
 
+// --- Suggest deck (AI archetype builder) --------------------------------------
+
+export const getSuggestState = () => pyInvoke<SuggestState>("get_suggest_state");
+
+export function suggestCalculate(
+  onProgress: (p: SuggestProgress) => void,
+): Promise<SuggestState> {
+  const channel = new Channel<SuggestProgress>(onProgress);
+  return pyInvoke<SuggestState>("suggest_calculate", { channel });
+}
+
+export const suggestSelectArchetype = (label: string) =>
+  pyInvoke<SuggestState>("suggest_select_archetype", { label });
+
+export const suggestSampleHand = () =>
+  pyInvoke<SampleHand>("suggest_sample_hand");
+
+export const suggestExport = () => pyInvoke<DeckExport>("suggest_export");
+
+export const suggestSendToBuilder = () =>
+  pyInvoke<DeckState>("suggest_send_to_builder");
+
 // --- Sealed studio ------------------------------------------------------------
 
 export const getSealedState = () => pyInvoke<SealedState>("get_sealed_state");
@@ -151,6 +176,18 @@ export const sealedExport = () => pyInvoke<DeckExport>("sealed_export");
 
 export const sealedExportSealeddeck = () =>
   pyInvoke<SealedDeckTech>("sealed_export_sealeddeck");
+
+// --- Practice pools (random / imported sealed) ----------------------------------
+
+export const listPracticeSets = () =>
+  pyInvoke<PracticeSets>("list_practice_sets");
+
+/** Omit `importText` to generate six random packs. */
+export const startPractice = (setCode: string, importText?: string) =>
+  pyInvoke<SealedAction>("start_practice", {
+    setCode,
+    importText: importText ?? null,
+  });
 
 // --- Compare workspace ---------------------------------------------------------
 

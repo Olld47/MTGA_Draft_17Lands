@@ -20,6 +20,7 @@ import { SettingsPage } from "./features/settings/SettingsPage";
 import { DatasetsPage } from "./features/datasets/DatasetsPage";
 import { RecapPage } from "./features/recap/RecapPage";
 import { DeckPage } from "./features/deck/DeckPage";
+import { SuggestPage } from "./features/suggest/SuggestPage";
 import { SealedPage } from "./features/sealed/SealedPage";
 import { ComparePage } from "./features/compare/ComparePage";
 import { TiersPage } from "./features/tiers/TiersPage";
@@ -29,6 +30,7 @@ type Tab =
   | "taken"
   | "recap"
   | "deck"
+  | "suggest"
   | "sealed"
   | "compare"
   | "tiers"
@@ -40,6 +42,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "taken", label: "Taken" },
   { id: "recap", label: "Recap" },
   { id: "deck", label: "Deck" },
+  { id: "suggest", label: "Suggest" },
   { id: "sealed", label: "Sealed" },
   { id: "compare", label: "Compare" },
   { id: "tiers", label: "Tiers" },
@@ -191,6 +194,12 @@ export default function App() {
         {tab === "taken" && <TakenPage colorTint={colorTint} />}
         {tab === "recap" && <RecapPage />}
         {tab === "deck" && <DeckPage colorTint={colorTint} />}
+        {tab === "suggest" && (
+          <SuggestPage
+            colorTint={colorTint}
+            onSentToBuilder={() => setTab("deck")}
+          />
+        )}
         {tab === "sealed" && <SealedPage colorTint={colorTint} />}
         {tab === "compare" && <ComparePage colorTint={colorTint} />}
         {tab === "tiers" && <TiersPage />}

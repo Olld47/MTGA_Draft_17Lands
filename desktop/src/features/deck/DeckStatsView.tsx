@@ -70,9 +70,10 @@ interface DeckTableProps {
   title: string;
   rows: DeckRow[];
   count: number;
-  /** Move a card to the other zone (deck⇄sideboard). */
-  onMove: (name: string) => void;
-  moveLabel: string;
+  /** Move a card to the other zone (deck⇄sideboard). Omit for a read-only
+   *  table (the suggest page renders decks it doesn't let you edit). */
+  onMove?: (name: string) => void;
+  moveLabel?: string;
   emptyText: string;
   colorTint: boolean;
 }
@@ -113,7 +114,10 @@ export function DeckTable({
       cell: (r) => (r.gihwr == null ? "—" : r.gihwr.toFixed(1)),
       sortValue: (r) => r.gihwr ?? -1,
     },
-    {
+  ];
+
+  if (onMove) {
+    columns.push({
       id: "move",
       header: "",
       cell: (r) => (
@@ -121,8 +125,8 @@ export function DeckTable({
           {moveLabel}
         </button>
       ),
-    },
-  ];
+    });
+  }
 
   const rowClass = (r: DeckRow) =>
     colorTint && r.colors.length === 1

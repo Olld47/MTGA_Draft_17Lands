@@ -65,6 +65,15 @@ class SealedStudioSession:
         self.session = None
         return self.ensure_pool()
 
+    def load_external_pool(self, pool: List[dict], session_id: str) -> None:
+        """Replaces the scanner-derived pool with one supplied by the caller
+        (the practice generator/importer), under its own session id so it
+        persists separately from the live draft."""
+        session = SealedSession(session_id)
+        session.load_pool(pool)
+        self.session = session
+        self._save()
+
     # --- shell generation ----------------------------------------------------
 
     def auto_generate(self) -> SealedActionVM:

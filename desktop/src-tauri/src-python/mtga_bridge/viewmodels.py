@@ -341,6 +341,7 @@ class DeckRowVM(_VM):
     mana_cost: str = ""
     gihwr: Optional[float] = None
     row_tag: str = ""
+    image: List[str] = []
 
 
 class DeckPipVM(_VM):
@@ -414,6 +415,51 @@ class BasicLandBody(_VM):
 
 
 # ---------------------------------------------------------------------------
+# Suggest deck (AI archetype builder)
+# ---------------------------------------------------------------------------
+
+
+class SuggestArchetypeVM(_VM):
+    """One candidate deck in the archetype dropdown."""
+
+    label: str
+    label_prefix: str = ""
+    rating: float = 0.0
+    record: str = ""
+    colors: List[str] = []
+    identity_colors: List[str] = []
+    breakdown: str = ""
+    main_count: int = 0
+
+
+class SuggestStateVM(_VM):
+    status: str = ""  # empty when a build succeeded; otherwise why it didn't
+    is_building: bool = False
+    archetypes: List[SuggestArchetypeVM] = []
+    selected: str = ""
+    deck: List[DeckRowVM] = []
+    sideboard: List[DeckRowVM] = []
+    stats: DeckStatsVM = DeckStatsVM()
+    main_count: int = 0
+    sideboard_count: int = 0
+    breakdown: str = ""
+    sim: Optional[SimResultVM] = None
+    active_filter: str = "All Decks"
+
+
+class SuggestProgress(_VM):
+    """Streamed over a Channel while suggest_calculate runs."""
+
+    kind: str  # "status" | "variant"
+    text: str = ""
+    archetype: Optional[SuggestArchetypeVM] = None
+
+
+class SuggestSelectBody(_VM):
+    label: str
+
+
+# ---------------------------------------------------------------------------
 # Sealed studio
 # ---------------------------------------------------------------------------
 
@@ -475,6 +521,29 @@ class SealedDeckTechVM(_VM):
     url: str = ""
     text: str = ""  # MTGA payload, returned so the UI can fall back to clipboard
     message: str = ""
+
+
+# ---------------------------------------------------------------------------
+# Practice pools (random / imported sealed)
+# ---------------------------------------------------------------------------
+
+
+class PracticeSetVM(_VM):
+    code: str  # 17Lands code, used to resolve the dataset
+    name: str
+    label: str  # "Set Name (CODE)"
+    is_active: bool = False  # listed in the manifest's active sets
+
+
+class PracticeSetsVM(_VM):
+    sets: List[PracticeSetVM] = []
+    default_code: str = ""
+
+
+class PracticeStartBody(_VM):
+    set_code: str
+    # None generates six random packs; text imports an MTGA decklist.
+    import_text: Optional[str] = None
 
 
 # ---------------------------------------------------------------------------

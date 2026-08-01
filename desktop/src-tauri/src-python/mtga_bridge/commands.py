@@ -14,6 +14,7 @@ from pytauri import AppHandle, Commands, Manager, State
 from pytauri.ipc import InvokeException, JavaScriptChannelId, WebviewWindow
 
 from mtga_bridge import datasets as datasets_svc
+from mtga_bridge import practice as practice_svc
 from mtga_bridge import recap as recap_svc
 from mtga_bridge import services
 from mtga_bridge import snapshot
@@ -40,6 +41,8 @@ from mtga_bridge.viewmodels import (
     CompareStateVM,
     FilterOptionsVM,
     MoveCardBody,
+    PracticeSetsVM,
+    PracticeStartBody,
     RecapVM,
     SampleHandVM,
     SealedActionVM,
@@ -55,6 +58,9 @@ from mtga_bridge.viewmodels import (
     SettingsPatch,
     SettingsVM,
     SimResultVM,
+    SuggestProgress,
+    SuggestSelectBody,
+    SuggestStateVM,
     TakenCardsVM,
     TierActionVM,
     TierDeleteBody,
@@ -514,6 +520,40 @@ async def sealed_export_sealeddeck(runtime: RuntimeState) -> SealedDeckTechVM:
     return await anyio.to_thread.run_sync(_run)
 
 
+# --- Practice pools (random / imported sealed) -------------------------------
+
+
+@commands.command()
+async def list_practice_sets(runtime: RuntimeState) -> PracticeSetsVM:
+    _require_booted(runtime)
+    return await anyio.to_thread.run_sync(
+        practice_svc.list_practice_sets, runtime.scanner
+    )
+
+
+@commands.command()
+async def start_practice(
+    body: PracticeStartBody, runtime: RuntimeState
+) -> SealedActionVM:
+    _require_booted(runtime)
+
+    def _run():
+        return practice_svc.start_practice(
+            runtime.scanner,
+            runtime.config,
+            runtime.sealed_session(),
+            body.set_code,
+            body.import_text,
+        )
+
+    result = await anyio.to_thread.run_sync(_run)
+    if result.ok:
+        # The practice set's dataset is now the active one for every view.
+        runtime.orchestrator.request_math_update()
+        runtime.invalidate_state()
+    return result
+
+
 # --- Compare workspace -------------------------------------------------------
 
 
@@ -568,6 +608,89 @@ async def compare_clear(runtime: RuntimeState) -> CompareStateVM:
         with session.scanner.lock:
             session.clear()
             return session.build_state()
+
+    return await anyio.to_thread.run_sync(_run)
+
+
+# --- Suggest deck (AI archetype builder) --------------------------------------
+
+
+@commands.command()
+async def get_suggest_state(runtime: RuntimeState) -> SuggestStateVM:
+    _require_booted(runtime)
+    return await anyio.to_thread.run_sync(
+        lambda: runtime.suggest_session().build_state()
+    )
+
+
+class SuggestCalculateBody(BaseModel):
+    channel: JavaScriptChannelId[SuggestProgress]
+
+
+@commands.command()
+async def suggest_calculate(
+    body: SuggestCalculateBody,
+    runtime: RuntimeState,
+    webview_window: WebviewWindow,
+) -> SuggestStateVM:
+    _require_booted(runtime)
+    channel = body.channel.channel_on(webview_window.as_ref_webview())
+
+    def send(kind: str, payload: dict):
+        try:
+            channel.send_model(SuggestProgress(kind=kind, **payload))
+        except Exception as e:
+            logger.debug(f"Suggest progress channel closed: {e}")
+
+    def _run():
+        session = runtime.suggest_session()
+        # calculate() takes the scanner lock only while snapshotting inputs —
+        # the engine run is too long to hold it across.
+        session.calculate(progress=send)
+        return session.build_state()
+
+    return await anyio.to_thread.run_sync(_run)
+
+
+@commands.command()
+async def suggest_select_archetype(
+    body: SuggestSelectBody, runtime: RuntimeState
+) -> SuggestStateVM:
+    _require_booted(runtime)
+
+    def _run():
+        session = runtime.suggest_session()
+        session.select(body.label)
+        return session.build_state()
+
+    return await anyio.to_thread.run_sync(_run)
+
+
+@commands.command()
+async def suggest_sample_hand(runtime: RuntimeState) -> SampleHandVM:
+    _require_booted(runtime)
+    return await anyio.to_thread.run_sync(
+        lambda: runtime.suggest_session().sample_hand()
+    )
+
+
+@commands.command()
+async def suggest_export(runtime: RuntimeState) -> DeckExportVM:
+    _require_booted(runtime)
+    return await anyio.to_thread.run_sync(lambda: runtime.suggest_session().export())
+
+
+@commands.command()
+async def suggest_send_to_builder(runtime: RuntimeState) -> DeckStateVM:
+    """Port of the panel's 'Custom Builder' button: hand the selected
+    suggestion to the custom-deck session and switch to that page."""
+    _require_booted(runtime)
+
+    def _run():
+        deck, sideboard = runtime.suggest_session().deck_lists()
+        session = runtime.deck_session()
+        session.import_deck(deck, sideboard)
+        return session.build_state()
 
     return await anyio.to_thread.run_sync(_run)
 

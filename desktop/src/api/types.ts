@@ -223,6 +223,7 @@ export interface DeckRow {
   manaCost: string;
   gihwr: number | null;
   rowTag: string;
+  image: string[];
 }
 
 export interface DeckPip {
@@ -284,6 +285,40 @@ export interface DeckExport {
   text: string;
 }
 
+// --- Suggest deck (AI archetype builder) --------------------------------------
+
+export interface SuggestArchetype {
+  label: string;
+  labelPrefix: string;
+  rating: number;
+  record: string;
+  colors: string[];
+  identityColors: string[];
+  breakdown: string;
+  mainCount: number;
+}
+
+export interface SuggestState {
+  status: string;
+  isBuilding: boolean;
+  archetypes: SuggestArchetype[];
+  selected: string;
+  deck: DeckRow[];
+  sideboard: DeckRow[];
+  stats: DeckStats;
+  mainCount: number;
+  sideboardCount: number;
+  breakdown: string;
+  sim: SimResult | null;
+  activeFilter: string;
+}
+
+export interface SuggestProgress {
+  kind: "status" | "variant";
+  text: string;
+  archetype: SuggestArchetype | null;
+}
+
 // --- Sealed studio ------------------------------------------------------------
 
 export interface SealedVariant {
@@ -317,6 +352,20 @@ export interface SealedDeckTech {
   url: string;
   text: string;
   message: string;
+}
+
+// --- Practice pools (random / imported sealed) ----------------------------------
+
+export interface PracticeSet {
+  code: string;
+  name: string;
+  label: string;
+  isActive: boolean;
+}
+
+export interface PracticeSets {
+  sets: PracticeSet[];
+  defaultCode: string;
 }
 
 // --- Compare workspace ---------------------------------------------------------

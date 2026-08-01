@@ -21,6 +21,7 @@ class AppRuntime:
     _deck_session: Any = None
     _sealed_session: Any = None
     _compare_session: Any = None
+    _suggest_session: Any = None
     booted: threading.Event = field(default_factory=threading.Event)
     boot_error: Optional[str] = None
     last_boot_message: str = ""
@@ -73,3 +74,11 @@ class AppRuntime:
 
             self._compare_session = CompareSession(self.scanner, self.config)
         return self._compare_session
+
+    def suggest_session(self):
+        """Lazily-created stateful AI-suggestion model, one per runtime."""
+        if self._suggest_session is None:
+            from mtga_bridge.suggest_session import SuggestSession
+
+            self._suggest_session = SuggestSession(self.scanner, self.config)
+        return self._suggest_session

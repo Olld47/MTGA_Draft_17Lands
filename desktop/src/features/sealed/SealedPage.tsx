@@ -17,12 +17,14 @@ import {
 import { EVENTS, on, type RefreshPayload } from "../../api/events";
 import type { SealedAction, SealedState } from "../../api/types";
 import { DeckStatsView, DeckTable } from "../deck/DeckStatsView";
+import { PracticeDialog } from "../practice/PracticeDialog";
 
 export function SealedPage({ colorTint }: { colorTint: boolean }) {
   const [state, setState] = useState<SealedState | null>(null);
   const [message, setMessage] = useState("");
   const [shareUrl, setShareUrl] = useState("");
   const [busy, setBusy] = useState(false);
+  const [practiceOpen, setPracticeOpen] = useState(false);
 
   const refresh = useCallback(() => {
     getSealedState().then(setState).catch(console.warn);
@@ -74,10 +76,25 @@ export function SealedPage({ colorTint }: { colorTint: boolean }) {
       .finally(() => setBusy(false));
   };
 
+  const startedPractice = (r: SealedAction) => {
+    setState(r.state);
+    setMessage(r.message);
+    setShareUrl("");
+  };
+
+  const practiceDialog = practiceOpen && (
+    <PracticeDialog
+      onClose={() => setPracticeOpen(false)}
+      onStarted={startedPractice}
+    />
+  );
+
   if (state && !state.hasPool) {
     return (
       <div className="empty-state">
-        No sealed pool detected. Open a Sealed event in Arena, then rescan.
+        <p>No sealed pool detected. Open a Sealed event in Arena, then rescan.</p>
+        <button onClick={() => setPracticeOpen(true)}>Practice pool...</button>
+        {practiceDialog}
       </div>
     );
   }
@@ -125,6 +142,7 @@ export function SealedPage({ colorTint }: { colorTint: boolean }) {
               Auto-lands
             </button>
             <button onClick={importDeck}>Import</button>
+            <button onClick={() => setPracticeOpen(true)}>Practice...</button>
             <span className="spacer" />
             <button
               className="ghost-btn"
@@ -184,6 +202,7 @@ export function SealedPage({ colorTint }: { colorTint: boolean }) {
           <div className="empty-inline">{state?.poolSize ?? 0} cards</div>
         </section>
       </aside>
+      {practiceDialog}
     </div>
   );
 }

@@ -64,7 +64,10 @@ Commands: `get_boot_status`, `get_draft_state`, `get_taken_cards`,
 `force_reload`, `set_log_file`, `list_draft_logs`, `get_settings`,
 `set_settings`, `get_filter_options`, `list_datasets`, `list_available_sets`,
 `download_dataset` (Channel-streamed progress), `select_dataset`,
-`delete_dataset`.
+`delete_dataset`, `get_recap`, `get_draft_record`, the `deck_*` custom-builder
+commands, the `sealed_*` studio commands, the `compare_*` commands, the
+`*_tier_list` commands, and the `suggest_*` commands (`suggest_calculate`
+streams per-archetype build progress over a Channel).
 
 ## Manual smoke checklist
 
@@ -74,8 +77,12 @@ Commands: `get_boot_status`, `get_draft_state`, `get_taken_cards`,
       thread — verify no thread-safety warnings in the console)
 - [ ] Dataset download shows streaming progress and activates the dataset
 - [ ] Settings changes persist to the same config.json the tkinter app reads
+- [ ] Suggest tab: "Build decks" streams progress, the dropdown fills with
+      archetypes, switching one re-renders the deck/stats/simulation, "Sample
+      hand" shows Scryfall art, and "Send to builder" lands the deck on the
+      Deck tab
 
 ## Not yet ported (later phases)
 
-Sealed Studio, Custom Deck builder, Compare, Mini overlay, Tier lists,
-Practice dialog, post-draft recap, standalone bundling (`scripts/`).
+Practice dialog, menu-bar tool commands (CSV/JSON export, native file pickers),
+standalone bundling (`scripts/`).
