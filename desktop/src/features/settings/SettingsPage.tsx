@@ -1,3 +1,4 @@
+import { useFileTools } from "../../state/useFileTools";
 import { useSettings } from "../../state/useSettings";
 
 const DECK_FILTERS = [
@@ -34,6 +35,7 @@ function ToggleRow({ label, hint, checked, onChange }: ToggleRowProps) {
 
 export function SettingsPage() {
   const { settings, patch } = useSettings();
+  const { busy, message, browseLogFile, browseMtgaData } = useFileTools();
 
   if (!settings) {
     return <div className="empty-state">Loading settings...</div>;
@@ -106,15 +108,37 @@ export function SettingsPage() {
         <div className="setting-row">
           <label>
             Arena log
-            <div className="hint">{settings.arenaLogLocation || "not set"}</div>
+            <div className="hint path">{settings.arenaLogLocation || "not set"}</div>
           </label>
+          <button
+            disabled={busy}
+            onClick={() =>
+              browseLogFile().then((path) => {
+                if (path) patch({ arenaLogLocation: path });
+              })
+            }
+          >
+            Browse...
+          </button>
         </div>
         <div className="setting-row">
           <label>
             MTGA database
-            <div className="hint">{settings.databaseLocation || "not set"}</div>
+            <div className="hint path">{settings.databaseLocation || "not set"}</div>
           </label>
+          <button
+            disabled={busy}
+            onClick={() =>
+              browseMtgaData().then((path) => {
+                // locate_mtga_data already persisted it; mirror it locally.
+                if (path) patch({ databaseLocation: path });
+              })
+            }
+          >
+            Locate...
+          </button>
         </div>
+        {message && <div className="setting-note">{message}</div>}
       </section>
     </div>
   );

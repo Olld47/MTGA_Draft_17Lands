@@ -466,6 +466,18 @@
   color: var(--gruff);
 }
 
+.setting-row .hint.path {
+  font-family: var(--font-mono);
+  word-break: break-all;
+  max-width: 46ch;
+}
+
+.setting-note {
+  font-size: var(--text-xs);
+  color: var(--gruff);
+  padding-top: 6px;
+}
+
 /* --- Datasets --- */
 
 .dataset-banner {
@@ -633,6 +645,20 @@
 .recap-hero-stats .stat-value {
   font-family: var(--font-mono);
   font-size: var(--text-lg);
+}
+
+.recap-export {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.recap-export-note {
+  flex-basis: 100%;
+  font-size: var(--text-xs);
+  color: var(--gruff);
 }
 
 .recap-grid {

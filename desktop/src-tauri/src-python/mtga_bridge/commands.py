@@ -19,6 +19,7 @@ from mtga_bridge import recap as recap_svc
 from mtga_bridge import services
 from mtga_bridge import snapshot
 from mtga_bridge import tier_service
+from mtga_bridge import tools as tools_svc
 from mtga_bridge.runtime import AppRuntime
 from mtga_bridge.viewmodels import (
     Ack,
@@ -30,6 +31,8 @@ from mtga_bridge.viewmodels import (
     DownloadRequest,
     DownloadResult,
     DraftLogListVM,
+    DraftExportBody,
+    DraftExportVM,
     DraftRecordBody,
     DraftRecordVM,
     DraftStateVM,
@@ -40,11 +43,14 @@ from mtga_bridge.viewmodels import (
     CompareRemoveBody,
     CompareStateVM,
     FilterOptionsVM,
+    LocateDataBody,
+    LocateDataVM,
     MoveCardBody,
     PracticeSetsVM,
     PracticeStartBody,
     RecapVM,
     SampleHandVM,
+    SaveFileBody,
     SealedActionVM,
     SealedDeckTechVM,
     SealedExportVM,
@@ -146,6 +152,41 @@ async def set_settings(body: SettingsPatch, runtime: RuntimeState) -> SettingsVM
 async def get_filter_options(runtime: RuntimeState) -> FilterOptionsVM:
     _require_booted(runtime)
     return await anyio.to_thread.run_sync(services.get_filter_options, runtime)
+
+
+# --- File-menu tools ---------------------------------------------------------
+
+
+@commands.command()
+async def export_draft(body: DraftExportBody, runtime: RuntimeState) -> DraftExportVM:
+    """Serializes the draft history; the frontend picks the save path natively."""
+    _require_booted(runtime)
+    return await anyio.to_thread.run_sync(
+        tools_svc.export_draft, runtime.scanner, body.format
+    )
+
+
+@commands.command()
+async def save_export_file(body: SaveFileBody) -> Ack:
+    return await anyio.to_thread.run_sync(
+        tools_svc.save_text_file, body.path, body.text
+    )
+
+
+@commands.command()
+async def locate_mtga_data(
+    body: LocateDataBody, runtime: RuntimeState
+) -> LocateDataVM:
+    _require_booted(runtime)
+    result = await anyio.to_thread.run_sync(
+        tools_svc.locate_mtga_data, runtime, body.folder
+    )
+    if result.ok:
+        # Card names now resolve against a different database.
+        if runtime.orchestrator is not None:
+            runtime.orchestrator.request_math_update()
+        runtime.invalidate_state()
+    return result
 
 
 # --- Datasets ----------------------------------------------------------------

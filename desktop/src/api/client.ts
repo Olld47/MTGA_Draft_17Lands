@@ -14,9 +14,11 @@ import type {
   DownloadProgress,
   DownloadResult,
   DraftLogList,
+  DraftExport,
   DraftRecord,
   DraftState,
   FilterOptions,
+  LocateData,
   PracticeSets,
   Recap,
   SampleHand,
@@ -211,3 +213,14 @@ export const importTierList = (url: string, label: string) =>
 
 export const deleteTierLists = (fileNames: string[]) =>
   pyInvoke<TierAction>("delete_tier_lists", { fileNames });
+
+// --- File-menu tools --------------------------------------------------------
+
+export const exportDraft = (format: "csv" | "json") =>
+  pyInvoke<DraftExport>("export_draft", { format });
+
+export const saveExportFile = (path: string, text: string) =>
+  pyInvoke<Ack>("save_export_file", { path, text });
+
+export const locateMtgaData = (folder: string) =>
+  pyInvoke<LocateData>("locate_mtga_data", { folder });

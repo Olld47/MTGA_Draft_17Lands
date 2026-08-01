@@ -158,6 +158,22 @@ export interface Ack {
   message: string;
 }
 
+// --- File-menu tools --------------------------------------------------------
+
+export interface DraftExport {
+  ok: boolean;
+  message: string;
+  text: string;
+  fileName: string;
+  format: string;
+}
+
+export interface LocateData {
+  ok: boolean;
+  message: string;
+  path: string;
+}
+
 // --- Post-draft recap -------------------------------------------------------
 
 export interface RecapCard {

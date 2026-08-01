@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { getDraftRecord, getRecap } from "../../api/client";
 import { EVENTS, on, type RefreshPayload } from "../../api/events";
 import type { DraftRecord, Recap, RecapCard, RecapRole } from "../../api/types";
+import { useFileTools } from "../../state/useFileTools";
 
 const fmt = (v: number | null) => (v == null ? "—" : v.toFixed(1));
 
@@ -36,6 +37,7 @@ function RoleChips({ roles }: { roles: RecapRole[] }) {
 export function RecapPage() {
   const [recap, setRecap] = useState<Recap | null>(null);
   const [record, setRecord] = useState<DraftRecord | null>(null);
+  const { busy, message, runExport } = useFileTools();
 
   const refresh = useCallback(() => {
     getRecap()
@@ -94,6 +96,15 @@ export function RecapPage() {
               </span>
             </div>
           )}
+        </div>
+        <div className="recap-export">
+          <button disabled={busy} onClick={() => runExport("csv")}>
+            Export CSV
+          </button>
+          <button disabled={busy} onClick={() => runExport("json")}>
+            Export JSON
+          </button>
+          {message && <span className="recap-export-note">{message}</span>}
         </div>
       </section>
 

@@ -17,7 +17,9 @@ pub mod ext_mod {
             |_args, _kwargs| Ok(tauri_generate_context()),
             // i.e., `builder_factory` function of python binding
             |_args, _kwargs| {
-                let builder = tauri::Builder::default().plugin(tauri_plugin_opener::init());
+                let builder = tauri::Builder::default()
+                    .plugin(tauri_plugin_opener::init())
+                    .plugin(tauri_plugin_dialog::init());
                 Ok(builder)
             },
         )

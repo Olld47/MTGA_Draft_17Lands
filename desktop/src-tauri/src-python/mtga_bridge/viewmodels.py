@@ -14,8 +14,14 @@ from pydantic.alias_generators import to_camel
 
 
 class _VM(BaseModel):
+    # serialize_by_alias — pytauri serializes command returns and Channel
+    # messages with a bare `model_dump_json()`, which would otherwise emit the
+    # snake_case field names the TypeScript side does not read.
     model_config = ConfigDict(
-        alias_generator=to_camel, populate_by_name=True, extra="forbid"
+        alias_generator=to_camel,
+        populate_by_name=True,
+        extra="forbid",
+        serialize_by_alias=True,
     )
 
 
@@ -256,6 +262,32 @@ class DraftLogVM(_VM):
 class DraftLogListVM(_VM):
     logs: List[DraftLogVM] = []
     current: str = ""
+
+
+class DraftExportBody(_VM):
+    format: str  # "csv" | "json"
+
+
+class DraftExportVM(_VM):
+    ok: bool = True
+    message: str = ""
+    text: str = ""
+    file_name: str = ""
+    format: str = ""
+
+
+class LocateDataBody(_VM):
+    folder: str
+
+class LocateDataVM(_VM):
+    ok: bool = True
+    message: str = ""
+    path: str = ""
+
+
+class SaveFileBody(_VM):
+    path: str
+    text: str
 
 
 class SelectDatasetBody(_VM):

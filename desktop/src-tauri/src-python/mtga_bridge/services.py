@@ -102,7 +102,9 @@ def apply_settings_patch(runtime, patch: SettingsPatch) -> SettingsVM:
     tkinter app handled in DraftApp._open_settings._on_settings_changed."""
     config = runtime.config
     s = config.settings
-    changed = patch.model_dump(exclude_none=True)
+    # by_alias=False — these keys are setattr'd onto the snake_case Settings
+    # model, whereas _VM defaults to serializing with its camelCase aliases.
+    changed = patch.model_dump(exclude_none=True, by_alias=False)
 
     for key, value in changed.items():
         setattr(s, key, value)
