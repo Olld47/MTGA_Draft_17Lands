@@ -100,19 +100,19 @@ overlaid — that overlay is what flips `bundle.active` and maps `pyembed/python
 into Resources, so it must never move into `tauri.conf.json` (it would poison
 `tauri dev`).
 
-Linux and Windows have the same script pair, both taking the target triple as
-an optional first argument (`scripts/linux/download-py.sh
-aarch64-unknown-linux-gnu`). CI, all `workflow_dispatch`:
-`build-desktop-{macos,linux,windows}.yml` — macOS arm64, Linux x86_64 + arm64,
-Windows x86_64. macOS x86_64 and Windows arm64 are absent because `numba`
-ships no wheel for either.
+Windows has the same script pair (`scripts/windows/download-py.ps1`,
+`build.ps1`), taking the target triple as an optional first argument. CI, both
+`workflow_dispatch`: `build-desktop-{macos,windows}.yml` — macOS arm64 and
+Windows x86_64. macOS x86_64 and Windows arm64 are absent because `numba` ships
+no wheel for either. **Linux is not a supported platform** — the deb/rpm
+bundling and its scripts were removed in v0.10, before they were ever built.
 
 `productName` in `tauri.conf.json` is `mtga-draft-desktop`, not the display
-name: on Linux the bundler places resources at `/usr/lib/<productName>/`
-verbatim, and `scripts/linux/build.sh` bakes that path into the binary's rpath
-so it can find the embedded `libpython`. A name with spaces would break the
-space-separated `RUSTFLAGS`. The user-visible name lives in the window title and
-the in-app `<h1>`. `tests/test_desktop_bundle_config.py` pins this.
+name. The macOS `.app` filename follows it, while the Windows workflow's
+artifact check greps for `mtga-draft-desktop.exe`, which follows the Cargo
+`[[bin]]` name; `tests/test_desktop_bundle_config.py` pins the two equal so a
+rename cannot satisfy one and break the other. The user-visible name lives in
+the window title and the in-app `<h1>`.
 
 A bundled app writes `Sets/`, `Logs/`, `Temp/`, `Debug/` and `config.json` to
 the same per-user directory the tkinter build uses, so both share datasets and

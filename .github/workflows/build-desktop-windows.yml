@@ -55,14 +55,14 @@ jobs:
 
       # Installs mtga-bridge and the repo-root src package into the embedded
       # interpreter, then runs `tauri build` with the bundle overlay config.
-      # Windows needs no rpath: the resources sit beside the .exe.
       - name: Build and bundle
         shell: pwsh
         run: .\desktop\scripts\windows\build.ps1
 
       # The .exe is not launched — it opens a window and would hang the runner.
-      # This only confirms the embedded interpreter landed next to it, which is
-      # the Windows analogue of the Linux rpath check.
+      # Instead assert the contract that a bundle can silently violate: the
+      # embedded interpreter must land in the same directory as the .exe, since
+      # that is where the loader looks for python3*.dll.
       - name: Verify the embedded interpreter is bundled
         shell: pwsh
         run: |

@@ -1,17 +1,16 @@
 """
 tests/test_desktop_bundle_config.py
 
-Guards the desktop bundling contract that cannot be checked from macOS.
+Guards the desktop bundling contract, which no other test reaches.
 
-The load-bearing fact: tauri-bundler places deb/rpm resources at
-`/usr/lib/<productName>` **verbatim** — it does not slugify, and
-`tauri::utils::platform::resource_dir()` resolves the same name at runtime.
-The Linux build script bakes that path into the binary's rpath so it can find
-the embedded `libpython3.x.so`. If the two disagree the .deb dies at the
-dynamic linker, before any Python runs, which no unit test would otherwise see.
+The bundle is assembled by an overlay config plus a pair of shell scripts, and
+the pieces have to agree on three things: that the overlay actually maps the
+embedded interpreter into the bundle, that the workflows call the shared
+scripts rather than reimplementing them, and that the artifact names and paths
+the workflows glob are the ones the build profile produces.
 
-These assertions are cheap; the failure they prevent costs a full CI build to
-discover.
+These assertions are cheap; the failures they prevent surface only after a full
+CI build has already been paid for.
 """
 
 import json
@@ -25,7 +24,6 @@ DESKTOP = os.path.join(REPO_ROOT, "desktop")
 TAURI_CONF = os.path.join(DESKTOP, "src-tauri", "tauri.conf.json")
 BUNDLE_CONF = os.path.join(DESKTOP, "src-tauri", "tauri.bundle.json")
 CARGO_TOML = os.path.join(DESKTOP, "src-tauri", "Cargo.toml")
-LINUX_BUILD = os.path.join(DESKTOP, "scripts", "linux", "build.sh")
 WORKFLOWS = os.path.join(REPO_ROOT, ".github", "workflows")
 
 
@@ -39,33 +37,13 @@ def tauri_conf():
     return json.loads(_read(TAURI_CONF))
 
 
-@pytest.fixture(scope="module")
-def linux_build():
-    return _read(LINUX_BUILD)
-
-
-def test_product_name_has_no_whitespace(tauri_conf):
-    """
-    RUSTFLAGS is a space-separated string, so a space inside the rpath would
-    truncate it mid-path and the link-arg would silently point somewhere else.
-    Keeping productName whitespace-free is what makes the plain (non-encoded)
-    RUSTFLAGS in scripts/linux/build.sh safe.
-    """
-    product_name = tauri_conf["productName"]
-    assert product_name == product_name.strip()
-    assert not re.search(r"\s", product_name), (
-        f"productName {product_name!r} contains whitespace; the deb resource "
-        "dir is /usr/lib/<productName> verbatim and scripts/linux/build.sh "
-        "interpolates it into space-separated RUSTFLAGS"
-    )
-
-
 def test_product_name_matches_cargo_bin_name(tauri_conf):
     """
-    Not required by Tauri — the deb resource dir follows productName while
-    /usr/bin/<name> follows the Cargo [[bin]] name. Pinned equal anyway so the
-    upload globs and the rpath check in build-desktop-linux.yml can assume one
-    name, and so a rename cannot leave half the pipeline behind.
+    Not required by Tauri — the two names govern different artifacts. The macOS
+    .app filename follows productName, while build-desktop-windows.yml greps
+    for a hardcoded `mtga-draft-desktop.exe`, which follows the Cargo [[bin]]
+    name. Pinned equal so a rename cannot satisfy one and break the other's
+    artifact check.
     """
     cargo = _read(CARGO_TOML)
     match = re.search(r"\[\[bin\]\](?:[^\[]*?)name\s*=\s*\"([^\"]+)\"", cargo)
@@ -73,40 +51,20 @@ def test_product_name_matches_cargo_bin_name(tauri_conf):
     assert match.group(1) == tauri_conf["productName"]
 
 
-def test_linux_rpath_derives_from_product_name(linux_build):
+def test_bundle_targets_are_macos_and_windows_only(tauri_conf):
     """
-    The script must *read* productName out of tauri.conf.json rather than
-    hardcode it — a duplicated literal is exactly how this broke before, when
-    the rpath said `mtga-draft-desktop` and the bundler wrote
-    `/usr/lib/MTGA Draft Tool/`.
+    Linux is not a supported platform: there is no build-desktop-linux.yml and
+    no scripts/linux/. Leaving deb/rpm in the target list would make a local
+    `tauri build` on any Linux host emit bundles nothing tests or ships.
     """
-    assert "tauri.conf.json" in linux_build, (
-        "scripts/linux/build.sh must read productName from tauri.conf.json"
-    )
-    assert re.search(r'rpath,\\\$ORIGIN/\.\./lib/\$PRODUCT_NAME/lib', linux_build), (
-        "the rpath must interpolate $PRODUCT_NAME, not a hardcoded name"
-    )
-
-
-def test_linux_rpath_target_is_where_the_bundler_writes_resources(
-    tauri_conf, linux_build
-):
-    """
-    End-to-end on the string level: expand the script's rpath by hand and
-    assert it equals the directory tauri-bundler will create.
-    """
-    product_name = tauri_conf["productName"]
-    match = re.search(r"rpath,\\\$ORIGIN/(\S+)", linux_build)
-    assert match, "no rpath link-arg in scripts/linux/build.sh"
-
-    expanded = match.group(1).replace("$PRODUCT_NAME", product_name)
-    assert expanded == f"../lib/{product_name}/lib"
+    bundle = json.loads(_read(BUNDLE_CONF))
+    assert set(bundle["bundle"]["targets"]) == {"msi", "nsis", "app", "dmg"}
 
 
 def test_bundle_overlay_ships_the_embedded_interpreter():
     """
-    Without this resource mapping the bundle has no Python at all and the
-    rpath points at an empty directory.
+    Without this resource mapping the bundle has no Python at all and the app
+    dies at startup.
     """
     bundle = json.loads(_read(BUNDLE_CONF))
     assert bundle["bundle"]["active"] is True
@@ -115,7 +73,7 @@ def test_bundle_overlay_ships_the_embedded_interpreter():
 
 @pytest.mark.parametrize(
     "workflow",
-    ["build-desktop-macos.yml", "build-desktop-linux.yml", "build-desktop-windows.yml"],
+    ["build-desktop-macos.yml", "build-desktop-windows.yml"],
 )
 def test_desktop_workflow_calls_the_shared_scripts(workflow):
     """
@@ -135,7 +93,6 @@ def test_upload_globs_match_the_bundle_profile():
     """
     for workflow in (
         "build-desktop-macos.yml",
-        "build-desktop-linux.yml",
         "build-desktop-windows.yml",
     ):
         text = _read(os.path.join(WORKFLOWS, workflow))

@@ -9,8 +9,8 @@ Magic: The Gathering Arena draft tool that utilizes 17Lands data.
 ## Table of Contents
 
 - [Security, Verification & macOS Gatekeeper](#security-verification--macos-gatekeeper)
-- [Run Steps: Standalone App (Windows / macOS / Linux)](#run-steps-standalone-app-windows--macos--linux)
-- [Run Steps: Python (Windows / macOS / Linux)](#run-steps-python-windows--macos--linux)
+- [Run Steps: Standalone App (Windows / macOS)](#run-steps-standalone-app-windows--macos)
+- [Run Steps: Python (Windows / macOS)](#run-steps-python-windows--macos)
 - [Marquee Features](#marquee-features)
 - [UI Navigation & Tabs](#ui-navigation--tabs)
 - [Settings & Preferences](#settings--preferences)
@@ -38,13 +38,12 @@ macOS actively quarantines unsigned apps downloaded from the internet. To run th
 
 ---
 
-## Run Steps: Standalone App (Windows / macOS / Linux)
+## Run Steps: Standalone App (Windows / macOS)
 
 - **Step 1:** Download the latest release for your operating system from the [releases page](https://github.com/unrealities/MTGA_Draft_17Lands/releases).
 - **Step 2:** Install/Extract the application:
   - **Windows:** Unzip and double-click the installer executable. *(Run as administrator if installing to restricted folders like Program Files).*
   - **macOS:** Unzip the downloaded file and drag `MTGA_Draft_Tool.app` to your Applications folder. *(See the Security section above if macOS blocks the app from running).*
-  - **Linux:** Extract the `.tar.gz` file and run the executable.
 - **Step 3:** In MTG Arena, go to **Options -> Account**, and check the **Detailed Logs (Plugin Support)** check box.
 - **Step 4:** Launch the `MTGA_Draft_Tool` application.
 - **Step 5:** The app will automatically sync data for the active Arena events. You can click the **Datasets** tab to manually download historical sets or custom date ranges.
@@ -54,7 +53,7 @@ macOS actively quarantines unsigned apps downloaded from the internet. To run th
 
 ---
 
-## Run Steps: Python (Windows / macOS / Linux)
+## Run Steps: Python (Windows / macOS)
 
 - **Step 1:** [Download](https://github.com/unrealities/MTGA_Draft_17Lands/archive/refs/heads/main.zip) and unzip the repository.
 - **Step 2:** Download and install **Python 3.12**.
@@ -63,7 +62,6 @@ macOS actively quarantines unsigned apps downloaded from the internet. To run th
 - **Step 5:** Navigate to the unzipped repository folder in your terminal and install the dependencies by entering `poetry install`.
 - **Step 6:**
   - *(Mac Only)* Install web certificates by going to `/Applications/Python 3.12/` and double-clicking the file `Install Certificates.command`.
-  - *(Linux only)* [Install Tkinter](https://tkdocs.com/tutorial/install.html#installlinux) via your package manager (e.g., `sudo apt-get install python3-tk`).
 - **Step 7:** In MTG Arena, go to **Options -> Account**, and check the **Detailed Logs (Plugin Support)** check box.
 - **Step 8:** Start the application by opening the terminal and entering `poetry run python main.py`.
 - **Step 9:** If the application asks you for the location of the Arena player log, click `File -> Read Player.log` and select your MTGA `Player.log` file.
@@ -127,7 +125,6 @@ The application looks for the configuration file in the following order:
 2. **System User Folder:**
    - **Windows:** `%APPDATA%\MTGA_Draft_Tool\config.json`
    - **Mac:** `~/Library/Application Support/MTGA_Draft_Tool/config.json`
-   - **Linux:** `~/.config/MTGA_Draft_Tool/config.json`
 
 ### Datasets & Logs
 - Downloaded card data is stored in the `Sets` folder.
@@ -210,7 +207,7 @@ poetry run pytest tests/ --cov=src
 
 This project uses a fully automated CI/CD pipeline via GitHub Actions. Creating a new public release is entirely frictionless.
 
-The pipeline triggers **automatically whenever code is merged into the `master` or `main` branch.** It reads the version number from `src/constants.py` and `pyproject.toml`, generates the git tag, builds the macOS/Linux/Windows executables, and publishes them to the Releases page.
+The pipeline triggers **automatically whenever code is merged into the `master` or `main` branch.** It reads the version number from `src/constants.py` and `pyproject.toml`, generates the git tag, builds the macOS/Windows executables, and publishes them to the Releases page.
 
 **The Workflow:**
 
@@ -228,7 +225,7 @@ The pipeline triggers **automatically whenever code is merged into the `master` 
 
 If you need to test binary builds locally on your own machine instead of using GitHub Actions:
 
-- **macOS / Linux:** 
+- **macOS:** 
   ```bash
   poetry run pyinstaller main.spec --clean
   ```

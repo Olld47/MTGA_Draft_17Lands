@@ -1,11 +1,11 @@
 # Builds the PyTauri desktop app (desktop/) with an embedded CPython.
 # Separate from build-macos-app.yml, which builds the tkinter app via PyInstaller.
 #
-# macOS arm64 only. Linux (x86_64 + arm64) and Windows x86_64 live in
-# build-desktop-{linux,windows}.yml. The remaining two template legs — macOS
-# x86_64 and Windows arm64 — are deliberately absent: numba 0.65.1 publishes no
-# wheel for either, and it is a hard dependency (src/advisor/simulator.py is
-# @njit, and boot.py warms the JIT). Revisit when those wheels exist.
+# macOS arm64 only. Windows x86_64 lives in build-desktop-windows.yml. The
+# remaining two template legs — macOS x86_64 and Windows arm64 — are
+# deliberately absent: numba 0.65.1 publishes no wheel for either, and it is a
+# hard dependency (src/advisor/simulator.py is @njit, and boot.py warms the
+# JIT). Revisit when those wheels exist. Linux is not a supported platform.
 #
 # Not wired into publish-release.yml yet.
 
