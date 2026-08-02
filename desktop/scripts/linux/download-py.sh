@@ -4,16 +4,18 @@
 
 PYTHON_VERSION="3.13.7"  # update these by yourself
 TAG="20250828"  # update these by yourself
-TARGET="x86_64-unknown-linux-gnu"
 
 ################
 
-set -e
+set -eo pipefail
+
+TARGET="${1:-$(uname -m)-unknown-linux-gnu}"
 
 cd "$(dirname "$0")/../.."
 
 url="https://github.com/astral-sh/python-build-standalone/releases/download/${TAG}/cpython-${PYTHON_VERSION}+${TAG}-${TARGET}-install_only_stripped.tar.gz"
 
 DEST_DIR="src-tauri/pyembed"
-mkdir "$DEST_DIR"
-curl -L "$url" | tar -xz -C "$DEST_DIR"
+rm -rf "$DEST_DIR"
+mkdir -p "$DEST_DIR"
+curl -fL "$url" | tar -xz -C "$DEST_DIR"

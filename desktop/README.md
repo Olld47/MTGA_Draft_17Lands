@@ -18,8 +18,9 @@ Player.log → ArenaScanner ─┐ (src/, shared with tkinter app)
 ```
 
 - `src-tauri/src-python/mtga_bridge/` — Python bridge package
-  - `paths.py` — pins cwd to the repo root **before** importing `src.*`
-    (`src/constants.py` derives Sets/Logs/Temp from `os.getcwd()`)
+  - `paths.py` — pins cwd and `src` importability **before** importing `src.*`.
+    In a source checkout it chdirs to the repo root; in a bundle (no repo root
+    above the file) it points `MTGA_DRAFT_BASE_DIR` at the per-user data dir.
   - `snapshot.py` — headless port of `AppController.refresh_ui_data`
   - `orchestrator_adapter.py` — drains `update_queue` → `draft://*` events
   - `viewmodels.py` — pydantic IPC models (camelCase aliases)
@@ -81,8 +82,59 @@ streams per-archetype build progress over a Channel).
       archetypes, switching one re-renders the deck/stats/simulation, "Sample
       hand" shows Scryfall art, and "Send to builder" lands the deck on the
       Deck tab
+- [ ] Settings → Appearance: all three modes repaint every tab; System follows
+      an OS light/dark flip live; relaunching in Light shows no dark flash
+
+## Standalone bundling
+
+```bash
+cd desktop
+scripts/macos/download-py.sh          # once — fetches python-build-standalone
+scripts/macos/build.sh                # → target/bundle-release/bundle/
+```
+
+`build.sh` installs `mtga-bridge` **and** the repo-root `mtga-draft-tool`
+package (`--no-deps`, so ttkbootstrap/pynput/pywin32 stay out) into the
+embedded interpreter, then runs `tauri build` with `src-tauri/tauri.bundle.json`
+overlaid — that overlay is what flips `bundle.active` and maps `pyembed/python`
+into Resources, so it must never move into `tauri.conf.json` (it would poison
+`tauri dev`).
+
+Linux and Windows have the same script pair, both taking the target triple as
+an optional first argument (`scripts/linux/download-py.sh
+aarch64-unknown-linux-gnu`). CI, all `workflow_dispatch`:
+`build-desktop-{macos,linux,windows}.yml` — macOS arm64, Linux x86_64 + arm64,
+Windows x86_64. macOS x86_64 and Windows arm64 are absent because `numba`
+ships no wheel for either.
+
+`productName` in `tauri.conf.json` is `mtga-draft-desktop`, not the display
+name: on Linux the bundler places resources at `/usr/lib/<productName>/`
+verbatim, and `scripts/linux/build.sh` bakes that path into the binary's rpath
+so it can find the embedded `libpython`. A name with spaces would break the
+space-separated `RUSTFLAGS`. The user-visible name lives in the window title and
+the in-app `<h1>`. `tests/test_desktop_bundle_config.py` pins this.
+
+A bundled app writes `Sets/`, `Logs/`, `Temp/`, `Debug/` and `config.json` to
+the same per-user directory the tkinter build uses, so both share datasets and
+settings. Override with `MTGA_DRAFT_BASE_DIR`.
+
+## Theming
+
+System / Dark / Light, chosen on the Settings page. `state/theme.ts` sets
+`data-theme` on `<html>`; `styles/tokens.css` holds one color block per palette
+and a shared type/metrics block. Everything in `app.css` resolves through those
+tokens, so a new palette is a third block and nothing else.
+
+The preference lives in `Settings.desktop_theme`, **not** the legacy `theme`
+field — that one is the tkinter app's ttkbootstrap palette name (Forest, Vapor,
+…), both apps share one `config.json`, and narrowing it here would strip a
+tkinter user's choice. Custom `.tcl` themes stay tkinter-only.
+
+`tests/test_desktop_theme_tokens.py` asserts WCAG AA over the pairings `app.css`
+renders and that both palettes declare the same tokens. It cannot evaluate
+`color-mix()` or alpha, and its pair table is hand-written — it guards the
+values, not the CSS.
 
 ## Not yet ported (later phases)
 
-Practice dialog, menu-bar tool commands (CSV/JSON export, native file pickers),
-standalone bundling (`scripts/`).
+The default entry point is still `poetry run python main.py` at the repo root.

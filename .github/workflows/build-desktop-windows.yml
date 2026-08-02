@@ -1,0 +1,89 @@
+# Builds the PyTauri desktop app (desktop/) with an embedded CPython for Windows.
+# Separate from build-windows-exe.yml, which builds the tkinter app via
+# PyInstaller + Inno Setup.
+#
+# x86_64 only. The arm64 leg from the pytauri template is deliberately absent:
+# numba 0.65.1 (a hard dependency via src/advisor/simulator.py, and JIT-warmed
+# during boot) publishes no aarch64-pc-windows-msvc wheel, and building it from
+# source needs a matching LLVM for llvmlite. macOS x86_64 is missing for the
+# same reason. Revisit when numba ships those wheels.
+#
+# Not wired into publish-release.yml yet.
+
+name: Build Desktop App (Windows)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: desktop -> target
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: desktop
+        run: npm ci
+
+      # Downloads python-build-standalone into desktop/src-tauri/pyembed.
+      # Kept in the script so local and CI builds cannot drift.
+      - name: Download python-build-standalone
+        shell: pwsh
+        run: .\desktop\scripts\windows\download-py.ps1 x86_64-pc-windows-msvc
+
+      # Installs mtga-bridge and the repo-root src package into the embedded
+      # interpreter, then runs `tauri build` with the bundle overlay config.
+      # Windows needs no rpath: the resources sit beside the .exe.
+      - name: Build and bundle
+        shell: pwsh
+        run: .\desktop\scripts\windows\build.ps1
+
+      # The .exe is not launched — it opens a window and would hang the runner.
+      # This only confirms the embedded interpreter landed next to it, which is
+      # the Windows analogue of the Linux rpath check.
+      - name: Verify the embedded interpreter is bundled
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $exe = Get-ChildItem -Recurse -Filter "mtga-draft-desktop.exe" `
+            -Path desktop\target\bundle-release | Select-Object -First 1
+          if (-not $exe) { throw "no mtga-draft-desktop.exe produced" }
+          Write-Host "found $($exe.FullName)"
+
+          $pydll = Get-ChildItem -Path $exe.DirectoryName -Filter "python3*.dll"
+          if (-not $pydll) {
+            Get-ChildItem $exe.DirectoryName | Format-Table Name
+            throw "no python3*.dll beside the exe — the interpreter is missing"
+          }
+          Write-Host "embedded interpreter: $($pydll.Name)"
+
+      - name: Upload bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: mtga-draft-desktop-windows-x86_64
+          path: |
+            desktop/target/bundle-release/bundle/msi/*.msi
+            desktop/target/bundle-release/bundle/nsis/*.exe
+          if-no-files-found: error
