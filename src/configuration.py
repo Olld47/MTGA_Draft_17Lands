@@ -98,6 +98,10 @@ class Settings(BaseModel):
     theme_base: str = "clam"  # aqua, vista, clam, etc.
     theme_palette: str = "Neutral"  # Forest, Island, etc.
     theme_custom_path: str = ""  # Path to user's .tcl file
+    # The pytauri desktop UI themes independently of the fields above: `theme`
+    # is a ttkbootstrap palette name the React UI has no equivalent for, and
+    # narrowing it here would strip a tkinter user's choice.
+    desktop_theme: str = constants.DESKTOP_THEME_DEFAULT
 
     # Core Feature Toggles
     always_on_top: bool = False
@@ -144,6 +148,14 @@ class Settings(BaseModel):
     @classmethod
     def validate_ui_size(cls, value, info):
         allowed_values = constants.UI_SIZE_DICT
+        if value not in allowed_values:
+            return cls.model_fields[info.field_name].default
+        return value
+
+    @field_validator("desktop_theme")
+    @classmethod
+    def validate_desktop_theme(cls, value, info):
+        allowed_values = constants.DESKTOP_THEME_LIST
         if value not in allowed_values:
             return cls.model_fields[info.field_name].default
         return value

@@ -4,6 +4,17 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>MTGA Draft Tool</title>
+    <script>
+      // Settings arrive over async IPC, so paint the last known palette first
+      // or every Light user gets a dark flash on launch. state/theme.ts owns
+      // the key and overwrites this once the real preference loads.
+      try {
+        document.documentElement.dataset.theme =
+          localStorage.getItem("mtga.theme") || "dark";
+      } catch (e) {
+        document.documentElement.dataset.theme = "dark";
+      }
+    </script>
   </head>
 
   <body>

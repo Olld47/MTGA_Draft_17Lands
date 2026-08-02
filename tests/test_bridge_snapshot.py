@@ -311,6 +311,51 @@ def test_settings_vm_round_trip(env):
     dumped = vm.model_dump(by_alias=True)
     assert "deckFilter" in dumped
     assert "arenaLogLocation" in dumped
+    assert dumped["desktopTheme"] == constants.DESKTOP_THEME_DEFAULT
+
+
+def test_desktop_theme_patch_leaves_tkinter_theme_alone(env):
+    """The desktop themes independently of the tkinter app: both read the same
+    config.json, and `theme` is a ttkbootstrap palette name (Forest, Vapor, ...)
+    that the React UI cannot represent. Narrowing it here would silently strip
+    a tkinter user's choice with nothing to restore it."""
+    s = env["config"].settings
+    s.theme = "Forest"
+    runtime = AppRuntime(config=env["config"])
+
+    with patch("mtga_bridge.services.write_configuration"):
+        vm = services.apply_settings_patch(
+            runtime, SettingsPatch(desktop_theme=constants.DESKTOP_THEME_LIGHT)
+        )
+
+    assert vm.desktop_theme == constants.DESKTOP_THEME_LIGHT
+    assert s.desktop_theme == constants.DESKTOP_THEME_LIGHT
+    assert s.theme == "Forest"
+    assert s.theme_base == "clam"
+    assert s.theme_custom_path == ""
+
+
+def test_desktop_theme_does_not_trigger_recompute(env):
+    """Appearance is display-only — it must not land in apply_settings_patch's
+    math_keys, or every toggle would invalidate the cached draft state."""
+    runtime = AppRuntime(config=env["config"])
+    runtime.set_cached_state(object())
+
+    class _Orch:
+        math_requested = False
+
+        def request_math_update(self):
+            self.math_requested = True
+
+    runtime.orchestrator = _Orch()
+
+    with patch("mtga_bridge.services.write_configuration"):
+        services.apply_settings_patch(
+            runtime, SettingsPatch(desktop_theme=constants.DESKTOP_THEME_DARK)
+        )
+
+    assert not runtime.orchestrator.math_requested
+    assert runtime.get_cached_state() is not None
 
 
 # --- runtime cache -----------------------------------------------------------

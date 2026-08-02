@@ -10,6 +10,8 @@ const DECK_FILTERS = [
 
 const RESULT_FORMATS = ["Percentage", "Rating", "Grade"];
 
+const THEMES = ["System", "Dark", "Light"];
+
 interface ToggleRowProps {
   label: string;
   hint?: string;
@@ -45,6 +47,22 @@ export function SettingsPage() {
     <div className="settings-grid">
       <section className="settings-group">
         <h2>Display</h2>
+        <div className="setting-row">
+          <label>
+            Appearance
+            <div className="hint">System follows your OS light/dark setting</div>
+          </label>
+          <select
+            value={settings.desktopTheme}
+            onChange={(e) => patch({ desktopTheme: e.target.value })}
+          >
+            {THEMES.map((t) => (
+              <option key={t} value={t}>
+                {t}
+              </option>
+            ))}
+          </select>
+        </div>
         <div className="setting-row">
           <label>
             Deck filter

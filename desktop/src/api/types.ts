@@ -89,6 +89,7 @@ export interface Settings {
   filterFormat: string;
   resultFormat: string;
   uiSize: string;
+  desktopTheme: string;
   cardColorsEnabled: boolean;
   draftLogEnabled: boolean;
   updateNotificationsEnabled: boolean;

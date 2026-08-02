@@ -99,6 +99,7 @@ def settings_vm(config) -> SettingsVM:
         filter_format=s.filter_format,
         result_format=s.result_format,
         ui_size=s.ui_size,
+        desktop_theme=s.desktop_theme,
         card_colors_enabled=s.card_colors_enabled,
         draft_log_enabled=s.draft_log_enabled,
         update_notifications_enabled=s.update_notifications_enabled,

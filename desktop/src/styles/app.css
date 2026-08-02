@@ -255,14 +255,14 @@
   align-items: center;
   justify-content: center;
   background: var(--line);
-  color: var(--ink);
+  color: var(--pip-fg);
 }
 
-.mana .pip.w { background: var(--mana-w); }
-.mana .pip.u { background: var(--mana-u); color: var(--parchment); }
-.mana .pip.b { background: var(--mana-b); color: var(--ink); }
-.mana .pip.r { background: var(--mana-r); color: var(--parchment); }
-.mana .pip.g { background: var(--mana-g); color: var(--ink); }
+.mana .pip.w { background: var(--mana-w); color: var(--mana-w-fg); }
+.mana .pip.u { background: var(--mana-u); color: var(--mana-u-fg); }
+.mana .pip.b { background: var(--mana-b); color: var(--mana-b-fg); }
+.mana .pip.r { background: var(--mana-r); color: var(--mana-r-fg); }
+.mana .pip.g { background: var(--mana-g); color: var(--mana-g-fg); }
 .mana .pip.c { background: var(--gruff); }
 
 /* --- Advisor rail --- */
@@ -541,6 +541,32 @@
 
 .empty-state p {
   margin: 0 0 12px;
+}
+
+.page-error {
+  padding: 32px 0;
+  text-align: center;
+  color: var(--gruff);
+  font-size: var(--text-sm);
+}
+
+.page-error h2 {
+  margin: 0 0 12px;
+  color: var(--err);
+  font-size: var(--text-md);
+}
+
+.page-error-message {
+  display: inline-block;
+  max-width: 520px;
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  border: 1px solid var(--err);
+  border-radius: var(--radius);
+  background: var(--felt);
+  font-family: var(--font-mono);
+  text-align: left;
+  word-break: break-word;
 }
 
 .error-toast {
@@ -981,7 +1007,7 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  color: var(--parchment-dim);
+  color: var(--gruff);
 }
 
 .mini-status {
@@ -993,14 +1019,14 @@
 .mini-btn {
   background: none;
   border: none;
-  color: var(--parchment-dim);
+  color: var(--gruff);
   font-size: var(--text-md);
   cursor: pointer;
   padding: 0 4px;
 }
 
 .mini-btn:hover {
-  color: var(--gold);
+  color: var(--gold-foil);
 }
 
 .mini-tabs {
@@ -1014,7 +1040,7 @@
   background: none;
   border: none;
   border-bottom: 2px solid transparent;
-  color: var(--parchment-dim);
+  color: var(--gruff);
   padding: 6px 4px;
   font-size: var(--text-sm);
   cursor: pointer;
@@ -1022,7 +1048,7 @@
 
 .mini-tabs button.active {
   color: var(--parchment);
-  border-bottom-color: var(--gold);
+  border-bottom-color: var(--gold-foil);
 }
 
 .mini-tabs button:hover {
@@ -1039,7 +1065,7 @@
   font-size: var(--text-sm);
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: var(--gold);
+  color: var(--gold-foil);
   margin: 8px 0 4px;
 }
 
@@ -1052,7 +1078,7 @@
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgb(0 0 0 / 55%);
+  background: var(--scrim);
   display: flex;
   align-items: center;
   justify-content: center;
