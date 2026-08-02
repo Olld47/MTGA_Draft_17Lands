@@ -8,11 +8,18 @@
 # JIT). Revisit when those wheels exist. Linux is not a supported platform.
 #
 # Not wired into publish-release.yml yet.
+#
+# The push trigger exists because `workflow_dispatch` needs either the Actions
+# web UI or the `gh` CLI. Pushing `dev` to a `ci/desktop*` branch runs this leg
+# without putting a full Rust + numba build on every commit to a real branch.
 
 name: Build Desktop App (macOS)
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - "ci/desktop*"
 
 defaults:
   run:

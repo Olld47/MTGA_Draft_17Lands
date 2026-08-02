@@ -101,11 +101,18 @@ into Resources, so it must never move into `tauri.conf.json` (it would poison
 `tauri dev`).
 
 Windows has the same script pair (`scripts/windows/download-py.ps1`,
-`build.ps1`), taking the target triple as an optional first argument. CI, both
-`workflow_dispatch`: `build-desktop-{macos,windows}.yml` — macOS arm64 and
-Windows x86_64. macOS x86_64 and Windows arm64 are absent because `numba` ships
-no wheel for either. **Linux is not a supported platform** — the deb/rpm
-bundling and its scripts were removed in v0.10, before they were ever built.
+`build.ps1`), taking the target triple as an optional first argument. CI:
+`build-desktop-{macos,windows}.yml` — macOS arm64 and Windows x86_64 — on
+`workflow_dispatch` **or** a push to any `ci/desktop*` branch, since dispatch
+needs the Actions web UI or `gh`:
+
+```bash
+git push origin dev:ci/desktop-win     # runs both legs, no gh required
+```
+
+macOS x86_64 and Windows arm64 are absent because `numba` ships no wheel for
+either. **Linux is not a supported platform** — the deb/rpm bundling and its
+scripts were removed in v0.10, before they were ever built.
 
 `productName` in `tauri.conf.json` is `mtga-draft-desktop`, not the display
 name. The macOS `.app` filename follows it, while the Windows workflow's
@@ -113,6 +120,12 @@ artifact check greps for `mtga-draft-desktop.exe`, which follows the Cargo
 `[[bin]]` name; `tests/test_desktop_bundle_config.py` pins the two equal so a
 rename cannot satisfy one and break the other. The user-visible name lives in
 the window title and the in-app `<h1>`.
+
+That same test file holds the rest of the bundling contract — the checks worth
+running before spending a CI build: every script path a workflow invokes
+resolves, the Rust target triple and the `download-py` argument agree, the two
+download scripts pin the same interpreter, and the upload globs cover exactly
+the configured bundle targets.
 
 A bundled app writes `Sets/`, `Logs/`, `Temp/`, `Debug/` and `config.json` to
 the same per-user directory the tkinter build uses, so both share datasets and
