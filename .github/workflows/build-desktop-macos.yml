@@ -1,0 +1,70 @@
+# Builds the PyTauri desktop app (desktop/) with an embedded CPython.
+# Separate from build-macos-app.yml, which builds the tkinter app via PyInstaller.
+#
+# macOS arm64 only. Linux (x86_64 + arm64) and Windows x86_64 live in
+# build-desktop-{linux,windows}.yml. The remaining two template legs — macOS
+# x86_64 and Windows arm64 — are deliberately absent: numba 0.65.1 publishes no
+# wheel for either, and it is a hard dependency (src/advisor/simulator.py is
+# @njit, and boot.py warms the JIT). Revisit when those wheels exist.
+#
+# Not wired into publish-release.yml yet.
+
+name: Build Desktop App (macOS)
+
+on:
+  workflow_dispatch:
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: desktop -> target
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: desktop
+        run: npm ci
+
+      # Downloads python-build-standalone into desktop/src-tauri/pyembed.
+      # Kept in the script so local and CI builds cannot drift.
+      - name: Download python-build-standalone
+        run: desktop/scripts/macos/download-py.sh aarch64-apple-darwin
+
+      # Installs mtga-bridge and the repo-root src package into the embedded
+      # interpreter, then runs `tauri build` with the bundle overlay config.
+      - name: Build and bundle
+        run: desktop/scripts/macos/build.sh
+
+      - name: Upload bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: mtga-draft-desktop-macos-aarch64
+          path: |
+            desktop/target/bundle-release/bundle/dmg/*.dmg
+            desktop/target/bundle-release/bundle/macos/*.app
+          if-no-files-found: error

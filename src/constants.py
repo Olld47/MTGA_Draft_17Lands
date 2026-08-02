@@ -2,24 +2,11 @@ import os
 import sys
 import getpass
 
+from src.app_paths import resolve_base_dir
+
 
 def get_base_dir():
-    if getattr(sys, "frozen", False):
-        if sys.platform == "darwin":
-            path = os.path.expanduser("~/Library/Application Support/MTGA_Draft_Tool")
-        elif sys.platform == "linux":
-            path = os.path.expanduser("~/.config/MTGA_Draft_Tool")
-        else:
-            path = os.path.dirname(sys.executable)
-    else:
-        path = os.getcwd()
-
-    if not os.path.exists(path):
-        try:
-            os.makedirs(path)
-        except Exception:
-            pass
-    return path
+    return resolve_base_dir()
 
 
 def get_resource_dir():

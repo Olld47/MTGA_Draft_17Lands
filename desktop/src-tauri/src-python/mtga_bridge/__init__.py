@@ -14,10 +14,10 @@ logger = logging.getLogger(__name__)
 
 def main() -> int:
     # Pin cwd/sys.path BEFORE any `src.*` import (src/constants.py derives its
-    # data folders from os.getcwd()).
-    from mtga_bridge.paths import ensure_cwd
+    # data folders from the cwd in a source checkout).
+    from mtga_bridge.paths import ensure_runtime_paths
 
-    ensure_cwd()
+    ensure_runtime_paths()
 
     from anyio.from_thread import start_blocking_portal
     from pydantic import RootModel
