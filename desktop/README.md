@@ -103,16 +103,47 @@ into Resources, so it must never move into `tauri.conf.json` (it would poison
 Windows has the same script pair (`scripts/windows/download-py.ps1`,
 `build.ps1`), taking the target triple as an optional first argument. CI:
 `build-desktop-{macos,windows}.yml` — macOS arm64 and Windows x86_64 — on
-`workflow_dispatch` **or** a push to any `ci/desktop*` branch, since dispatch
-needs the Actions web UI or `gh`:
+`workflow_dispatch`, on a merge to `main`/`master`, **or** on a push to any
+`ci/desktop*` branch. That last one exists because dispatch needs the Actions
+web UI or `gh`, and because a full Rust + numba build (~15 min a leg) should
+not sit on the path of ordinary commits:
 
 ```bash
 git push origin dev:ci/desktop-win     # runs both legs, no gh required
 ```
 
+The legs are deliberately **separate runs, not jobs inside
+`publish-release.yml`**: `continue-on-error` is not a permitted keyword on a job
+that calls a reusable workflow, so a red desktop build would mark an otherwise
+successful release run as failed. The bundles are unsigned and the `.msi` has
+never been launched on real hardware, so they are built but **not attached to
+the Release** — `test_release_artifacts_exclude_the_desktop_bundles` is what
+holds that line, and is what to revise when signing lands.
+
 macOS x86_64 and Windows arm64 are absent because `numba` ships no wheel for
 either. **Linux is not a supported platform** — the deb/rpm bundling and its
 scripts were removed in v0.10, before they were ever built.
+
+## Versioning
+
+The desktop app has its own version series, independent of the tkinter app's
+`APPLICATION_VERSION` (`src/constants.py`). It is written in **eight literals
+across seven files** — `package.json`, `package-lock.json` (twice),
+`pyproject.toml`, `src-tauri/pyproject.toml`, `src-tauri/Cargo.toml`,
+`Cargo.lock`, and `src-tauri/tauri.conf.json`.
+
+Only `tauri.conf.json` reaches a user: it names the `.dmg`/`.msi` and fills
+Info.plist. The other seven exist to agree with it. `Cargo.toml`'s
+`[workspace.package] version` is **not** one of them — `src-tauri` does not
+inherit it, and it stays at `0.1.0`.
+
+Bumping is by hand; `bump_version.py` is tkinter-only. Edit all eight, then
+add the matching `## [vX.Y]` heading to `CHANGELOG.md` —
+`test_desktop_version_is_consistent_across_manifests` pins the literals to that
+heading. Agreeing-but-stale is the failure it exists to catch: the eight sat at
+`0.7.0` for five releases while the changelog moved on, and CI published
+bundles named `0.7.0` the whole time. After editing `Cargo.lock` by hand, run
+`cargo metadata` to confirm it still parses.
 
 `productName` in `tauri.conf.json` is `mtga-draft-desktop`, not the display
 name. The macOS `.app` filename follows it, while the Windows workflow's

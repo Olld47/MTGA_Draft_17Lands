@@ -7,11 +7,17 @@
 # hard dependency (src/advisor/simulator.py is @njit, and boot.py warms the
 # JIT). Revisit when those wheels exist. Linux is not a supported platform.
 #
-# Not wired into publish-release.yml yet.
+# Runs on merges to main/master, and on demand.
 #
-# The push trigger exists because `workflow_dispatch` needs either the Actions
-# web UI or the `gh` CLI. Pushing `dev` to a `ci/desktop*` branch runs this leg
-# without putting a full Rust + numba build on every commit to a real branch.
+# Deliberately a separate run rather than a job inside publish-release.yml:
+# `continue-on-error` is not a permitted keyword on a job that calls a reusable
+# workflow, so a red desktop build would mark an otherwise-successful release
+# run as failed. The bundles are unsigned and the .msi has never been launched,
+# so they are built but not attached to the Release.
+#
+# The ci/desktop* trigger predates the main one and is kept: it runs this leg
+# from a terminal without the `gh` CLI or the Actions web UI, without putting a
+# full Rust + numba build on every commit to a real branch.
 
 name: Build Desktop App (macOS)
 
@@ -20,6 +26,8 @@ on:
   push:
     branches:
       - "ci/desktop*"
+      - main
+      - master
 
 defaults:
   run:

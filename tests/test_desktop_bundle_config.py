@@ -40,6 +40,53 @@ DOWNLOAD_SCRIPT = {
 # not always the target's: "app" lands in bundle/macos/.
 TARGET_DIRS = {"app": "macos", "dmg": "dmg", "msi": "msi", "nsis": "nsis"}
 
+PUBLISH_WORKFLOW = os.path.join(WORKFLOWS, "publish-release.yml")
+CHANGELOG = os.path.join(REPO_ROOT, "CHANGELOG.md")
+
+# Every place the desktop version is written, as (path, regex, count). Seven
+# files, eight literals: package-lock.json repeats it for the root package
+# entry. Dependency version keys follow in the same files, so only the leading
+# `count` matches belong to the app. desktop/Cargo.toml is absent on purpose —
+# its [workspace.package] version is 0.1.0 and src-tauri does not inherit it.
+DESKTOP_VERSION_SITES = [
+    (os.path.join(DESKTOP, "package.json"), r'"version":\s*"([^"]+)"', 1),
+    (os.path.join(DESKTOP, "package-lock.json"), r'"version":\s*"([^"]+)"', 2),
+    (os.path.join(DESKTOP, "pyproject.toml"), r'(?m)^version\s*=\s*"([^"]+)"', 1),
+    (
+        os.path.join(DESKTOP, "src-tauri", "pyproject.toml"),
+        r'(?m)^version\s*=\s*"([^"]+)"',
+        1,
+    ),
+    (
+        os.path.join(DESKTOP, "src-tauri", "Cargo.toml"),
+        r'(?m)^version\s*=\s*"([^"]+)"',
+        1,
+    ),
+    (
+        os.path.join(DESKTOP, "Cargo.lock"),
+        r'name = "mtga-draft-desktop"\nversion = "([^"]+)"',
+        1,
+    ),
+    (TAURI_CONF, r'"version":\s*"([^"]+)"', 1),
+]
+
+
+def _upload_artifact_names(workflow_text):
+    """Artifact names uploaded by jobs defined in one workflow file."""
+    return set(
+        re.findall(
+            r"uses:\s*actions/upload-artifact@v\d+\s*\n\s*with:\s*\n\s*name:\s*(\S+)",
+            workflow_text,
+        )
+    )
+
+
+def _push_branches(workflow_text):
+    """The `on: push: branches:` list of a workflow."""
+    block = re.search(r"(?m)^\s+push:\n\s+branches:\n((?:\s+- .+\n)+)", workflow_text)
+    assert block, "workflow has no push-branches trigger"
+    return set(re.findall(r'(?m)- "?([^"\n]+?)"?\s*$', block.group(1)))
+
 
 def _read(path):
     with open(path, encoding="utf-8") as handle:
@@ -251,3 +298,86 @@ def test_icons_are_not_the_tauri_template_defaults():
         all(abs(channel - ref) < 30 for channel, ref in zip(color, template_cyan))
         for _, color in colors
     ), "icon.png still contains the pytauri template cyan"
+
+
+def test_desktop_version_is_consistent_across_manifests():
+    """
+    The desktop app carries its version in eight literals across seven files,
+    and only tauri.conf.json reaches a user — it names the .dmg/.msi and fills
+    Info.plist. The other seven exist to be consistent with it, so a stale one
+    is invisible until someone reads it and believes it.
+
+    Pinned to the topmost CHANGELOG heading rather than only to each other,
+    because agreeing-but-stale is the failure that actually happened: the
+    changelog reached v0.12 while all eight sat at 0.7.0 from v0.7, and CI
+    published bundles named 0.7.0 five releases running. A manifests-only check
+    passes happily through that.
+    """
+    heading = re.search(r"(?m)^## \[v(\d+)\.(\d+)(?:\.(\d+))?\]", _read(CHANGELOG))
+    assert heading, "no '## [vX.Y]' heading found in CHANGELOG.md"
+    major, minor, patch = heading.groups()
+    expected = f"{major}.{minor}.{patch or 0}"
+
+    for path, pattern, count in DESKTOP_VERSION_SITES:
+        found = re.findall(pattern, _read(path))[:count]
+        rel = os.path.relpath(path, REPO_ROOT)
+        assert len(found) == count, f"{rel}: expected {count} version literals"
+        for version in found:
+            assert (
+                version == expected
+            ), f"{rel} says {version}, changelog says v{expected}"
+
+
+@pytest.mark.parametrize("platform", ["macos", "windows"])
+def test_desktop_workflows_build_on_the_release_branches(platform):
+    """
+    The desktop legs are the only thing that builds the bundles, and they are
+    deliberately separate runs rather than jobs inside publish-release.yml
+    (`continue-on-error` is not permitted on a reusable-workflow call, so a red
+    desktop build would redden an otherwise-successful release).
+
+    That separation is what makes this assertion necessary: nothing in
+    publish-release.yml references these files, so if the trigger silently
+    reverted to ci/desktop*-only, a release would go out with no desktop bundle
+    built and no failure anywhere to say so.
+    """
+    branches = _push_branches(
+        _read(os.path.join(WORKFLOWS, f"build-desktop-{platform}.yml"))
+    )
+    release_branches = _push_branches(_read(PUBLISH_WORKFLOW))
+    assert release_branches <= branches, (
+        f"build-desktop-{platform}.yml does not build on "
+        f"{sorted(release_branches - branches)}"
+    )
+
+
+def test_release_artifacts_exclude_the_desktop_bundles():
+    """
+    The desktop bundles are unsigned and the .msi has never been launched, so
+    they are built but must not be attached to a Release.
+
+    The publish job's download step passes neither `name` nor `pattern` and sets
+    `merge-multiple: true`, so it takes *every* artifact in its run and flattens
+    them into one directory. Adding a desktop build job to this file would
+    therefore attach the NSIS .exe silently, and the release-body generator —
+    `next(f for f in files if f.endswith('.exe'))` — could name it in the
+    Windows verification instructions.
+
+    Asserted structurally rather than by emulating the glob: Python's fnmatch
+    has no brace expansion, so a pattern-matching version of this test would
+    return False for everything and pass vacuously.
+    """
+    publish = _read(PUBLISH_WORKFLOW)
+    desktop_artifacts = set()
+    for platform in ("macos", "windows"):
+        desktop_artifacts |= _upload_artifact_names(
+            _read(os.path.join(WORKFLOWS, f"build-desktop-{platform}.yml"))
+        )
+    assert desktop_artifacts, "the desktop workflows upload nothing"
+
+    published = _upload_artifact_names(publish)
+    assert published, "publish-release.yml uploads no artifacts"
+    assert not (published & desktop_artifacts)
+
+    for target in ("dmg", "msi", "nsis", "bundle-release"):
+        assert target not in publish, f"publish-release.yml references {target}"
