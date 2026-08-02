@@ -118,6 +118,23 @@ A bundled app writes `Sets/`, `Logs/`, `Temp/`, `Debug/` and `config.json` to
 the same per-user directory the tkinter build uses, so both share datasets and
 settings. Override with `MTGA_DRAFT_BASE_DIR`.
 
+## Icons
+
+`src-tauri/icons/` is generated, not hand-drawn — the mark is a fanned pack with
+the picked card lifted out in gold, and the palette is lifted from
+`src/styles/tokens.css` so the icon and the masthead read as one brand.
+
+```bash
+./.venv/bin/python desktop/scripts/make_icons.py   # from the repo root
+```
+
+The script draws with PIL rather than an SVG source because the toolchain has no
+rasterizer (no rsvg/inkscape/imagemagick); `iconutil` assembles the `.icns`, so
+regenerating requires macOS. Edit `render()` and re-run — do not retouch the
+PNGs, they are overwritten. `tests/test_desktop_bundle_config.py` asserts every
+path in `tauri.conf.json`'s icon list exists at the size its filename claims,
+and that the pytauri template artwork has not crept back.
+
 ## Theming
 
 System / Dark / Light, chosen on the Settings page. `state/theme.ts` sets

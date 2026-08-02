@@ -18,6 +18,7 @@ import os
 import re
 
 import pytest
+from PIL import Image
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DESKTOP = os.path.join(REPO_ROOT, "desktop")
@@ -98,3 +99,43 @@ def test_upload_globs_match_the_bundle_profile():
         text = _read(os.path.join(WORKFLOWS, workflow))
         assert "desktop/target/bundle-release/bundle/" in text, workflow
         assert "if-no-files-found: error" in text, workflow
+
+
+def test_configured_icons_exist_at_their_declared_sizes(tauri_conf):
+    """
+    tauri.conf.json names icon paths but nothing validates them until a bundle
+    build: a missing file fails `tauri build`, and a wrongly-sized PNG is worse
+    still — it bundles silently and only looks wrong on a user's dock. The
+    declared size is the filename, so it can be checked directly.
+    """
+    icon_root = os.path.join(DESKTOP, "src-tauri")
+    declared = tauri_conf["bundle"]["icon"]
+    assert declared, "no icons declared in tauri.conf.json"
+
+    for rel in declared:
+        path = os.path.join(icon_root, rel.replace("/", os.sep))
+        assert os.path.exists(path), f"{rel} is declared but missing"
+
+        match = re.fullmatch(r"(\d+)x\1(?:@(\d+)x)?\.png", os.path.basename(rel))
+        if match:
+            expected = int(match.group(1)) * int(match.group(2) or 1)
+            with Image.open(path) as img:
+                assert img.size == (expected, expected), rel
+
+
+def test_icons_are_not_the_tauri_template_defaults():
+    """
+    The template ships a cyan/yellow pytauri logo. Shipping it would brand the
+    release as a scaffold; the swap is easy to lose in a regenerate-icons step,
+    and nothing else in CI looks at pixels. Sampled rather than hashed so the
+    artwork can be retouched without editing this test.
+    """
+    path = os.path.join(DESKTOP, "src-tauri", "icons", "icon.png")
+    with Image.open(path) as img:
+        colors = img.convert("RGB").resize((16, 16), Image.BOX).getcolors(256)
+
+    template_cyan = (36, 200, 219)
+    assert not any(
+        all(abs(channel - ref) < 30 for channel, ref in zip(color, template_cyan))
+        for _, color in colors
+    ), "icon.png still contains the pytauri template cyan"
