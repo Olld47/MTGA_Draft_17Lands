@@ -56,6 +56,15 @@ class StatusEvent(_VM):
     text: str
 
 
+class FrontendErrorBody(_VM):
+    """An uncaught JS error forwarded to the Python log. The webview has no
+    visible devtools in a bundled build, so this is the only channel."""
+
+    message: str
+    source: str = ""  # "boundary" | "onerror" | "unhandledrejection"
+    stack: str = ""
+
+
 class RefreshEvent(_VM):
     seq: int
 

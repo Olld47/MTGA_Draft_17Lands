@@ -224,3 +224,13 @@ export const saveExportFile = (path: string, text: string) =>
 
 export const locateMtgaData = (folder: string) =>
   pyInvoke<LocateData>("locate_mtga_data", { folder });
+
+// --- Diagnostics ------------------------------------------------------------
+
+/** Mirrors an uncaught JS error into the Python log. The bundled webview has no
+ *  devtools, so a render failure would otherwise leave no trace anywhere. */
+export const reportFrontendError = (
+  message: string,
+  source: string,
+  stack = "",
+) => pyInvoke<Ack>("report_frontend_error", { message, source, stack });

@@ -13,6 +13,7 @@ import {
 import { useDraftState } from "./state/useDraftState";
 import { useSettings } from "./state/useSettings";
 import { useMiniMode } from "./state/useMiniMode";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import { DashboardPage } from "./features/dashboard/DashboardPage";
 import { MiniOverlay } from "./features/overlay/MiniOverlay";
 import { TakenPage } from "./features/taken/TakenPage";
@@ -185,26 +186,28 @@ export default function App() {
       </nav>
 
       <main className="tab-body">
-        {tab === "draft" &&
-          (state ? (
-            <DashboardPage state={state} colorTint={colorTint} />
-          ) : (
-            <div className="empty-state">Waiting for draft data...</div>
-          ))}
-        {tab === "taken" && <TakenPage colorTint={colorTint} />}
-        {tab === "recap" && <RecapPage />}
-        {tab === "deck" && <DeckPage colorTint={colorTint} />}
-        {tab === "suggest" && (
-          <SuggestPage
-            colorTint={colorTint}
-            onSentToBuilder={() => setTab("deck")}
-          />
-        )}
-        {tab === "sealed" && <SealedPage colorTint={colorTint} />}
-        {tab === "compare" && <ComparePage colorTint={colorTint} />}
-        {tab === "tiers" && <TiersPage />}
-        {tab === "datasets" && <DatasetsPage missingSet={missingSet} />}
-        {tab === "settings" && <SettingsPage />}
+        <ErrorBoundary resetKey={tab}>
+          {tab === "draft" &&
+            (state ? (
+              <DashboardPage state={state} colorTint={colorTint} />
+            ) : (
+              <div className="empty-state">Waiting for draft data...</div>
+            ))}
+          {tab === "taken" && <TakenPage colorTint={colorTint} />}
+          {tab === "recap" && <RecapPage />}
+          {tab === "deck" && <DeckPage colorTint={colorTint} />}
+          {tab === "suggest" && (
+            <SuggestPage
+              colorTint={colorTint}
+              onSentToBuilder={() => setTab("deck")}
+            />
+          )}
+          {tab === "sealed" && <SealedPage colorTint={colorTint} />}
+          {tab === "compare" && <ComparePage colorTint={colorTint} />}
+          {tab === "tiers" && <TiersPage />}
+          {tab === "datasets" && <DatasetsPage missingSet={missingSet} />}
+          {tab === "settings" && <SettingsPage />}
+        </ErrorBoundary>
       </main>
 
       {appError && <div className="error-toast">{appError}</div>}

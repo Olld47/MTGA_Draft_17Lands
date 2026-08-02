@@ -20,6 +20,7 @@ from mtga_bridge.viewmodels import (
     DraftLogListVM,
     DraftLogVM,
     FilterOptionsVM,
+    FrontendErrorBody,
     SealedDeckTechVM,
     SettingsPatch,
     SettingsVM,
@@ -74,6 +75,18 @@ def list_draft_logs(runtime) -> DraftLogListVM:
     if runtime.scanner is not None and runtime.scanner.arena_file:
         current = os.path.basename(runtime.scanner.arena_file)
     return DraftLogListVM(logs=logs, current=current)
+
+
+def report_frontend_error(error: FrontendErrorBody) -> Ack:
+    """Mirrors an uncaught JS error into the Python log. The bundled webview has
+    no devtools, so without this a render failure leaves no trace anywhere."""
+    logger.error(
+        "Frontend error (%s): %s\n%s",
+        error.source or "unknown",
+        error.message,
+        error.stack,
+    )
+    return Ack(message="logged")
 
 
 # --- Settings ----------------------------------------------------------------

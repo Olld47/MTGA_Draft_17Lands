@@ -1,0 +1,57 @@
+import { Component, type ErrorInfo, type ReactNode } from "react";
+
+import { reportFrontendError } from "../api/client";
+
+interface Props {
+  /** Clears a caught error when it changes, so switching tabs recovers. */
+  resetKey?: string;
+  children: ReactNode;
+}
+
+interface State {
+  message: string;
+}
+
+/** Keeps one page's render failure from blanking the whole window. Before this
+ *  existed, a single `undefined.map()` in DashboardPage tore down the entire
+ *  React tree and the app looked like it had failed to boot. */
+export class ErrorBoundary extends Component<Props, State> {
+  state: State = { message: "" };
+
+  static getDerivedStateFromError(error: unknown): State {
+    return { message: error instanceof Error ? error.message : String(error) };
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    reportFrontendError(
+      error.message,
+      "boundary",
+      `${error.stack ?? ""}\n${info.componentStack ?? ""}`,
+    ).catch(() => {});
+  }
+
+  componentDidUpdate(prev: Props) {
+    if (prev.resetKey !== this.props.resetKey && this.state.message) {
+      this.setState({ message: "" });
+    }
+  }
+
+  render() {
+    if (this.state.message) {
+      return (
+        <div className="page-error">
+          <h2>This page failed to render</h2>
+          <div className="page-error-message">{this.state.message}</div>
+          <p>
+            Other tabs still work. The full stack trace was written to the
+            application log.
+          </p>
+          <button onClick={() => this.setState({ message: "" })}>
+            Try again
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}

@@ -43,6 +43,7 @@ from mtga_bridge.viewmodels import (
     CompareRemoveBody,
     CompareStateVM,
     FilterOptionsVM,
+    FrontendErrorBody,
     LocateDataBody,
     LocateDataVM,
     MoveCardBody,
@@ -131,6 +132,12 @@ async def set_log_file(body: SetLogFileBody, runtime: RuntimeState) -> Ack:
 @commands.command()
 async def list_draft_logs(runtime: RuntimeState) -> DraftLogListVM:
     return services.list_draft_logs(runtime)
+
+
+@commands.command()
+async def report_frontend_error(body: FrontendErrorBody) -> Ack:
+    """Uncaught JS errors land in the same log as the Python side."""
+    return services.report_frontend_error(body)
 
 
 # --- Settings ----------------------------------------------------------------
