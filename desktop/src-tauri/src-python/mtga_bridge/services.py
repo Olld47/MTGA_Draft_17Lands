@@ -6,6 +6,7 @@ directly. The commands package wraps these with the pytauri IPC glue.
 
 import logging
 import os
+from datetime import datetime
 from typing import Optional
 
 from src import constants
@@ -58,19 +59,74 @@ def set_log_file(runtime, path: str) -> Ack:
     return Ack(message=os.path.basename(path))
 
 
+def _live_log_label(scanner) -> str:
+    """Port of top_bar.update_history_dropdown's live entry: the set's display
+    name when the set list resolves it, else the raw code."""
+    set_display = "Arena"
+    if scanner is None:
+        return f"🔴 Live: {set_display}"
+    try:
+        event_set, _ = scanner.retrieve_current_limited_event()
+    except Exception:
+        event_set = ""
+    if event_set:
+        set_display = event_set
+        data = getattr(getattr(scanner, "set_list", None), "data", None) or {}
+        for name, info in data.items():
+            if getattr(info, "set_code", None) == event_set:
+                set_display = name
+                break
+    return f"🔴 Live: {set_display}"
+
+
+def _history_log_label(file_name: str, modified: float) -> str:
+    """DraftLog_<set>_<event>_<draftid>.log — the name log_scanner.py:140 writes."""
+    parts = file_name[: -len(".log")].split("_")
+    card_set, event = (parts[1], parts[2]) if len(parts) >= 4 else ("UNKNOWN", "Draft")
+    stamp = datetime.fromtimestamp(modified).strftime("%m-%d %H:%M")
+    return f"📂 {card_set} {event} ({stamp})"
+
+
 def list_draft_logs(runtime) -> DraftLogListVM:
+    """The live Arena log plus every saved draft log, newest first. Feeds the
+    masthead switcher, whose selection is handed back to set_log_file."""
     logs = []
     folder = constants.DRAFT_LOG_FOLDER
     if os.path.exists(folder):
         for f in os.listdir(folder):
-            if f.startswith("DraftLog_") and f.endswith(".log"):
+            if f.startswith(constants.DRAFT_LOG_PREFIX) and f.endswith(".log"):
                 path = os.path.join(folder, f)
                 try:
                     mtime = os.path.getmtime(path)
                 except OSError:
                     mtime = 0.0
-                logs.append(DraftLogVM(path=path, file_name=f, modified=mtime))
+                logs.append(
+                    DraftLogVM(
+                        path=path,
+                        file_name=f,
+                        modified=mtime,
+                        label=_history_log_label(f, mtime),
+                    )
+                )
     logs.sort(key=lambda log: log.modified, reverse=True)
+
+    live_path = runtime.config.settings.arena_log_location if runtime.config else ""
+    if live_path and os.path.exists(live_path):
+        try:
+            live_mtime = os.path.getmtime(live_path)
+        except OSError:
+            live_mtime = 0.0
+        logs.insert(
+            0,
+            DraftLogVM(
+                path=live_path,
+                file_name=os.path.basename(live_path),
+                modified=live_mtime,
+                label=_live_log_label(runtime.scanner),
+                is_live=True,
+            ),
+        )
+
     current = ""
     if runtime.scanner is not None and runtime.scanner.arena_file:
         current = os.path.basename(runtime.scanner.arena_file)

@@ -147,6 +147,8 @@ export interface DraftLog {
   path: string;
   fileName: string;
   modified: number;
+  label: string;
+  isLive: boolean;
 }
 
 export interface DraftLogList {

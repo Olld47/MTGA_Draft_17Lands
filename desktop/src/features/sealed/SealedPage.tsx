@@ -11,6 +11,7 @@ import {
   sealedExportSealeddeck,
   sealedImportDeck,
   sealedMoveCard,
+  sealedReloadPool,
   sealedRenameVariant,
   sealedSelectVariant,
 } from "../../api/client";
@@ -44,6 +45,20 @@ export function SealedPage({ colorTint }: { colorTint: boolean }) {
       .then((r) => {
         setState(r.state);
         setMessage(r.message);
+      })
+      .catch((e) => setMessage(String(e)))
+      .finally(() => setBusy(false));
+  };
+
+  // Separate from act(): draft://refresh only re-reads the built state, so a
+  // pool that grew in Arena needs an explicit re-read from the scanner. Returns
+  // a bare SealedState rather than the SealedAction act() expects.
+  const reloadPool = () => {
+    setBusy(true);
+    sealedReloadPool()
+      .then((s) => {
+        setState(s);
+        setMessage("Pool reloaded from the Arena log");
       })
       .catch((e) => setMessage(String(e)))
       .finally(() => setBusy(false));
@@ -93,7 +108,11 @@ export function SealedPage({ colorTint }: { colorTint: boolean }) {
     return (
       <div className="empty-state">
         <p>No sealed pool detected. Open a Sealed event in Arena, then rescan.</p>
+        <button onClick={reloadPool} disabled={busy}>
+          Reload pool
+        </button>
         <button onClick={() => setPracticeOpen(true)}>Practice pool...</button>
+        {message && <p className="hint">{message}</p>}
         {practiceDialog}
       </div>
     );
@@ -142,6 +161,9 @@ export function SealedPage({ colorTint }: { colorTint: boolean }) {
               Auto-lands
             </button>
             <button onClick={importDeck}>Import</button>
+            <button onClick={reloadPool} disabled={busy}>
+              Reload pool
+            </button>
             <button onClick={() => setPracticeOpen(true)}>Practice...</button>
             <span className="spacer" />
             <button

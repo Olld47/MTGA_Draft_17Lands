@@ -1,4 +1,7 @@
 // Event names shared with the Python bridge (boot.py / orchestrator_adapter.py).
+// Each payload interface mirrors the like-named _VM in viewmodels.py — the emit
+// sites construct those models, and test_bridge_serialization.py asserts no emit
+// site passes a bare dict.
 
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 

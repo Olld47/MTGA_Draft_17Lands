@@ -11,6 +11,7 @@ import {
   type HeartbeatPayload,
 } from "./api/events";
 import { useDraftState } from "./state/useDraftState";
+import { useDraftLogs } from "./state/useDraftLogs";
 import { useSettings } from "./state/useSettings";
 import { useMiniMode } from "./state/useMiniMode";
 import { ErrorBoundary } from "./components/ErrorBoundary";
@@ -78,6 +79,7 @@ export default function App() {
   const { state, statusText } = useDraftState(booted);
   const { settings } = useSettings();
   const { mini, toggle: toggleMini, startDragging } = useMiniMode();
+  const logs = useDraftLogs(booted, state?.logName ?? "");
 
   // Boot lifecycle
   useEffect(() => {
@@ -151,6 +153,21 @@ export default function App() {
           </span>
         )}
         <span className="spacer" />
+        {logs.logs.length > 0 && (
+          <select
+            className="log-switcher"
+            title="Replay a past draft, or return to the live Arena log"
+            value={logs.selected}
+            disabled={logs.swapping}
+            onChange={(e) => logs.select(e.target.value)}
+          >
+            {logs.logs.map((l) => (
+              <option key={l.path} value={l.path}>
+                {l.label}
+              </option>
+            ))}
+          </select>
+        )}
         {state && (
           <button
             className="filter-pill"

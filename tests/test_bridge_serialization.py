@@ -15,6 +15,7 @@ reintroduce the bug. Requires neither pytauri nor tkinter.
 
 import ast
 import os
+import re
 import sys
 from typing import Any, get_args, get_origin
 from unittest.mock import patch
@@ -202,6 +203,57 @@ def test_every_command_returns_a_vm_model():
     assert not offenders, f"commands not returning a _VM subclass: {offenders}"
 
 
+# --- Event emit sites --------------------------------------------------------
+
+
+EMIT_SOURCES = [
+    os.path.join(BRIDGE_PATH, "mtga_bridge", name)
+    for name in ("boot.py", "orchestrator_adapter.py", "__init__.py")
+]
+
+_EMIT_NAMES = {"emit", "_emit_safe"}
+
+
+def _emit_calls(path):
+    """(line number, payload argument node) for every emit()/_emit_safe() call,
+    read from source so neither pytauri nor a running app is needed."""
+    with open(path, "r", encoding="utf-8") as handle:
+        tree = ast.parse(handle.read())
+
+    calls = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        func = node.func
+        name = func.attr if isinstance(func, ast.Attribute) else getattr(func, "id", None)
+        if name in _EMIT_NAMES and len(node.args) == 2:
+            calls.append((node.lineno, node.args[1]))
+    return calls
+
+
+def test_emit_call_reflection_finds_the_sites():
+    # Guards the reflection: a rename that emptied this list would turn the
+    # assertion below into a silent no-op.
+    total = sum(len(_emit_calls(path)) for path in EMIT_SOURCES)
+    assert total >= 6, f"expected every event emit site, found {total}"
+
+
+@pytest.mark.parametrize("path", EMIT_SOURCES, ids=os.path.basename)
+def test_emit_sites_construct_a_model(path):
+    """Every event payload must be a model, never a hand-written dict literal.
+
+    The dict form is what caused the v0.6 blank window: keys typed by hand on
+    the Python side, mirrored by hand in api/events.ts, with nothing checking
+    they agree. A model routes through _VM's serialize_by_alias instead.
+    """
+    offenders = [
+        f"{os.path.basename(path)}:{lineno}"
+        for lineno, payload in _emit_calls(path)
+        if isinstance(payload, ast.Dict)
+    ]
+    assert not offenders, f"emit sites passing a dict literal: {offenders}"
+
+
 # --- by_alias=False consumers ------------------------------------------------
 
 
@@ -277,3 +329,89 @@ def test_report_frontend_error_without_source(caplog):
     with caplog.at_level("ERROR", logger="mtga_bridge.services"):
         services.report_frontend_error(body)
     assert "unknown" in caplog.text
+
+
+# --- Orphaned backends -------------------------------------------------------
+
+# A backend can be complete, registered as an IPC command, exported from
+# client.ts — and called by nothing. v0.14 found four at once, including
+# list_draft_logs/set_log_file, whose absence meant the desktop app could not
+# open a past draft at all. plan.md tracks the port feature by feature, so a
+# feature whose Python half shipped and whose React half never did reads as
+# done. These tests are the mechanical version of that audit.
+
+FRONTEND_DIR = os.path.join(os.path.dirname(BRIDGE_PATH), "..", "src")
+CLIENT_SOURCE = os.path.join(FRONTEND_DIR, "api", "client.ts")
+
+
+def _registered_commands():
+    with open(COMMANDS_SOURCE, "r", encoding="utf-8") as handle:
+        tree = ast.parse(handle.read())
+    return {
+        node.name
+        for node in ast.walk(tree)
+        if isinstance(node, (ast.AsyncFunctionDef, ast.FunctionDef))
+        and any(
+            isinstance(d, ast.Call)
+            and isinstance(d.func, ast.Attribute)
+            and d.func.attr == "command"
+            for d in node.decorator_list
+        )
+    }
+
+
+def _client_source():
+    with open(CLIENT_SOURCE, "r", encoding="utf-8") as handle:
+        return handle.read()
+
+
+def test_every_command_is_invoked_by_the_frontend():
+    """A command with no pyInvoke is a backend the UI cannot reach."""
+    client = _client_source()
+    invoked = set(re.findall(r'pyInvoke(?:<[^>]*>)?\(\s*"([a-z_]+)"', client))
+    commands = _registered_commands()
+    assert len(commands) > 50, "command reflection found suspiciously few commands"
+
+    assert not commands - invoked, f"commands with no pyInvoke: {sorted(commands - invoked)}"
+    assert not invoked - commands, f"pyInvoke names with no command: {sorted(invoked - commands)}"
+
+
+def test_every_client_export_has_a_caller():
+    """An exported wrapper nobody calls means the feature stalled before its UI."""
+    exports = set(re.findall(r"export const (\w+)\s*=", _client_source()))
+    assert len(exports) > 50, "client.ts reflection found suspiciously few exports"
+
+    orphans = set(exports)
+    for root, _, files in os.walk(FRONTEND_DIR):
+        if "node_modules" in root:
+            continue
+        for name in files:
+            path = os.path.join(root, name)
+            if not name.endswith((".ts", ".tsx")) or os.path.samefile(path, CLIENT_SOURCE):
+                continue
+            with open(path, "r", encoding="utf-8") as handle:
+                text = handle.read()
+            orphans -= {e for e in orphans if re.search(rf"\b{e}\b", text)}
+
+    assert not orphans, f"client.ts exports with no caller: {sorted(orphans)}"
+
+
+def test_every_view_model_is_used_outside_viewmodels():
+    """The six event models sat declared-but-unconstructed from v0.1 to v0.14
+    while boot.py emitted hand-written dicts — the drift this file exists to
+    catch. A VM referenced nowhere else is either dead or a contract nothing
+    honors."""
+    bridge_dir = os.path.dirname(COMMANDS_SOURCE)
+    with open(os.path.join(bridge_dir, "viewmodels.py"), "r", encoding="utf-8") as handle:
+        declared = set(re.findall(r"^class (\w+)\(_VM\):", handle.read(), re.M))
+    assert len(declared) > 50, "viewmodels reflection found suspiciously few models"
+
+    orphans = set(declared)
+    for name in os.listdir(bridge_dir):
+        if not name.endswith(".py") or name == "viewmodels.py":
+            continue
+        with open(os.path.join(bridge_dir, name), "r", encoding="utf-8") as handle:
+            text = handle.read()
+        orphans -= {v for v in orphans if re.search(rf"\b{v}\b", text)}
+
+    assert not orphans, f"_VM classes never referenced outside viewmodels.py: {sorted(orphans)}"

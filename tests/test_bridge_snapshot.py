@@ -39,12 +39,18 @@ from mtga_bridge.snapshot import (
 )
 from mtga_bridge.runtime import AppRuntime
 from mtga_bridge.orchestrator_adapter import (
+    EVENT_HEARTBEAT,
     EVENT_REFRESH,
     EVENT_STATUS,
     OrchestratorAdapter,
 )
 from mtga_bridge import services
-from mtga_bridge.viewmodels import SettingsPatch
+from mtga_bridge.viewmodels import (
+    HeartbeatEvent,
+    RefreshEvent,
+    SettingsPatch,
+    StatusEvent,
+)
 
 
 # --- Fixtures ----------------------------------------------------------------
@@ -251,10 +257,33 @@ def test_adapter_forwards_events(tmp_path):
     assert EVENT_STATUS in kinds
     assert EVENT_REFRESH in kinds
     status_payload = next(p for e, p in events if e == EVENT_STATUS)
-    assert status_payload == {"text": "Scanning Log..."}
+    assert isinstance(status_payload, StatusEvent)
+    assert status_payload.text == "Scanning Log..."
     refresh_payload = next(p for e, p in events if e == EVENT_REFRESH)
-    assert refresh_payload["seq"] == 1
+    assert isinstance(refresh_payload, RefreshEvent)
+    assert refresh_payload.seq == 1
     assert runtime.current_seq == 1
+
+
+def test_adapter_heartbeat_is_a_view_model(tmp_path):
+    """The heartbeat carries logName, which the log switcher reads to follow the
+    orchestrator's auto-snap-back. Nothing covered its payload shape before."""
+    log = tmp_path / "Player.log"
+    log.write_text("x")
+    orch = _FakeOrchestrator(str(log))
+    runtime = AppRuntime()
+    events = []
+    adapter = OrchestratorAdapter(orch, runtime, lambda e, p: events.append((e, p)))
+    adapter.start()
+    time.sleep(0.3)
+    adapter.stop()
+    adapter.join(timeout=2)
+
+    beat = next(p for e, p in events if e == EVENT_HEARTBEAT)
+    assert isinstance(beat, HeartbeatEvent)
+    assert beat.log_name == "Player.log"
+    assert beat.log_mtime > 0
+    assert beat.model_dump() == {"logMtime": beat.log_mtime, "logName": "Player.log"}
 
 
 def test_adapter_emit_errors_do_not_kill_thread(tmp_path):
@@ -356,6 +385,103 @@ def test_desktop_theme_does_not_trigger_recompute(env):
 
     assert not runtime.orchestrator.math_requested
     assert runtime.get_cached_state() is not None
+
+
+# --- services: draft-log list ------------------------------------------------
+
+
+def _write_log(folder, name, mtime):
+    path = os.path.join(folder, name)
+    with open(path, "w", encoding="utf-8") as handle:
+        handle.write("x")
+    os.utime(path, (mtime, mtime))
+    return path
+
+
+def test_list_draft_logs_orders_newest_first_and_labels(env, tmp_path):
+    folder = constants.DRAFT_LOG_FOLDER
+    _write_log(folder, "DraftLog_TEST_PremierDraft_aaa.log", 1_700_000_000)
+    _write_log(folder, "DraftLog_DSK_QuickDraft_bbb.log", 1_700_009_000)
+    runtime = AppRuntime(config=env["config"], scanner=env["scanner"])
+
+    result = services.list_draft_logs(runtime)
+    history = [log for log in result.logs if not log.is_live]
+
+    assert [log.file_name for log in history] == [
+        "DraftLog_DSK_QuickDraft_bbb.log",
+        "DraftLog_TEST_PremierDraft_aaa.log",
+    ]
+    assert history[0].label.startswith("📂 DSK QuickDraft (")
+    assert history[1].label.startswith("📂 TEST PremierDraft (")
+
+
+def test_list_draft_logs_labels_a_malformed_name(env):
+    """A name that doesn't carry set/event still has to render — the legacy
+    dropdown fell back to UNKNOWN/Draft rather than dropping the entry."""
+    _write_log(constants.DRAFT_LOG_FOLDER, "DraftLog_weird.log", 1_700_000_000)
+    runtime = AppRuntime(config=env["config"], scanner=env["scanner"])
+
+    entry = next(
+        log
+        for log in services.list_draft_logs(runtime).logs
+        if log.file_name == "DraftLog_weird.log"
+    )
+    assert entry.label.startswith("📂 UNKNOWN Draft (")
+
+
+def test_list_draft_logs_puts_the_live_log_first(env):
+    _write_log(constants.DRAFT_LOG_FOLDER, "DraftLog_TEST_PremierDraft_a.log", 1_700_1)
+    runtime = AppRuntime(config=env["config"], scanner=env["scanner"])
+
+    result = services.list_draft_logs(runtime)
+
+    assert result.logs[0].is_live
+    assert result.logs[0].file_name == os.path.basename(str(env["log"]))
+    assert result.logs[0].label.startswith("🔴 Live:")
+    assert result.current == os.path.basename(str(env["log"]))
+
+
+def test_list_draft_logs_omits_a_missing_live_log(env):
+    env["config"].settings.arena_log_location = "/tmp/does-not-exist/Player.log"
+    runtime = AppRuntime(config=env["config"], scanner=env["scanner"])
+
+    assert not any(log.is_live for log in services.list_draft_logs(runtime).logs)
+
+
+def test_list_draft_logs_survives_a_null_scanner(env):
+    """The command carries no _require_booted, so it can be called pre-boot."""
+    runtime = AppRuntime(config=env["config"], scanner=None)
+
+    result = services.list_draft_logs(runtime)
+
+    assert result.current == ""
+    assert result.logs[0].label == "🔴 Live: Arena"
+
+
+def test_list_draft_logs_resolves_the_live_set_display_name(env):
+    """The live entry names the set the way the set list does ("Test Set"),
+    not the raw code — the legacy dropdown did the same lookup."""
+    scanner = env["scanner"]
+    scanner.draft_sets = ["TEST"]
+    runtime = AppRuntime(config=env["config"], scanner=scanner)
+
+    assert services.list_draft_logs(runtime).logs[0].label == "🔴 Live: Test Set"
+
+
+# --- services: filter options ------------------------------------------------
+
+
+def test_get_filter_options_returns_every_deck_filter(env):
+    """SettingsPage renders this list verbatim, so it must be the full set
+    rather than the abridged copy the page used to hardcode."""
+    env["config"].settings.deck_filter = "WU"
+    runtime = AppRuntime(config=env["config"], scanner=env["scanner"])
+
+    result = services.get_filter_options(runtime)
+
+    assert result.options == list(constants.DECK_FILTERS)
+    assert len(result.options) == 33
+    assert result.active == "WU"
 
 
 # --- runtime cache -----------------------------------------------------------

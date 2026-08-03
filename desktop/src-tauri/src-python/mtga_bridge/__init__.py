@@ -20,7 +20,7 @@ def main() -> int:
     ensure_runtime_paths()
 
     from anyio.from_thread import start_blocking_portal
-    from pydantic import RootModel
+    from pydantic import BaseModel, RootModel
     from pytauri import Emitter, Manager, builder_factory, context_factory
 
     from src.configuration import read_configuration, set_error_notifier
@@ -28,6 +28,7 @@ def main() -> int:
     from mtga_bridge import boot
     from mtga_bridge.commands import commands
     from mtga_bridge.runtime import AppRuntime
+    from mtga_bridge.viewmodels import AppError
 
     logging.basicConfig(level=logging.INFO)
 
@@ -44,16 +45,19 @@ def main() -> int:
         app_handle = app.handle()
         Manager.manage(app_handle, runtime)
 
-        def emit(event: str, payload: dict):
-            """Thread-safe event emission usable from worker threads."""
+        def emit(event: str, payload):
+            """Thread-safe event emission usable from worker threads. Callers
+            pass a _VM, whose camelCase aliases model_dump() applies because
+            _VM sets serialize_by_alias=True."""
             try:
-                Emitter.emit(app_handle, event, DictPayload(payload))
+                body = payload.model_dump() if isinstance(payload, BaseModel) else payload
+                Emitter.emit(app_handle, event, DictPayload(body))
             except Exception:
                 logger.error(f"Failed to emit {event}", exc_info=True)
 
         # Config errors surface as a frontend event instead of a messagebox
         set_error_notifier(
-            lambda title, msg: emit("app://error", {"message": f"{title}: {msg}"})
+            lambda title, msg: emit("app://error", AppError(message=f"{title}: {msg}"))
         )
 
         portal.start_task_soon(boot.run_boot, runtime, emit)

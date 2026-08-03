@@ -52,6 +52,10 @@ class BootError(_VM):
     message: str
 
 
+class AppError(_VM):
+    message: str
+
+
 class StatusEvent(_VM):
     text: str
 
@@ -268,6 +272,8 @@ class DraftLogVM(_VM):
     path: str
     file_name: str
     modified: float
+    label: str = ""
+    is_live: bool = False
 
 
 class DraftLogListVM(_VM):

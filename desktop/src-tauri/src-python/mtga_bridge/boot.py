@@ -34,10 +34,11 @@ def _boot_blocking(runtime, emit):
 
     from mtga_bridge.orchestrator_adapter import OrchestratorAdapter
     from mtga_bridge.snapshot import build_draft_state
+    from mtga_bridge.viewmodels import BootComplete, BootProgress
 
     def progress(msg: str):
         runtime.last_boot_message = msg
-        emit(EVENT_PROGRESS, {"message": msg})
+        emit(EVENT_PROGRESS, BootProgress(message=msg))
 
     cleanup_old_draft_logs()
 
@@ -70,25 +71,27 @@ def _boot_blocking(runtime, emit):
     pack, pick = scanner.retrieve_current_pack_and_pick()
     emit(
         EVENT_COMPLETE,
-        {
-            "foundDraft": bool(event_set),
-            "eventSet": event_set or "",
-            "eventType": event_type or "",
-            "pack": pack,
-            "pick": pick,
-            "hasDataset": bool(runtime.config.card_data.latest_dataset),
-        },
+        BootComplete(
+            found_draft=bool(event_set),
+            event_set=event_set or "",
+            event_type=event_type or "",
+            pack=pack,
+            pick=pick,
+            has_dataset=bool(runtime.config.card_data.latest_dataset),
+        ),
     )
 
 
 async def run_boot(runtime, emit):
     """Portal task: executes the blocking boot on a thread, surfacing errors."""
+    from mtga_bridge.viewmodels import BootError
+
     try:
         await anyio.to_thread.run_sync(_boot_blocking, runtime, emit)
     except Exception as e:
         logger.error(f"Boot failed: {e}", exc_info=True)
         runtime.boot_error = str(e)
         try:
-            emit(EVENT_ERROR, {"message": str(e)})
+            emit(EVENT_ERROR, BootError(message=str(e)))
         except Exception:
             pass

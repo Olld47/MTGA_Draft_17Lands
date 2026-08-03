@@ -71,6 +71,13 @@
   flex: 1;
 }
 
+.log-switcher {
+  font-size: var(--text-xs);
+  max-width: 240px;
+  align-self: center;
+  text-overflow: ellipsis;
+}
+
 .filter-pill {
   font-family: var(--font-mono);
   font-size: var(--text-xs);

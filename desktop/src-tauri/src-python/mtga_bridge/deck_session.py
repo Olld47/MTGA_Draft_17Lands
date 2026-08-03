@@ -41,6 +41,26 @@ from mtga_bridge.viewmodels import (
 logger = logging.getLogger(__name__)
 
 
+def _copies(cards: List[Dict]) -> int:
+    """Card count of a stacked list, where each row carries a count."""
+    return sum(c.get("count", 1) for c in cards)
+
+
+def _take_copies(cards: List[Dict], limit: int) -> List[Dict]:
+    """The first `limit` copies, splitting the row that straddles the boundary."""
+    taken: List[Dict] = []
+    remaining = limit
+    for card in cards:
+        if remaining <= 0:
+            break
+        count = min(card.get("count", 1), remaining)
+        row = dict(card)
+        row["count"] = count
+        taken.append(row)
+        remaining -= count
+    return taken
+
+
 class DeckSession:
     """Stateful custom-deck model. One instance per runtime, reused across
     commands. scanner/config supply live pool + display context."""
@@ -195,17 +215,20 @@ class DeckSession:
             return SimResultVM(ok=False, message="Add spells to the deck first.")
 
         deck_colors = get_strict_colors(spells) or ["W", "U", "B", "R", "G"]
-        total_lands_needed = 40 - len(spells)
+        # Counted in copies, not rows: deck_list is stacked, so a row can be
+        # several cards. len() here overshot the land count by one per duplicate
+        # spell and produced decks larger than 40.
+        total_lands_needed = 40 - _copies(spells)
 
-        if len(non_basic_lands) > total_lands_needed:
+        if _copies(non_basic_lands) > total_lands_needed:
             non_basic_lands.sort(
                 key=lambda x: float(
                     x.get("deck_colors", {}).get("All Decks", {}).get("gihwr", 0.0)
                 ),
                 reverse=True,
             )
-            non_basic_lands = non_basic_lands[:total_lands_needed]
-        needed_basics = max(0, total_lands_needed - len(non_basic_lands))
+            non_basic_lands = _take_copies(non_basic_lands, total_lands_needed)
+        needed_basics = max(0, total_lands_needed - _copies(non_basic_lands))
 
         basics_to_add = brute_force_mana_base(
             spells, non_basic_lands, deck_colors, forced_count=needed_basics

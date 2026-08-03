@@ -1,12 +1,6 @@
 import { useFileTools } from "../../state/useFileTools";
+import { useFilterOptions } from "../../state/useFilterOptions";
 import { useSettings } from "../../state/useSettings";
-
-const DECK_FILTERS = [
-  "Auto",
-  "All Decks",
-  "W", "U", "B", "R", "G",
-  "WU", "WB", "WR", "WG", "UB", "UR", "UG", "BR", "BG", "RG",
-];
 
 const RESULT_FORMATS = ["Percentage", "Rating", "Grade"];
 
@@ -38,10 +32,21 @@ function ToggleRow({ label, hint, checked, onChange }: ToggleRowProps) {
 export function SettingsPage() {
   const { settings, patch } = useSettings();
   const { busy, message, browseLogFile, browseMtgaData } = useFileTools();
+  const filters = useFilterOptions();
 
   if (!settings) {
     return <div className="empty-state">Loading settings...</div>;
   }
+
+  // card_logic.filter_options reports "All Decks" until pick 5, which as a
+  // detection result means "not enough pool yet" rather than a chosen lane.
+  const detected = filters?.autoDetected ?? "";
+  const autoHint =
+    settings.deckFilter !== "Auto"
+      ? "Auto detects your two strongest colors"
+      : !detected || detected === "All Decks"
+        ? "Auto: detecting..."
+        : `Auto: ${detected}`;
 
   return (
     <div className="settings-grid">
@@ -66,13 +71,13 @@ export function SettingsPage() {
         <div className="setting-row">
           <label>
             Deck filter
-            <div className="hint">Auto detects your two strongest colors</div>
+            <div className="hint">{autoHint}</div>
           </label>
           <select
             value={settings.deckFilter}
             onChange={(e) => patch({ deckFilter: e.target.value })}
           >
-            {DECK_FILTERS.map((f) => (
+            {(filters?.options ?? [settings.deckFilter]).map((f) => (
               <option key={f} value={f}>
                 {f}
               </option>

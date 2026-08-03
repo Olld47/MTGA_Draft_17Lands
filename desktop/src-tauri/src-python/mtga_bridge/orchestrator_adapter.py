@@ -13,6 +13,8 @@ import threading
 import time
 from typing import Callable
 
+from mtga_bridge.viewmodels import HeartbeatEvent, RefreshEvent, StatusEvent
+
 logger = logging.getLogger(__name__)
 
 # Event names shared with the frontend
@@ -24,10 +26,10 @@ HEARTBEAT_INTERVAL = 2.0
 
 
 class OrchestratorAdapter(threading.Thread):
-    """emit(event_name, payload_dict) is any thread-safe callable — in
+    """emit(event_name, payload_vm) is any thread-safe callable — in
     production an Emitter.emit bound to the AppHandle, in tests a recorder."""
 
-    def __init__(self, orchestrator, runtime, emit: Callable[[str, dict], None]):
+    def __init__(self, orchestrator, runtime, emit: Callable[[str, object], None]):
         super().__init__(daemon=True, name="OrchestratorAdapter")
         self.orchestrator = orchestrator
         self.runtime = runtime
@@ -38,7 +40,7 @@ class OrchestratorAdapter(threading.Thread):
     def stop(self):
         self._stop_event.set()
 
-    def _emit_safe(self, event: str, payload: dict):
+    def _emit_safe(self, event: str, payload):
         try:
             self.emit(event, payload)
         except Exception as e:
@@ -54,7 +56,7 @@ class OrchestratorAdapter(threading.Thread):
             mtime = os.stat(arena_file).st_mtime
             self._emit_safe(
                 EVENT_HEARTBEAT,
-                {"logMtime": mtime, "logName": os.path.basename(arena_file)},
+                HeartbeatEvent(log_mtime=mtime, log_name=os.path.basename(arena_file)),
             )
         except Exception:
             pass
@@ -70,10 +72,10 @@ class OrchestratorAdapter(threading.Thread):
 
             if isinstance(msg, dict) and "status" in msg:
                 self.runtime.last_boot_message = msg["status"]
-                self._emit_safe(EVENT_STATUS, {"text": msg["status"]})
+                self._emit_safe(EVENT_STATUS, StatusEvent(text=msg["status"]))
             elif msg == "REFRESH":
                 seq = self.runtime.bump_refresh()
-                self._emit_safe(EVENT_REFRESH, {"seq": seq})
+                self._emit_safe(EVENT_REFRESH, RefreshEvent(seq=seq))
 
             self._maybe_heartbeat()
         logger.info("Orchestrator adapter stopped.")
