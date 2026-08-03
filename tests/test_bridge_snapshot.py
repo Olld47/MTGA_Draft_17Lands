@@ -34,8 +34,11 @@ from src.utils import Result
 from mtga_bridge.snapshot import (
     build_draft_state,
     build_taken_cards,
+    card_stats_vm,
     card_to_vm,
+    compute_signals,
     pool_summary_vm,
+    recommendation_vm,
 )
 from mtga_bridge.runtime import AppRuntime
 from mtga_bridge.orchestrator_adapter import (
@@ -69,7 +72,7 @@ def _mock_dataset():
                 "mana_cost": "{4}{G}{G}",
                 "image": ["https://example.com/hulk.jpg"],
                 "deck_colors": {
-                    "All Decks": {"gihwr": 62.0, "alsa": 2.0, "gih": 5000},
+                    "All Decks": {"gihwr": 62.0, "alsa": 2.0, "ata": 2.5, "gih": 5000},
                 },
             },
             "102": {
@@ -79,7 +82,7 @@ def _mock_dataset():
                 "colors": ["R"],
                 "rarity": "mythic",
                 "mana_cost": "{2}{R}{R}",
-                "deck_colors": {"All Decks": {"gihwr": 68.0, "alsa": 1.5}},
+                "deck_colors": {"All Decks": {"gihwr": 68.0, "alsa": 1.5, "ata": 1.5}},
             },
             "103": {
                 "name": "Black Removal Single Pip",
@@ -88,7 +91,7 @@ def _mock_dataset():
                 "colors": ["B"],
                 "rarity": "common",
                 "mana_cost": "{1}{B}",
-                "deck_colors": {"All Decks": {"gihwr": 58.0, "alsa": 3.0}},
+                "deck_colors": {"All Decks": {"gihwr": 58.0, "alsa": 3.0, "ata": 3.0}},
             },
         },
     }
@@ -533,3 +536,333 @@ def test_uiprogress_shims_cross_thread():
     assert received[-1][1] == 50.0
     text = next(t for k, _, t in received if k == "status")
     assert text == "downloading..."
+
+
+# --- card_stats_vm -----------------------------------------------------------
+
+
+def test_card_stats_reads_the_active_filter():
+    """Every rate on the Dashboard is filter-scoped; reading the wrong lane
+    shows a card's mono-color numbers under a two-color deck."""
+    card = {
+        constants.DATA_FIELD_DECK_COLORS: {
+            "All Decks": {"gihwr": 55.0, "alsa": 4.0},
+            "WU": {"gihwr": 62.5, "alsa": 2.0},
+        }
+    }
+    assert card_stats_vm(card, "WU").gihwr == 62.5
+    assert card_stats_vm(card, "All Decks").gihwr == 55.0
+
+
+def test_card_stats_are_all_none_for_an_unknown_filter():
+    card = {constants.DATA_FIELD_DECK_COLORS: {"All Decks": {"gihwr": 55.0}}}
+    stats = card_stats_vm(card, "BG")
+
+    assert stats.gihwr is None
+    assert stats.alsa is None
+    assert stats.gih is None
+
+
+def test_card_stats_round_the_rate_fields():
+    card = {constants.DATA_FIELD_DECK_COLORS: {"All Decks": {"gihwr": 55.6789}}}
+    assert card_stats_vm(card, "All Decks").gihwr == 55.7
+
+
+def test_card_stats_coerce_sample_counts_to_int():
+    """gih/ngp arrive as floats from the 17Lands JSON but are sample counts;
+    the UI renders them as bare integers."""
+    card = {
+        constants.DATA_FIELD_DECK_COLORS: {"All Decks": {"gih": 5000.0, "ngp": 1200.7}}
+    }
+    stats = card_stats_vm(card, "All Decks")
+
+    assert stats.gih == 5000
+    assert stats.ngp == 1200
+    assert isinstance(stats.gih, int)
+
+
+def test_card_stats_treat_a_blank_string_as_missing():
+    """The dataset uses "" for a stat with no data. Coerced to a number it
+    would render as a real 0% win rate."""
+    card = {constants.DATA_FIELD_DECK_COLORS: {"All Decks": {"gihwr": "", "gih": ""}}}
+    stats = card_stats_vm(card, "All Decks")
+
+    assert stats.gihwr is None
+    assert stats.gih is None
+
+
+def test_card_stats_survive_an_unparseable_value():
+    card = {constants.DATA_FIELD_DECK_COLORS: {"All Decks": {"gihwr": "N/A"}}}
+    assert card_stats_vm(card, "All Decks").gihwr is None
+
+
+def test_card_stats_handle_a_card_with_no_deck_colors():
+    assert card_stats_vm({}, "All Decks").gihwr is None
+
+
+# --- recommendation_vm -------------------------------------------------------
+
+
+def test_recommendation_vm_carries_every_field():
+    from src.advisor.schema import Recommendation
+
+    rec = Recommendation(
+        card_name="Green Hulk",
+        base_win_rate=62.0,
+        contextual_score=88.5,
+        z_score=1.4,
+        cast_probability=0.92,
+        wheel_chance=15.0,
+        functional_cmc=6.0,
+        reasoning=["Elite bomb", "Wheels 15%"],
+        is_elite=True,
+        archetype_fit="GW Aggro",
+        tags=["bomb"],
+    )
+    vm = recommendation_vm(rec)
+
+    assert vm.card_name == "Green Hulk"
+    assert vm.contextual_score == 88.5
+    assert vm.reasoning == ["Elite bomb", "Wheels 15%"]
+    assert vm.is_elite is True
+    assert vm.archetype_fit == "GW Aggro"
+    assert vm.tags == ["bomb"]
+
+
+def test_recommendation_vm_serializes_as_camel_case():
+    from src.advisor.schema import Recommendation
+
+    dumped = recommendation_vm(
+        Recommendation(
+            card_name="Green Hulk",
+            base_win_rate=62.0,
+            contextual_score=88.5,
+            z_score=1.4,
+            cast_probability=0.92,
+            wheel_chance=15.0,
+            functional_cmc=6.0,
+            reasoning=[],
+        )
+    ).model_dump()
+
+    assert "cardName" in dumped
+    assert "card_name" not in dumped
+
+
+# --- compute_signals ---------------------------------------------------------
+
+
+def _signal_scanner(env, history):
+    scanner = env["scanner"]
+    scanner.draft_history = history
+    return scanner
+
+
+# The fixture's baseline (SetMetrics over the three cards) is 62.67, and
+# calculate_pack_signals ignores any card at or below it. Only Red Bomb (id 102,
+# gihwr 68.0, ata 1.5) clears that bar — Green Hulk at 62.0 scores 0.0 no matter
+# how late it is seen. Every test below therefore passes 102, or the whole
+# section reads as "signals work" while measuring nothing.
+SCORING_CARD = 102
+
+
+def test_signals_start_at_zero_for_every_color(env):
+    scores = compute_signals(_signal_scanner(env, []))
+
+    assert set(scores) == set(constants.CARD_COLORS)
+    assert set(scores.values()) == {0.0}
+
+
+def test_signals_accumulate_across_packs(env):
+    """Each pack contributes to the running lane score, so the same pack seen
+    twice must count twice — a per-pack overwrite would make only the latest
+    pack visible."""
+    one = compute_signals(
+        _signal_scanner(env, [{"Pack": 1, "Pick": 6, "Cards": [SCORING_CARD]}])
+    )
+    two = compute_signals(
+        _signal_scanner(
+            env,
+            [
+                {"Pack": 1, "Pick": 6, "Cards": [SCORING_CARD]},
+                {"Pack": 3, "Pick": 6, "Cards": [SCORING_CARD]},
+            ],
+        )
+    )
+
+    assert one["R"] > 0.0
+    assert two["R"] == pytest.approx(one["R"] * 2)
+
+
+def test_signals_skip_pack_two(env):
+    """Pack 2 passes come from the opposite direction, so its lateness tells
+    you nothing about the lane packs 1 and 3 feed."""
+    scores = compute_signals(
+        _signal_scanner(env, [{"Pack": 2, "Pick": 6, "Cards": [SCORING_CARD]}])
+    )
+
+    assert set(scores.values()) == {0.0}
+
+
+def test_signals_score_the_colors_actually_seen(env):
+    scores = compute_signals(
+        _signal_scanner(env, [{"Pack": 1, "Pick": 8, "Cards": [SCORING_CARD]}])
+    )
+
+    assert scores["R"] > 0.0
+    assert scores["W"] == 0.0
+    assert scores["G"] == 0.0
+
+
+def test_signals_ignore_a_card_at_or_below_the_baseline(env):
+    """A card whose win rate is average is not evidence of an open lane, no
+    matter how late it wheels — this is the guard that made three of the tests
+    above vacuous when the fixture carried no above-baseline card."""
+    scores = compute_signals(
+        _signal_scanner(env, [{"Pack": 1, "Pick": 12, "Cards": [101, 103]}])
+    )
+
+    assert set(scores.values()) == {0.0}
+
+
+def test_signals_grow_with_lateness(env):
+    """The score is lateness x quality, so the same card seen later is a
+    stronger signal. Equal scores would mean the pick number is unread."""
+    early = compute_signals(
+        _signal_scanner(env, [{"Pack": 1, "Pick": 4, "Cards": [SCORING_CARD]}])
+    )
+    late = compute_signals(
+        _signal_scanner(env, [{"Pack": 1, "Pick": 10, "Cards": [SCORING_CARD]}])
+    )
+
+    assert late["R"] > early["R"] > 0.0
+
+
+def test_signals_ignore_a_card_seen_before_its_average_pick(env):
+    """Lateness is pick - ata; a card taken earlier than average has passed
+    nobody, so a negative lateness must not subtract from the lane."""
+    scores = compute_signals(
+        _signal_scanner(env, [{"Pack": 1, "Pick": 1, "Cards": [SCORING_CARD]}])
+    )
+
+    assert scores["R"] == 0.0
+
+
+# --- services.get_boot_status ------------------------------------------------
+
+
+def test_boot_status_before_boot_completes():
+    runtime = AppRuntime(config=Configuration())
+    runtime.last_boot_message = "Locating Player.log..."
+
+    status = services.get_boot_status(runtime)
+
+    assert status.booted is False
+    assert status.last_message == "Locating Player.log..."
+    assert status.error is None
+
+
+def test_boot_status_after_boot_completes():
+    """The webview can attach after boot://complete already fired, so this is
+    the only way a late subscriber learns boot finished."""
+    runtime = AppRuntime(config=Configuration())
+    runtime.booted.set()
+
+    assert services.get_boot_status(runtime).booted is True
+
+
+def test_boot_status_reports_a_failure():
+    runtime = AppRuntime(config=Configuration())
+    runtime.boot_error = "Player.log not found"
+
+    status = services.get_boot_status(runtime)
+
+    assert status.booted is False
+    assert status.error == "Player.log not found"
+
+
+# --- services.list_available_sets --------------------------------------------
+
+
+def test_available_sets_come_from_the_scanner(env):
+    runtime = AppRuntime(config=env["config"], scanner=env["scanner"])
+
+    result = services.list_available_sets(runtime)
+
+    assert [(s.code, s.name) for s in result.sets] == [("TEST", "Test Set")]
+
+
+def test_available_sets_fall_back_to_the_name_without_a_code(env):
+    """A set with no 17Lands code still has to be selectable in the Datasets
+    dropdown, which keys on code."""
+    scanner = env["scanner"]
+    scanner.set_list = SetDictionary(
+        data={"Mystery Set": SetInfo(arena=["MYS"], seventeenlands=[])}
+    )
+    runtime = AppRuntime(config=env["config"], scanner=scanner)
+
+    assert services.list_available_sets(runtime).sets[0].code == "Mystery Set"
+
+
+def test_available_sets_are_empty_before_the_scanner_exists():
+    """list_available_sets is reachable from the Datasets page while boot is
+    still running, so a None scanner is a normal state, not an error."""
+    runtime = AppRuntime(config=Configuration())
+
+    assert services.list_available_sets(runtime).sets == []
+
+
+# --- services.export_to_sealeddeck_tech --------------------------------------
+
+
+def test_sealeddeck_export_rejects_an_empty_deck():
+    result = services.export_to_sealeddeck_tech("   ")
+
+    assert result.ok is False
+    assert result.message == "Deck is empty."
+
+
+def test_sealeddeck_export_returns_the_share_url():
+    payload = "4 Green Hulk\n"
+    with patch("requests.post") as post:
+        post.return_value.status_code = 200
+        post.return_value.json.return_value = {"url": "https://sealeddeck.tech/abc123"}
+        result = services.export_to_sealeddeck_tech(payload)
+
+    assert result.ok is True
+    assert result.url == "https://sealeddeck.tech/abc123"
+    assert post.call_args.kwargs["json"] == {"pool": payload}
+
+
+def test_sealeddeck_export_falls_back_to_the_clipboard_on_a_network_error():
+    """The deck itself must survive the failure — the fallback text is what
+    the user pastes manually."""
+    payload = "4 Green Hulk\n"
+    with patch("requests.post", side_effect=OSError("no route to host")):
+        result = services.export_to_sealeddeck_tech(payload)
+
+    assert result.ok is False
+    assert result.text == payload
+    assert "clipboard" in result.message
+
+
+def test_sealeddeck_export_treats_a_missing_url_as_a_failure():
+    """HTTP 200 with no url is a successful request that produced nothing
+    shareable; reporting ok would leave the button looking like it worked."""
+    with patch("requests.post") as post:
+        post.return_value.status_code = 200
+        post.return_value.json.return_value = {}
+        result = services.export_to_sealeddeck_tech("4 Green Hulk\n")
+
+    assert result.ok is False
+    # SealedPage.tsx:188 gates the share link on `shareUrl &&`, so the failure
+    # value has to be falsy — SealedDeckTechVM.url defaults to "", not None.
+    assert result.url == ""
+
+
+def test_sealeddeck_export_treats_a_non_200_as_a_failure():
+    with patch("requests.post") as post:
+        post.return_value.status_code = 503
+        result = services.export_to_sealeddeck_tech("4 Green Hulk\n")
+
+    assert result.ok is False
