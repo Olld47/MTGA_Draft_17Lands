@@ -171,6 +171,32 @@ def filter_options(deck, option_selection, metrics, configuration):
     return [constants.FILTER_OPTION_ALL_DECKS]
 
 
+def filter_display_name(filter_key, filter_format):
+    """A deck filter as the user asked to see it: "Azorius" under the Names
+    format, "WU" under Colors. Falls back to the key for anything absent from
+    COLOR_NAMES_DICT, which is what "Auto" and "All Decks" hit."""
+    if filter_format != constants.DECK_FILTER_FORMAT_NAMES:
+        return filter_key
+    return constants.COLOR_NAMES_DICT.get(filter_key, filter_key)
+
+
+def filter_win_rate(filter_key, color_ratings):
+    """The archetype's overall win rate, or None when 17Lands reported no
+    ratings for it. 0.0 is not usable as the absent value: a real archetype can
+    round to it, and the UI has to tell "no data" from "terrible"."""
+    if not color_ratings:
+        return None
+    return color_ratings.get(filter_key)
+
+
+def format_filter_label(filter_key, filter_format, color_ratings):
+    """The label the filter dropdown and the masthead both show, e.g.
+    "Azorius (56.3%)". Mirrors log_scanner.retrieve_color_win_rate's format."""
+    name = filter_display_name(filter_key, filter_format)
+    rate = filter_win_rate(filter_key, color_ratings)
+    return f"{name} ({rate}%)" if rate is not None else name
+
+
 def get_deck_metrics(deck):
     """Calculates distribution and average CMC."""
     metrics = DeckMetrics()

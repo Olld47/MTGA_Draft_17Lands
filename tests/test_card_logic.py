@@ -254,3 +254,52 @@ def test_get_functional_cmc_mechanics():
     # 4. Empty/Missing Data
     assert get_functional_cmc({}) == 0
     assert get_functional_cmc({"cmc": 2, "oracle_text": None}) == 2
+
+
+# --- deck filter labels ------------------------------------------------------
+
+
+def test_filter_display_name_uses_the_guild_name_under_the_names_format():
+    from src.card_logic import filter_display_name
+
+    assert (
+        filter_display_name("WU", constants.DECK_FILTER_FORMAT_NAMES) == "Azorius"
+    )
+    assert filter_display_name("WU", constants.DECK_FILTER_FORMAT_COLORS) == "WU"
+
+
+def test_filter_display_name_passes_through_keys_with_no_guild_name():
+    """Auto and All Decks are in DECK_FILTERS but not COLOR_NAMES_DICT, so the
+    Names format has to fall back to the key rather than to an empty string."""
+    from src.card_logic import filter_display_name
+
+    for key in (constants.FILTER_OPTION_AUTO, constants.FILTER_OPTION_ALL_DECKS):
+        assert filter_display_name(key, constants.DECK_FILTER_FORMAT_NAMES) == key
+
+
+def test_filter_win_rate_distinguishes_absent_from_zero():
+    """None means 17Lands reported nothing; 0.0 is a real (terrible) rate. The
+    UI branches on the difference, so they must not collapse."""
+    from src.card_logic import filter_win_rate
+
+    assert filter_win_rate("WU", {"WU": 0.0}) == 0.0
+    assert filter_win_rate("UB", {"WU": 56.3}) is None
+    assert filter_win_rate("WU", {}) is None
+    assert filter_win_rate("WU", None) is None
+
+
+def test_format_filter_label_appends_the_rate_only_when_present():
+    from src.card_logic import format_filter_label
+
+    ratings = {"WU": 56.3}
+    assert (
+        format_filter_label("WU", constants.DECK_FILTER_FORMAT_NAMES, ratings)
+        == "Azorius (56.3%)"
+    )
+    assert (
+        format_filter_label("WU", constants.DECK_FILTER_FORMAT_COLORS, ratings)
+        == "WU (56.3%)"
+    )
+    assert (
+        format_filter_label("UB", constants.DECK_FILTER_FORMAT_COLORS, ratings) == "UB"
+    )

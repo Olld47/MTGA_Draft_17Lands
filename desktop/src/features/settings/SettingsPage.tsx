@@ -4,6 +4,8 @@ import { useSettings } from "../../state/useSettings";
 
 const RESULT_FORMATS = ["Percentage", "Rating", "Grade"];
 
+const FILTER_FORMATS = ["Colors", "Names"];
+
 const THEMES = ["System", "Dark", "Light"];
 
 interface ToggleRowProps {
@@ -32,7 +34,7 @@ function ToggleRow({ label, hint, checked, onChange }: ToggleRowProps) {
 export function SettingsPage() {
   const { settings, patch } = useSettings();
   const { busy, message, browseLogFile, browseMtgaData } = useFileTools();
-  const filters = useFilterOptions();
+  const filters = useFilterOptions(settings?.filterFormat);
 
   if (!settings) {
     return <div className="empty-state">Loading settings...</div>;
@@ -46,7 +48,7 @@ export function SettingsPage() {
       ? "Auto detects your two strongest colors"
       : !detected || detected === "All Decks"
         ? "Auto: detecting..."
-        : `Auto: ${detected}`;
+        : `Auto: ${filters?.autoDetectedLabel || detected}`;
 
   return (
     <div className="settings-grid">
@@ -77,7 +79,27 @@ export function SettingsPage() {
             value={settings.deckFilter}
             onChange={(e) => patch({ deckFilter: e.target.value })}
           >
-            {(filters?.options ?? [settings.deckFilter]).map((f) => (
+            {(
+              filters?.options ?? [
+                { key: settings.deckFilter, label: settings.deckFilter, winRate: null },
+              ]
+            ).map((f) => (
+              <option key={f.key} value={f.key}>
+                {f.winRate != null ? `${f.label} (${f.winRate}%)` : f.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="setting-row">
+          <label>
+            Deck filter format
+            <div className="hint">Names shows "Azorius" instead of "WU"</div>
+          </label>
+          <select
+            value={settings.filterFormat}
+            onChange={(e) => patch({ filterFormat: e.target.value })}
+          >
+            {FILTER_FORMATS.map((f) => (
               <option key={f} value={f}>
                 {f}
               </option>

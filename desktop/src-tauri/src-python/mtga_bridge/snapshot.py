@@ -15,7 +15,12 @@ from typing import Dict, List, Optional
 from src import constants
 from src.advisor.engine import DraftAdvisor
 from src.advisor.schema import Recommendation
-from src.card_logic import filter_options, get_deck_metrics
+from src.card_logic import (
+    filter_display_name,
+    filter_options,
+    filter_win_rate,
+    get_deck_metrics,
+)
 from src.signals import SignalCalculator
 
 from mtga_bridge.viewmodels import (
@@ -168,6 +173,7 @@ def build_draft_state(scanner, config, include_pool_summary: bool = True) -> Dra
         start_time = scanner.draft_start_time
         event_string = scanner.event_string
         arena_file = scanner.arena_file
+        color_ratings = scanner.set_data.get_color_ratings()
 
     scores = compute_signals(scanner)
 
@@ -180,7 +186,14 @@ def build_draft_state(scanner, config, include_pool_summary: bool = True) -> Dra
     )
     active_filter = colors[0] if colors else constants.FILTER_OPTION_ALL_DECKS
     is_auto = constants.FILTER_OPTION_AUTO in config.settings.deck_filter
-    filter_label = f"Auto ({active_filter})" if is_auto else active_filter
+    name = filter_display_name(active_filter, config.settings.filter_format)
+    rate = filter_win_rate(active_filter, color_ratings)
+    if is_auto:
+        # "Auto (Azorius 56.3%)", the form src/ui/windows/overlay.py builds.
+        # Not format_filter_label's "Azorius (56.3%)" — that would nest parens.
+        filter_label = f"Auto ({name}{f' {rate}%' if rate is not None else ''})"
+    else:
+        filter_label = f"{name} ({rate}%)" if rate is not None else name
 
     picked_names = {
         c.get(constants.DATA_FIELD_NAME) for c in (picked_cards or [])

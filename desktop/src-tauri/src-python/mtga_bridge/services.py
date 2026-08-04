@@ -10,7 +10,12 @@ from datetime import datetime
 from typing import Optional
 
 from src import constants
-from src.card_logic import filter_options
+from src.card_logic import (
+    filter_display_name,
+    filter_options,
+    filter_win_rate,
+    format_filter_label,
+)
 from src.configuration import write_configuration
 
 from mtga_bridge.viewmodels import (
@@ -20,6 +25,7 @@ from mtga_bridge.viewmodels import (
     BootStatusVM,
     DraftLogListVM,
     DraftLogVM,
+    FilterOptionVM,
     FilterOptionsVM,
     FrontendErrorBody,
     SealedDeckTechVM,
@@ -222,19 +228,34 @@ def apply_settings_patch(runtime, patch: SettingsPatch) -> SettingsVM:
 def get_filter_options(runtime) -> FilterOptionsVM:
     config = runtime.config
     scanner = runtime.scanner
+    filter_format = config.settings.filter_format
     auto_detected = ""
+    color_ratings = {}
     if scanner is not None:
         with scanner.lock:
             metrics = scanner.retrieve_set_metrics()
             taken = scanner.retrieve_taken_cards()
+            color_ratings = scanner.set_data.get_color_ratings()
         detected = filter_options(
             taken, constants.FILTER_OPTION_AUTO, metrics, config
         )
         auto_detected = detected[0] if detected else ""
     return FilterOptionsVM(
-        options=list(constants.DECK_FILTERS),
+        options=[
+            FilterOptionVM(
+                key=key,
+                label=filter_display_name(key, filter_format),
+                win_rate=filter_win_rate(key, color_ratings),
+            )
+            for key in constants.DECK_FILTERS
+        ],
         active=config.settings.deck_filter,
         auto_detected=auto_detected,
+        auto_detected_label=(
+            format_filter_label(auto_detected, filter_format, color_ratings)
+            if auto_detected
+            else ""
+        ),
     )
 
 

@@ -102,10 +102,17 @@ export interface Settings {
 
 export type SettingsPatch = Partial<Settings>;
 
+export interface FilterOption {
+  key: string;
+  label: string;
+  winRate: number | null;
+}
+
 export interface FilterOptions {
-  options: string[];
+  options: FilterOption[];
   active: string;
   autoDetected: string;
+  autoDetectedLabel: string;
 }
 
 export interface DatasetInfo {

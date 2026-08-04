@@ -222,6 +222,31 @@ def test_build_draft_state_with_pool(env):
     assert state.pool_summary.card_count == 3
 
 
+def test_draft_state_filter_label_carries_the_name_and_rate(env):
+    """The masthead's `filterLabel`. Before this it read "Auto (WU)" where the
+    tkinter top bar read "(Auto: Azorius 56.3%)"."""
+    scanner = env["scanner"]
+    scanner.set_data._dataset["color_ratings"] = {"All Decks": 54.0}
+    env["config"].settings.deck_filter = constants.FILTER_OPTION_AUTO
+    env["config"].settings.filter_format = constants.DECK_FILTER_FORMAT_NAMES
+
+    state = build_draft_state(scanner, env["config"])
+
+    assert state.active_filter == "All Decks"
+    assert state.filter_label == "Auto (All Decks 54.0%)"
+
+
+def test_draft_state_filter_label_without_auto_omits_the_prefix(env):
+    scanner = env["scanner"]
+    scanner.set_data._dataset["color_ratings"] = {"WU": 56.3}
+    env["config"].settings.deck_filter = "WU"
+    env["config"].settings.filter_format = constants.DECK_FILTER_FORMAT_NAMES
+
+    state = build_draft_state(scanner, env["config"])
+
+    assert state.filter_label == "Azorius (56.3%)"
+
+
 def test_build_taken_cards_dedup(env):
     scanner = env["scanner"]
     scanner.taken_cards = ["101", "101", "103"]
@@ -474,6 +499,16 @@ def test_list_draft_logs_resolves_the_live_set_display_name(env):
 # --- services: filter options ------------------------------------------------
 
 
+def _option(result, key):
+    return next(o for o in result.options if o.key == key)
+
+
+def _patch_color_ratings(scanner, ratings):
+    """The fixture dataset carries no color_ratings block, so every rate would
+    otherwise be None and the win-rate assertions would pass vacuously."""
+    scanner.set_data._dataset["color_ratings"] = ratings
+
+
 def test_get_filter_options_returns_every_deck_filter(env):
     """SettingsPage renders this list verbatim, so it must be the full set
     rather than the abridged copy the page used to hardcode."""
@@ -482,9 +517,82 @@ def test_get_filter_options_returns_every_deck_filter(env):
 
     result = services.get_filter_options(runtime)
 
-    assert result.options == list(constants.DECK_FILTERS)
+    assert [o.key for o in result.options] == list(constants.DECK_FILTERS)
     assert len(result.options) == 33
     assert result.active == "WU"
+
+
+def test_filter_options_label_under_the_colors_format(env):
+    """The Colors format shows the raw key, which is what the page rendered
+    before `filter_format` had any UI."""
+    env["config"].settings.filter_format = constants.DECK_FILTER_FORMAT_COLORS
+    runtime = AppRuntime(config=env["config"], scanner=env["scanner"])
+
+    result = services.get_filter_options(runtime)
+
+    assert _option(result, "WU").label == "WU"
+
+
+def test_filter_options_label_under_the_names_format(env):
+    """The Names format is the legacy retrieve_color_win_rate behaviour: the
+    guild name, not the color pair."""
+    env["config"].settings.filter_format = constants.DECK_FILTER_FORMAT_NAMES
+    runtime = AppRuntime(config=env["config"], scanner=env["scanner"])
+
+    result = services.get_filter_options(runtime)
+
+    assert _option(result, "WU").label == "Azorius"
+    # Auto and All Decks are absent from COLOR_NAMES_DICT and must pass through
+    # rather than falling back to something empty.
+    assert _option(result, "Auto").label == "Auto"
+    assert _option(result, "All Decks").label == "All Decks"
+
+
+def test_filter_options_carry_the_archetype_win_rate(env):
+    """The gap this closes: FilterOptionsVM shipped no winrate, so the desktop
+    dropdown read `WU` where the tkinter one read `WU (56.3%)`."""
+    _patch_color_ratings(env["scanner"], {"WU": 56.3})
+    runtime = AppRuntime(config=env["config"], scanner=env["scanner"])
+
+    result = services.get_filter_options(runtime)
+
+    assert _option(result, "WU").win_rate == 56.3
+
+
+def test_filter_options_win_rate_is_none_when_17lands_has_no_rating(env):
+    """None rather than 0.0: an archetype can genuinely round to zero, and the
+    dropdown has to tell "no data" from "terrible"."""
+    _patch_color_ratings(env["scanner"], {"WU": 56.3})
+    runtime = AppRuntime(config=env["config"], scanner=env["scanner"])
+
+    result = services.get_filter_options(runtime)
+
+    assert _option(result, "UB").win_rate is None
+
+
+def test_filter_options_auto_detected_label_combines_name_and_rate(env):
+    """SettingsPage's `Auto: ...` hint reads this field."""
+    _patch_color_ratings(env["scanner"], {"All Decks": 54.0})
+    env["config"].settings.filter_format = constants.DECK_FILTER_FORMAT_NAMES
+    runtime = AppRuntime(config=env["config"], scanner=env["scanner"])
+
+    result = services.get_filter_options(runtime)
+
+    # An empty pool detects as All Decks, which has a rating in this fixture.
+    assert result.auto_detected == "All Decks"
+    assert result.auto_detected_label == "All Decks (54.0%)"
+
+
+def test_filter_options_without_a_scanner_reports_no_rates(env):
+    """get_filter_options runs before boot completes, when runtime.scanner is
+    still None — it must still return the full option list."""
+    runtime = AppRuntime(config=env["config"], scanner=None)
+
+    result = services.get_filter_options(runtime)
+
+    assert len(result.options) == 33
+    assert all(o.win_rate is None for o in result.options)
+    assert result.auto_detected_label == ""
 
 
 # --- runtime cache -----------------------------------------------------------

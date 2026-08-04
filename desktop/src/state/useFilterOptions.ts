@@ -6,8 +6,9 @@ import type { FilterOptions } from "../api/types";
 
 /** The deck-filter dropdown's contents, from constants.DECK_FILTERS on the
  *  Python side. Refetches on draft://refresh because `autoDetected` tracks the
- *  pool as it grows. */
-export function useFilterOptions() {
+ *  pool as it grows, and whenever `filterFormat` changes because the labels and
+ *  win rates are rendered server-side under that setting. */
+export function useFilterOptions(filterFormat?: string) {
   const [options, setOptions] = useState<FilterOptions | null>(null);
 
   const refresh = useCallback(() => {
@@ -22,7 +23,7 @@ export function useFilterOptions() {
     return () => {
       un.then((f) => f());
     };
-  }, [refresh]);
+  }, [refresh, filterFormat]);
 
   return options;
 }

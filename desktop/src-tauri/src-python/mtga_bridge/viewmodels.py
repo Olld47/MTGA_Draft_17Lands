@@ -212,10 +212,17 @@ class SettingsPatch(_VM):
     column_configs: Optional[Dict[str, List[str]]] = None
 
 
+class FilterOptionVM(_VM):
+    key: str
+    label: str
+    win_rate: Optional[float] = None
+
+
 class FilterOptionsVM(_VM):
-    options: List[str]
+    options: List[FilterOptionVM]
     active: str
     auto_detected: str = ""
+    auto_detected_label: str = ""
 
 
 # ---------------------------------------------------------------------------
