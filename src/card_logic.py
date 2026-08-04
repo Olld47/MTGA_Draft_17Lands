@@ -284,6 +284,26 @@ def stack_cards(cards):
     return list(stacked.values())
 
 
+def count_copies(cards):
+    """Card count of a stacked list, where each row carries a count."""
+    return sum(c.get(constants.DATA_FIELD_COUNT, 1) for c in cards)
+
+
+def take_copies(cards, limit):
+    """The first `limit` copies, splitting the row that straddles the boundary."""
+    taken = []
+    remaining = limit
+    for card in cards:
+        if remaining <= 0:
+            break
+        count = min(card.get(constants.DATA_FIELD_COUNT, 1), remaining)
+        row = dict(card)
+        row[constants.DATA_FIELD_COUNT] = count
+        taken.append(row)
+        remaining -= count
+    return taken
+
+
 def copy_deck(deck, sideboard):
     """Formats deck for Clipboard."""
     output = "Deck\n"

@@ -254,6 +254,24 @@ class TestSealedStudio:
             assert len(sb) == 0
             assert len(main) > 0
 
+    def test_auto_lands_counts_copies_not_rows(
+        self, root, mock_app_context, mock_pool
+    ):
+        """`get_active_deck_lists` returns stacked rows, so `40 - len(spells)`
+        counted 2 rows where there were 3 cards and over-filled the deck."""
+        with patch("src.ui.windows.sealed_studio.ThreadPoolExecutor"):
+            studio = SealedStudioWindow(
+                root, mock_app_context, Configuration(), mock_pool, MagicMock()
+            )
+            studio._clear_deck()
+            studio.session.move_to_main("Grizzly Bears", 2)
+            studio.session.move_to_main("Shock", 1)
+
+            studio._apply_auto_lands()
+
+            main, _ = studio.session.get_active_deck_lists()
+            assert sum(c.get("count", 1) for c in main) == 40
+
     def test_import_deck_from_clipboard_success(
         self, root, mock_app_context, mock_pool
     ):

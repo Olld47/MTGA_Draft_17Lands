@@ -21,7 +21,9 @@ from PIL import Image, ImageTk
 from src import constants
 from src.card_logic import (
     copy_deck,
+    count_copies,
     stack_cards,
+    take_copies,
     calculate_dynamic_mana_base,
     format_types_for_ui,
     get_strict_colors,
@@ -1183,19 +1185,21 @@ class CustomDeckPanel(ttk.Frame):
             if not deck_colors:
                 deck_colors = ["W", "U", "B", "R", "G"]
 
-            total_lands_needed = 40 - len(spells)
+            # Counted in copies, not rows: deck_list is stacked, so a row can be
+            # several cards.
+            total_lands_needed = 40 - count_copies(spells)
 
             # Trim excess non-basics if needed
-            if len(non_basic_lands) > total_lands_needed:
+            if count_copies(non_basic_lands) > total_lands_needed:
                 non_basic_lands.sort(
                     key=lambda x: float(
                         x.get("deck_colors", {}).get("All Decks", {}).get("gihwr", 0.0)
                     ),
                     reverse=True,
                 )
-                non_basic_lands = non_basic_lands[:total_lands_needed]
+                non_basic_lands = take_copies(non_basic_lands, total_lands_needed)
 
-            needed_basics = max(0, total_lands_needed - len(non_basic_lands))
+            needed_basics = max(0, total_lands_needed - count_copies(non_basic_lands))
 
             # Trigger the AI brute force
             basics_to_add = brute_force_mana_base(

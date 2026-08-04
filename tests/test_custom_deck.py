@@ -54,6 +54,37 @@ class TestCustomDeckPanel:
         ]
         assert any("Add spells to the deck first" in text for text in labels)
 
+    def test_auto_lands_counts_copies_not_rows(self, root):
+        """deck_list is stacked, so `40 - len(spells)` counted 2 rows where
+        there were 21 cards and produced a deck far larger than 40."""
+        app_context = MagicMock()
+        panel = CustomDeckPanel(root, MagicMock(), Configuration(), app_context)
+        panel.sim_executor.submit = lambda fn, *args, **kwargs: fn(*args, **kwargs)
+        panel.after = lambda delay, fn=None, *a, **k: fn() if fn else None
+
+        panel.deck_list = [
+            {
+                "name": "White Knight",
+                "types": ["Creature"],
+                "cmc": 2,
+                "colors": ["W"],
+                "mana_cost": "{1}{W}",
+                "count": 12,
+            },
+            {
+                "name": "Blue Flyer",
+                "types": ["Creature"],
+                "cmc": 3,
+                "colors": ["U"],
+                "mana_cost": "{2}{U}",
+                "count": 9,
+            },
+        ]
+
+        panel._run_auto_lands_task()
+
+        assert sum(c.get("count", 1) for c in panel.deck_list) == 40
+
     def test_add_and_remove_specific_basic_lands(self, root):
         """Verify the Basic Land toolbar accurately injects and removes lands from the main deck array."""
         app_context = MagicMock()

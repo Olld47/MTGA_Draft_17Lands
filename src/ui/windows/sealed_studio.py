@@ -1487,7 +1487,11 @@ class SealedStudioWindow(tb.Toplevel):
         self._refresh_data()
 
     def _apply_auto_lands(self):
-        from src.card_logic import calculate_dynamic_mana_base, get_strict_colors
+        from src.card_logic import (
+            calculate_dynamic_mana_base,
+            count_copies,
+            get_strict_colors,
+        )
 
         main_deck, _ = self.session.get_active_deck_lists()
 
@@ -1503,7 +1507,8 @@ class SealedStudioWindow(tb.Toplevel):
             return
 
         colors = get_strict_colors(spells) or ["W", "U", "B", "R", "G"]
-        needed = max(0, 40 - len(spells) - len(non_basic_lands))
+        # get_active_deck_lists returns stacked rows, so count copies.
+        needed = max(0, 40 - count_copies(spells) - count_copies(non_basic_lands))
 
         basics_to_add = calculate_dynamic_mana_base(
             spells, non_basic_lands, colors, forced_count=needed

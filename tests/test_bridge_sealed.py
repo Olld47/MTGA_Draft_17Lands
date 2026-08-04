@@ -308,12 +308,25 @@ def test_apply_auto_lands_adds_basics(env):
     assert res.ok
     basics = res.state.stats.basics
     added = sum(basics.values())
-    # calculate_dynamic_mana_base returns exactly forced_count basics; the port
-    # mirrors the tkinter handler's needed = 40 - len(spell_entries) - len(nonbasics).
     assert added > 0
     # White/Blue are the deck's colors, so those basics should dominate.
     assert basics["Plains"] > 0 and basics["Island"] > 0
     assert basics["Swamp"] == 0 and basics["Mountain"] == 0 and basics["Forest"] == 0
+
+
+def test_apply_auto_lands_counts_copies_not_rows(env):
+    """`get_active_deck_lists` returns stacked rows, so `40 - len(spells)`
+    counted three rows where there were 21 cards and asked for 37 basics — a
+    58-card deck. The same shape as the deck_session bug fixed in v0.14."""
+    session = _session(env)
+    for name in ["White Knight", "Blue Flyer", "WU Flex"]:
+        session.move_card(name, to_sideboard=False, count=7)
+
+    res = session.apply_auto_lands()
+
+    assert res.ok
+    assert res.state.stats.total_cards == 40
+    assert sum(res.state.stats.basics.values()) == 19
 
 
 def test_apply_auto_lands_requires_spells(env):
