@@ -170,6 +170,9 @@ def settings_vm(config) -> SettingsVM:
         arena_log_location=s.arena_log_location,
         database_location=s.database_location,
         column_configs=dict(s.column_configs),
+        deck_mid_distribution=list(
+            (config.card_logic.deck_mid.distribution if config.card_logic else []) or []
+        ),
     )
 
 

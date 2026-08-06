@@ -44,6 +44,19 @@ _ROUND_FIELDS = {
     constants.DATA_FIELD_IWD: 1,
 }
 
+# Type-count priority mirrors src/ui/dashboard.py's POOL BALANCE pie: a card
+# falls into the first matching type, and basics are excluded.
+_TYPE_COUNT_ORDER = [
+    "Creature",
+    "Planeswalker",
+    "Battle",
+    "Instant",
+    "Sorcery",
+    "Enchantment",
+    "Artifact",
+    "Land",
+]
+
 
 def _stat(stats: dict, field: str) -> Optional[float]:
     value = stats.get(field)
@@ -127,10 +140,19 @@ def card_to_vm(
 def pool_summary_vm(taken_cards: List[dict]) -> PoolSummaryVM:
     metrics = get_deck_metrics(taken_cards)
     pips: Dict[str, int] = {c: 0 for c in constants.CARD_COLORS}
+    type_counts: Dict[str, int] = {t: 0 for t in _TYPE_COUNT_ORDER}
     for card in taken_cards:
         for color in card.get(constants.DATA_FIELD_COLORS, []) or []:
             if color in pips:
                 pips[color] += 1
+        types = card.get(constants.DATA_FIELD_TYPES, []) or []
+        if "Basic" in types or card.get(constants.DATA_FIELD_NAME) in constants.BASIC_LANDS:
+            continue
+        count = int(card.get(constants.DATA_FIELD_COUNT, 1) or 1)
+        for t in _TYPE_COUNT_ORDER:
+            if t in types:
+                type_counts[t] += count
+                break
     return PoolSummaryVM(
         cmc_distribution=list(metrics.distribution_all),
         cmc_average=round(metrics.cmc_average, 2),
@@ -138,6 +160,7 @@ def pool_summary_vm(taken_cards: List[dict]) -> PoolSummaryVM:
         creature_count=metrics.creature_count,
         noncreature_count=metrics.noncreature_count,
         card_count=metrics.total_cards,
+        type_counts=type_counts,
     )
 
 

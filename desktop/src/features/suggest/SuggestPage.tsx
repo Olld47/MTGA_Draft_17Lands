@@ -8,21 +8,10 @@ import {
   suggestSelectArchetype,
   suggestSendToBuilder,
 } from "../../api/client";
-import type { DeckRow, SampleHand, SuggestState } from "../../api/types";
+import type { SampleHand, SuggestState } from "../../api/types";
+import { artUrl } from "../../components/cardColumns";
 import { DeckStatsView, DeckTable } from "../deck/DeckStatsView";
 import { SimResultView } from "../deck/SimResultView";
-
-/** The 17Lands datasets store relative art paths; Scryfall URLs come through
- *  absolute. Prefer the large printing when Scryfall offers a size variant. */
-function artUrl(card: DeckRow): string | null {
-  const raw = card.image[0];
-  if (!raw) return null;
-  if (raw.startsWith("/static")) return `https://www.17lands.com${raw}`;
-  if (raw.includes("scryfall") && !raw.includes("format=image")) {
-    return raw.replace("/small/", "/large/").replace("/normal/", "/large/");
-  }
-  return raw;
-}
 
 function SampleHandView({ hand }: { hand: SampleHand }) {
   if (hand.message) {
@@ -31,7 +20,7 @@ function SampleHandView({ hand }: { hand: SampleHand }) {
   return (
     <div className="hand-fan">
       {hand.cards.map((c, i) => {
-        const url = artUrl(c);
+        const url = artUrl(c.image);
         return (
           <figure key={`${c.name}-${i}`} className="hand-card">
             {url ? <img src={url} alt={c.name} loading="lazy" /> : null}

@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useRef, useState, type ReactNode } from "react";
 
 export interface Column<T> {
   id: string;
@@ -15,6 +15,8 @@ interface Props<T> {
   rowClass?: (row: T) => string;
   defaultSort?: { id: string; desc: boolean };
   emptyText?: string;
+  /** Optional card-art preview shown while hovering a row (pack tables). */
+  hoverImage?: (row: T) => string | null;
 }
 
 /** Small hand-rolled sortable table — pack tables are ≤15 rows, no
@@ -26,8 +28,11 @@ export function DataTable<T>({
   rowClass,
   defaultSort,
   emptyText = "No data",
+  hoverImage,
 }: Props<T>) {
   const [sort, setSort] = useState(defaultSort ?? null);
+  const [hoverUrl, setHoverUrl] = useState<string | null>(null);
+  const posRef = useRef({ x: 0, y: 0 });
 
   const sorted = useMemo(() => {
     if (!sort) return rows;
@@ -51,37 +56,62 @@ export function DataTable<T>({
     );
   };
 
+  // Row delegation: moving between rows updates the preview without the
+  // leave/enter churn of per-row handlers.
+  const handleRowOver = (e: React.MouseEvent<HTMLTableElement>) => {
+    posRef.current = { x: e.clientX, y: e.clientY };
+    if (!hoverImage) return;
+    const tr = (e.target as Element).closest("tr");
+    const idx = tr?.getAttribute("data-index");
+    const row = idx == null ? undefined : sorted[Number(idx)];
+    setHoverUrl(row ? (hoverImage(row) ?? null) : null);
+  };
+
   if (rows.length === 0) {
     return <div className="empty-state">{emptyText}</div>;
   }
 
   return (
-    <table className="data-table">
-      <thead>
-        <tr>
-          {columns.map((c) => (
-            <th
-              key={c.id}
-              className={sort?.id === c.id ? "sorted" : ""}
-              onClick={() => c.sortValue && toggleSort(c.id)}
-            >
-              {c.header}
-              {sort?.id === c.id ? (sort.desc ? " ↓" : " ↑") : ""}
-            </th>
-          ))}
-        </tr>
-      </thead>
-      <tbody>
-        {sorted.map((row) => (
-          <tr key={rowKey(row)} className={rowClass?.(row) ?? ""}>
+    <div className="table-wrap">
+      <table className="data-table" onMouseMove={handleRowOver} onMouseLeave={() => setHoverUrl(null)}>
+        <thead>
+          <tr>
             {columns.map((c) => (
-              <td key={c.id} className={c.numeric ? "num" : ""}>
-                {c.cell(row)}
-              </td>
+              <th
+                key={c.id}
+                className={sort?.id === c.id ? "sorted" : ""}
+                onClick={() => c.sortValue && toggleSort(c.id)}
+              >
+                {c.header}
+                {sort?.id === c.id ? (sort.desc ? " ↓" : " ↑") : ""}
+              </th>
             ))}
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {sorted.map((row, i) => (
+            <tr
+              key={rowKey(row)}
+              data-index={i}
+              className={rowClass?.(row) ?? ""}
+            >
+              {columns.map((c) => (
+                <td key={c.id} className={c.numeric ? "num" : ""}>
+                  {c.cell(row)}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {hoverUrl && (
+        <img
+          className="card-hover"
+          src={hoverUrl}
+          alt=""
+          style={{ left: posRef.current.x + 18, top: posRef.current.y - 140 }}
+        />
+      )}
+    </div>
   );
 }

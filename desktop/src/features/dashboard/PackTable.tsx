@@ -1,6 +1,7 @@
 import type { Card } from "../../api/types";
 import { DataTable, type Column } from "../../components/DataTable";
 import {
+  artUrl,
   cardRowClass,
   manaColumn,
   nameColumn,
@@ -39,6 +40,7 @@ export function PackTable({ cards, colorTint, emptyText }: Props) {
       rowClass={(c) => cardRowClass(c, colorTint)}
       defaultSort={{ id: "value", desc: true }}
       emptyText={emptyText ?? "Waiting for a pack..."}
+      hoverImage={(c) => artUrl(c.image)}
     />
   );
 }

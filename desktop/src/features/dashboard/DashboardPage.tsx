@@ -2,14 +2,18 @@ import type { DraftState } from "../../api/types";
 import { AdvisorPanel } from "./AdvisorPanel";
 import { PackTable } from "./PackTable";
 import { PoolSummaryStrip } from "./PoolSummaryStrip";
+import { ManaCurveChart } from "./ManaCurveChart";
+import { PoolBalanceChart } from "./PoolBalanceChart";
 import { SignalLedger } from "./SignalLedger";
 
 interface Props {
   state: DraftState;
   colorTint: boolean;
+  /** Ideal mid-range mana curve from Settings.deckMidDistribution. */
+  idealCurve?: number[];
 }
 
-export function DashboardPage({ state, colorTint }: Props) {
+export function DashboardPage({ state, colorTint, idealCurve = [] }: Props) {
   const recommendations = state.packCards
     .map((c) => c.recommendation)
     .filter((r): r is NonNullable<typeof r> => r != null);
@@ -37,6 +41,19 @@ export function DashboardPage({ state, colorTint }: Props) {
           <section className="panel">
             <h2>Pool</h2>
             <PoolSummaryStrip summary={state.poolSummary} />
+            <div className="pool-charts">
+              <div className="pool-chart">
+                <span className="pool-chart-title">Mana curve</span>
+                <ManaCurveChart
+                  distribution={state.poolSummary.cmcDistribution}
+                  ideal={idealCurve}
+                />
+              </div>
+              <div className="pool-chart">
+                <span className="pool-chart-title">Pool balance</span>
+                <PoolBalanceChart counts={state.poolSummary.typeCounts ?? {}} />
+              </div>
+            </div>
           </section>
         )}
       </div>

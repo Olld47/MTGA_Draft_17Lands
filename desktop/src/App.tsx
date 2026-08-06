@@ -206,7 +206,11 @@ export default function App() {
         <ErrorBoundary resetKey={tab}>
           {tab === "draft" &&
             (state ? (
-              <DashboardPage state={state} colorTint={colorTint} />
+              <DashboardPage
+                state={state}
+                colorTint={colorTint}
+                idealCurve={settings?.deckMidDistribution ?? []}
+              />
             ) : (
               <div className="empty-state">Waiting for draft data...</div>
             ))}

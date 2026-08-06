@@ -49,6 +49,7 @@ export interface PoolSummary {
   creatureCount: number;
   noncreatureCount: number;
   cardCount: number;
+  typeCounts: Record<string, number>;
 }
 
 export interface DraftState {
@@ -98,6 +99,7 @@ export interface Settings {
   arenaLogLocation: string;
   databaseLocation: string;
   columnConfigs: Record<string, string[]>;
+  deckMidDistribution: number[];
 }
 
 export type SettingsPatch = Partial<Settings>;

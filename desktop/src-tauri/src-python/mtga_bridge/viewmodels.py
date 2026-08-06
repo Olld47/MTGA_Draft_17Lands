@@ -139,6 +139,9 @@ class PoolSummaryVM(_VM):
     creature_count: int = 0
     noncreature_count: int = 0
     card_count: int = 0
+    # Per-type pool counts (Creature/Planeswalker/Battle/Instant/Sorcery/
+    # Enchantment/Artifact/Land), basic lands excluded, multiplied by count.
+    type_counts: Dict[str, int] = {}
 
 
 class DraftStateVM(_VM):
@@ -194,6 +197,8 @@ class SettingsVM(_VM):
     arena_log_location: str
     database_location: str
     column_configs: Dict[str, List[str]] = {}
+    # Ideal mid-range mana curve for the MANA CURVE panel's dashed overlay.
+    deck_mid_distribution: List[int] = []
 
 
 class SettingsPatch(_VM):

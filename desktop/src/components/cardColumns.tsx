@@ -5,6 +5,18 @@ import type { Column } from "./DataTable";
 export const fmtPct = (v: number | null) => (v == null ? "—" : v.toFixed(1));
 export const fmtNum = (v: number | null) => (v == null ? "—" : v.toFixed(1));
 
+/** 17Lands datasets store relative art paths; Scryfall URLs come through
+ *  absolute. Prefer the large printing when Scryfall offers a size variant. */
+export function artUrl(image: string[]): string | null {
+  const raw = image[0];
+  if (!raw) return null;
+  if (raw.startsWith("/static")) return `https://www.17lands.com${raw}`;
+  if (raw.includes("scryfall") && !raw.includes("format=image")) {
+    return raw.replace("/small/", "/large/").replace("/normal/", "/large/");
+  }
+  return raw;
+}
+
 /** Rarity ink, lifted from the legacy CardToolTip header coloring. */
 const RARITY_COLOR: Record<string, string> = {
   mythic: "#d4712a",

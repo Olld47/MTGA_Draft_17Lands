@@ -200,6 +200,36 @@ def test_pool_summary(env):
     assert vm.color_pips["B"] == 1
 
 
+def test_pool_summary_type_counts():
+    """typeCounts follows the legacy POOL BALANCE priority: a card counts once,
+    into its first matching type in the order Creature → … → Land; basic lands
+    are excluded; the card's count field multiplies."""
+    pool = [
+        {"name": "Goose", "cmc": 1, "types": ["Creature"], "colors": ["G"], "count": 2},
+        {"name": "Sword", "cmc": 2, "types": ["Artifact", "Creature"], "colors": ["C"], "count": 1},
+        {"name": "Shock", "cmc": 1, "types": ["Instant"], "colors": ["R"], "count": 3},
+        {"name": "Wrath", "cmc": 4, "types": ["Sorcery"], "colors": ["W"], "count": 1},
+        {"name": "Aura", "cmc": 2, "types": ["Enchantment"], "colors": ["W"], "count": 1},
+        {"name": "Walker", "cmc": 4, "types": ["Planeswalker"], "colors": ["G"], "count": 1},
+        {"name": "Cave", "cmc": 0, "types": ["Land", "Basic"], "colors": ["W"], "count": 1},
+        {"name": "Forest", "cmc": 0, "types": ["Basic", "Land"], "colors": ["G"], "count": 5},
+    ]
+    vm = pool_summary_vm(pool)
+    # Creature: Goose ×2 + Sword (Artifact Creature falls into Creature first)
+    assert vm.type_counts["Creature"] == 3
+    assert vm.type_counts["Planeswalker"] == 1
+    assert vm.type_counts["Battle"] == 0
+    assert vm.type_counts["Instant"] == 3
+    assert vm.type_counts["Sorcery"] == 1
+    assert vm.type_counts["Enchantment"] == 1
+    assert vm.type_counts["Artifact"] == 0  # consumed by the Creature priority
+    assert vm.type_counts["Land"] == 0  # basics excluded
+    assert sum(vm.type_counts.values()) == 9
+    # camelCase alias ships to the frontend
+    dumped = vm.model_dump(by_alias=True)
+    assert dumped["typeCounts"]["Creature"] == 3
+
+
 # --- build_draft_state -------------------------------------------------------
 
 
@@ -369,6 +399,19 @@ def test_settings_vm_round_trip(env):
     assert "deckFilter" in dumped
     assert "arenaLogLocation" in dumped
     assert dumped["desktopTheme"] == constants.DESKTOP_THEME_DEFAULT
+
+
+def test_settings_vm_includes_deck_mid_distribution(env):
+    """The MANA CURVE ideal overlay needs the config's mid-range deck curve;
+    it must reach the frontend as deckMidDistribution, or the overlay renders
+    empty."""
+    vm = services.settings_vm(env["config"])
+    dumped = vm.model_dump(by_alias=True)
+    assert dumped["deckMidDistribution"] == [0, 0, 4, 3, 2, 1, 0]
+    # A config with no card_logic must not crash — the field defaults to [].
+    env["config"].card_logic = None
+    vm = services.settings_vm(env["config"])
+    assert vm.deck_mid_distribution == []
 
 
 def test_desktop_theme_patch_leaves_tkinter_theme_alone(env):

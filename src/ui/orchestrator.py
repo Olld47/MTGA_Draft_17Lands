@@ -236,21 +236,24 @@ class DraftOrchestrator(threading.Thread):
             s_code = target_set or event_set
             if not s_code:
                 return False
-            sources = self.scanner.retrieve_data_sources()
-            for label, path in sources.items():
-                if f"[{s_code.upper()}]" in label.upper():
-                    # CACHE HIT: Skip reading the massive 25MB JSON file!
-                    if (
-                        self.config.card_data.latest_dataset == os.path.basename(path)
-                        and self.scanner.set_data._dataset is not None
-                    ):
-                        return True
+            # Best match: same set + event type agreement + broadest group (All).
+            # A set ships one dataset per event type; loading the wrong one (e.g.
+            # a PickTwo draft for a QuickDraft) yields all-zero stats.
+            path = self.scanner.select_best_dataset(s_code, self.scanner.event_string)
+            if not path:
+                return False
 
-                    # Notify UI of heavy operation
-                    self.update_queue.put({"status": f"Loading {s_code} Dataset..."})
+            # CACHE HIT: Skip reading the massive 25MB JSON file!
+            if (
+                self.config.card_data.latest_dataset == os.path.basename(path)
+                and self.scanner.set_data._dataset is not None
+            ):
+                return True
 
-                    self.scanner.retrieve_set_data(path)
-                    self.config.card_data.latest_dataset = os.path.basename(path)
-                    write_configuration(self.config)
-                    return True
-            return False
+            # Notify UI of heavy operation
+            self.update_queue.put({"status": f"Loading {s_code} Dataset..."})
+
+            self.scanner.retrieve_set_data(path)
+            self.config.card_data.latest_dataset = os.path.basename(path)
+            write_configuration(self.config)
+            return True

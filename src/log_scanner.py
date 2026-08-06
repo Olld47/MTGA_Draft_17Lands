@@ -40,6 +40,26 @@ class Source(Enum):
     UPDATE = 2
 
 
+def _dataset_event_type_rank(label_event_type: str, event_name: str) -> int:
+    """0 = exact event-name section match, 1 = containment match, None = no match.
+
+    Dataset labels carry an event type like "QuickDraft" or "PickTwoQuickDraft".
+    We prefer an exact section of the draft's event name (e.g. "QuickDraft" in
+    "QuickDraft_MSH_20260806") and fall back to containment so pick-two variants
+    still resolve ("QuickDraft" in "PickTwoQuickDraft_MSH_..."). Returns None
+    when the dataset's type is unrelated to the event.
+    """
+    if not event_name:
+        return 0
+    lowered = event_name.lower()
+    for section in event_name.split("_"):
+        if label_event_type.lower() == section.lower():
+            return 0
+    if label_event_type.lower() in lowered:
+        return 1
+    return None
+
+
 class ArenaScanner:
     """Class that handles the processing of the information within Arena Player.log file"""
 
@@ -280,6 +300,33 @@ class ArenaScanner:
             self.draft_start_time = ""
             if not full_clear:
                 self._save_state()
+
+    def _mark_draft_complete(self):
+        """Zeroes the live pack/pick when a draft's terminal DeckSelect is seen.
+
+        Unlike clear_draft, the drafted pool (taken_cards) and draft history are
+        kept so the recap of the finished draft still works; only the live
+        "currently drafting" state is retired. The draft_type is reset to
+        UNKNOWN so the next EventJoin is treated as a fresh draft.
+        """
+        with self.lock:
+            was_active = self.draft_type != constants.LIMITED_TYPE_UNKNOWN
+            self.draft_type = constants.LIMITED_TYPE_UNKNOWN
+            self.current_pack = 0
+            self.current_pick = 0
+            self.previous_scanned_pack = 0
+            self.previous_picked_pack = 0
+            self.current_picked_pick = 0
+            self.picked_cards = [[] for _ in range(self.number_of_players)]
+            self.pack_cards = [[] for _ in range(self.number_of_players)]
+            self.initial_pack = [[] for _ in range(self.number_of_players)]
+            self.event_string = ""
+            self.draft_label = ""
+            self.draft_sets = None
+            self.draft_start_time = ""
+            self._save_state()
+        if was_active:
+            logger.info("Draft completed; cleared active state")
 
     def draft_start_search(self):
         """Search for the string that represents the start of a draft"""
@@ -973,7 +1020,15 @@ class ArenaScanner:
 
     def _search_pack_bot(self) -> bool:
         def _extract(data):
-            if json_find("DraftStatus", data) != "PickNext":
+            status = json_find("DraftStatus", data)
+            if status != "PickNext":
+                # A terminal DeckSelect (DraftStatus "Completed") is the last
+                # pack payload of a finished draft. It must not be treated as a
+                # live offer, and the finished draft must not be restored as
+                # active next boot — otherwise a completed event (whose rotation
+                # may have ended) keeps showing stale Pack/Pick data.
+                if status and data.get("CurrentModule") == "DeckSelect":
+                    self._mark_draft_complete()
                 return False
             cards = json_find("DraftPack", data)
             if not cards:
@@ -1134,6 +1189,41 @@ class ArenaScanner:
         except Exception as error:
             logger.error(error)
         return data_sources if data_sources else constants.DATA_SOURCES_NONE
+
+    def select_best_dataset(self, s_code: str, event_name: str = "") -> str:
+        """Picks the most representative local dataset for an event.
+
+        Ranks every source for the set by event-type agreement with the draft
+        (see _dataset_event_type_rank) and by user group, preferring the broad
+        "All" sample over "Top". Returns the file path, or "" when the set has
+        no local dataset. Callers use this instead of matching only the set
+        bracket — a set has one dataset per event type, and loading the wrong
+        one (e.g. a PickTwo draft for a QuickDraft) yields all-zero stats.
+        """
+        set_tag = f"[{s_code.upper()}]"
+        best = None  # (type_rank, group_rank, label) -> path
+        sources = self.retrieve_data_sources()
+        for label, path in sources.items():
+            if set_tag not in label.upper():
+                continue
+            label_type = label.split("]", 1)[1].split("(", 1)[0].strip()
+            type_rank = _dataset_event_type_rank(label_type, event_name)
+            if type_rank is None:
+                continue
+            group_rank = 0 if label.rstrip().endswith("(All)") else 1
+            score = (type_rank, group_rank, label)
+            if best is None or score < best[0]:
+                best = (score, path)
+        if best is None:
+            # Unparseable event name: fall back to any dataset for the set.
+            for label, path in sources.items():
+                if set_tag not in label.upper():
+                    continue
+                group_rank = 0 if label.rstrip().endswith("(All)") else 1
+                score = (1, group_rank, label)
+                if best is None or score < best[0]:
+                    best = (score, path)
+        return best[1] if best else ""
 
     def retrieve_set_data(self, file):
         with self.lock:
