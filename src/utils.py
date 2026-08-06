@@ -92,6 +92,22 @@ def invalidate_local_set_cache():
     _LOCAL_SET_CACHE["mtime"] = 0.0
 
 
+def drop_local_set_from_cache(file_path: str) -> None:
+    """Removes one dataset file from the cached set list after a delete so the
+    next listing is O(1) instead of re-reading every dataset file (a
+    full-folder rescan takes seconds once the Sets folder has dozens of
+    multi-MB JSONs)."""
+    global _LOCAL_SET_CACHE
+    target = os.path.abspath(file_path)
+    _LOCAL_SET_CACHE["files"] = [
+        f for f in _LOCAL_SET_CACHE["files"] if f[6] != target
+    ]
+    try:
+        _LOCAL_SET_CACHE["mtime"] = os.path.getmtime(SETS_FOLDER)
+    except OSError:
+        _LOCAL_SET_CACHE["mtime"] = 0.0
+
+
 def clear_set_history() -> int:
     """Deletes all downloaded 17Lands datasets and the local manifest so the app
     re-syncs a clean copy. Frees disk and speeds up loading when many old sets

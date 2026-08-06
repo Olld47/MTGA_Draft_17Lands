@@ -404,7 +404,7 @@ def test_deleting_removes_the_file(config, sets_folder):
     path = sets_folder / "TEST_PremierDraft_All_Data.json"
     path.write_text("{}")
 
-    with patch("src.utils.invalidate_local_set_cache"):
+    with patch("src.utils.drop_local_set_from_cache"):
         assert datasets.delete_dataset(config, str(path)) is True
 
     assert not path.exists()
@@ -416,7 +416,7 @@ def test_deleting_the_active_dataset_clears_the_selection(config, sets_folder):
     config.card_data.latest_dataset = path.name
 
     with patch("mtga_bridge.datasets.write_configuration") as write_config, patch(
-        "src.utils.invalidate_local_set_cache"
+        "src.utils.drop_local_set_from_cache"
     ):
         datasets.delete_dataset(config, str(path))
 
@@ -432,7 +432,7 @@ def test_deleting_an_inactive_dataset_leaves_the_selection(config, sets_folder):
     config.card_data.latest_dataset = active.name
 
     with patch("mtga_bridge.datasets.write_configuration") as write_config, patch(
-        "src.utils.invalidate_local_set_cache"
+        "src.utils.drop_local_set_from_cache"
     ):
         datasets.delete_dataset(config, str(doomed))
 
@@ -440,13 +440,13 @@ def test_deleting_an_inactive_dataset_leaves_the_selection(config, sets_folder):
     write_config.assert_not_called()
 
 
-def test_deleting_invalidates_the_set_list_cache(config, sets_folder):
-    """retrieve_local_set_list caches on the folder mtime; without this the
-    next listing still shows the file just removed."""
+def test_deleting_drops_the_file_from_the_set_list_cache(config, sets_folder):
+    """delete_dataset updates the cached set list in place so the next listing
+    reflects the removal without a full-folder rescan."""
     path = sets_folder / "TEST_PremierDraft_All_Data.json"
     path.write_text("{}")
 
-    with patch("src.utils.invalidate_local_set_cache") as invalidate:
+    with patch("src.utils.drop_local_set_from_cache") as drop:
         datasets.delete_dataset(config, str(path))
 
-    invalidate.assert_called_once_with()
+    drop.assert_called_once_with(os.path.abspath(str(path)))

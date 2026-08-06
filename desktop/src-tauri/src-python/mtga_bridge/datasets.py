@@ -208,8 +208,9 @@ def delete_dataset(config, path: str) -> bool:
     if config.card_data.latest_dataset == os.path.basename(target):
         config.card_data.latest_dataset = ""
         write_configuration(config)
-    # Invalidate the cached set list so the next listing reflects the removal
-    from src.utils import invalidate_local_set_cache
+    # Drop the deleted file from the cached set list in place, so the trailing
+    # list_local_datasets resolves instantly instead of re-reading every file.
+    from src.utils import drop_local_set_from_cache
 
-    invalidate_local_set_cache()
+    drop_local_set_from_cache(target)
     return True
