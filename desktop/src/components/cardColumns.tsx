@@ -5,6 +5,14 @@ import type { Column } from "./DataTable";
 export const fmtPct = (v: number | null) => (v == null ? "—" : v.toFixed(1));
 export const fmtNum = (v: number | null) => (v == null ? "—" : v.toFixed(1));
 
+/** Rarity ink, lifted from the legacy CardToolTip header coloring. */
+const RARITY_COLOR: Record<string, string> = {
+  mythic: "#d4712a",
+  rare: "#c9a227",
+  uncommon: "#3a7bd5",
+  common: "#8a8a8a",
+};
+
 /** Shared row class: picked/elite state + optional color tint. */
 export function cardRowClass(card: Card, colorTint: boolean): string {
   const classes: string[] = [];
@@ -26,6 +34,15 @@ export function nameColumn(): Column<Card> {
     header: "Card",
     cell: (c) => (
       <span>
+        {c.rarity && (
+          <span
+            className="card-rarity"
+            title={c.rarity}
+            style={{ color: RARITY_COLOR[c.rarity] ?? "#8a8a8a" }}
+          >
+            {c.rarity[0]}
+          </span>
+        )}
         <span className="card-name">{c.name}</span>
         {c.returnableAt.length > 0 && (
           <span title={`May wheel at pick ${c.returnableAt.join(", ")}`}>
@@ -70,6 +87,13 @@ export function statColumns(): Column<Card>[] {
       numeric: true,
       cell: (c) => fmtNum(c.stats.alsa),
       sortValue: (c) => c.stats.alsa ?? 99,
+    },
+    {
+      id: "ata",
+      header: "ATA",
+      numeric: true,
+      cell: (c) => fmtNum(c.stats.ata),
+      sortValue: (c) => c.stats.ata ?? 99,
     },
     {
       id: "iwd",

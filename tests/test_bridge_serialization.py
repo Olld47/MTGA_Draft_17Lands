@@ -415,3 +415,89 @@ def test_every_view_model_is_used_outside_viewmodels():
         orphans -= {v for v in orphans if re.search(rf"\b{v}\b", text)}
 
     assert not orphans, f"_VM classes never referenced outside viewmodels.py: {sorted(orphans)}"
+
+
+# --- Field-level orphan audit -------------------------------------------------
+
+# camelCase aliases serialized to the frontend but deliberately never read by
+# any component. Keyed by alias (the JSON key the frontend sees). Each reason
+# must stay true: wire a field up and remove it from this dict —
+# test_allowlisted_fields_stay_unread fails the moment one of these appears in
+# desktop/src, demanding its removal.
+_UNREAD_FIELD_EXCEPTIONS = {
+    "columnConfigs": "tkinter per-table column layout; React tables hardcode Column<T>[]",
+    "uiSize": "tkinter UI scale; Tauri sizes its own window",
+    "updateNotificationsEnabled": "tkinter dataset-update poller; desktop has none",
+    "activeVariant": "redundant with variants[].isActive (SealedPage tab bar)",
+    "sessionId": "sealed-save persistence key; never displayed",
+    "isBuilding": "mirrored locally by SuggestPage around the awaited command",
+    "rating": "already inside the rendered label ('(Power: N)')",
+    "labelPrefix": "already inside the rendered label",
+    "identityColors": "engine-internal; legacy never rendered it",
+    "takenCount": "redundant with poolSummary.cardCount (TakenPage)",
+    "gpwr": "opt-in legacy column; desktop's 4-stat subset is deliberate",
+    "gih": "sample-size tooltip metadata; desktop has no tooltip",
+    "ngp": "sample-size tooltip metadata; never displayed even in legacy",
+    "rowTag": "recomputed client-side from colors + colorTint",
+    "archetypeFit": "legacy 'High' branch unreachable; engine emits lane names",
+    "baseWinRate": "raw input to the score; never displayed in legacy either",
+    "castProbability": "internal; conveyed via reasoning chips",
+    "functionalCmc": "internal computation; never displayed in legacy",
+    "wheelChance": "conveyed via ⟳ marker + 'Wheels ~X%' reasoning chip",
+    "startTime": "legacy silent footer metadata; desktop header deliberately lean",
+    "logSource": "redundant with 'Live'/'history' switcher labels",
+    "isLive": "same label distinction; desktop status dot uses heartbeat mtime",
+    "activeDataset": "redundant with DatasetInfo.isActive",
+    "seq": "draft://refresh event sequence; handlers re-fetch and ignore the counter",
+}
+
+# Payload-type files mirror the VMs — their field names are the contract, not
+# readers. Everything else under desktop/src counts as a consumer.
+_FIELD_AUDIT_SKIP = {
+    os.path.join(FRONTEND_DIR, "api", "types.ts"),
+    os.path.join(FRONTEND_DIR, "api", "events.ts"),
+}
+
+
+def _read_frontend_sources():
+    for root, _, files in os.walk(FRONTEND_DIR):
+        if "node_modules" in root:
+            continue
+        for name in files:
+            path = os.path.join(root, name)
+            if not name.endswith((".ts", ".tsx")) or path in _FIELD_AUDIT_SKIP:
+                continue
+            with open(path, "r", encoding="utf-8") as handle:
+                yield handle.read()
+
+
+def test_every_serialized_field_is_read_or_allowlisted():
+    """A field serialized to the frontend but read by no component is an orphan
+    the whole-object tests cannot see (v0.18: filter_format passed all three —
+    complete on both sides, no UI, no React reader). Every _VM field's camelCase
+    alias must appear somewhere in desktop/src — unless the deliberate omission
+    is documented in _UNREAD_FIELD_EXCEPTIONS."""
+    sources = "\n".join(_read_frontend_sources())
+    unread = [
+        (cls.__name__, finfo.alias or name)
+        for cls in VM_CLASSES
+        for name, finfo in cls.model_fields.items()
+        if not re.search(rf"\b{finfo.alias or name}\b", sources)
+    ]
+    offenders = [
+        f"{cls}.{alias}" for cls, alias in unread if alias not in _UNREAD_FIELD_EXCEPTIONS
+    ]
+    assert not offenders, f"serialized fields with no frontend reader: {sorted(offenders)}"
+
+
+def test_allowlisted_fields_stay_unread():
+    """Allowlist-rot check: every exception must be genuinely unread. Wire a
+    field up and the frontend starts reading it — remove it from the dict
+    instead of letting the reason outlive the omission."""
+    sources = "\n".join(_read_frontend_sources())
+    now_read = [
+        alias
+        for alias in _UNREAD_FIELD_EXCEPTIONS
+        if re.search(rf"\b{alias}\b", sources)
+    ]
+    assert not now_read, f"allowlisted aliases now read by the frontend: {sorted(now_read)}"

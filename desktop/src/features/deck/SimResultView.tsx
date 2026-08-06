@@ -18,10 +18,14 @@ export function SimResultView({ result }: { result: SimResult }) {
     ["Mulligans", pct(s.mulligans)],
     ["Cast on curve T2", pct(s.castT2)],
     ["Cast on curve T3", pct(s.castT3)],
+    ["Cast on curve T4", pct(s.castT4)],
+    ["Perfect curve (T2–T4)", pct(s.curveOut)],
     ["Screw by T3", pct(s.screwT3)],
+    ["Screw by T4", pct(s.screwT4)],
     ["Color screw T3", pct(s.colorScrewT3)],
     ["Flood by T5", pct(s.floodT5)],
     ["Removal by T4", pct(s.removalT4)],
+    ["Avg. hand size", s.avgHandSize.toFixed(2)],
   ];
   return (
     <section className="panel">

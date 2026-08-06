@@ -26,6 +26,7 @@ export function AdvisorPanel({ recommendations }: Props) {
             <span className="rec-name">{rec.cardName}</span>
             <span className="rec-score">
               {rec.contextualScore.toFixed(0)}
+              {rec.isElite ? ` +${rec.zScore}σ` : ""}
             </span>
           </div>
           {rec.reasoning.length > 0 && (

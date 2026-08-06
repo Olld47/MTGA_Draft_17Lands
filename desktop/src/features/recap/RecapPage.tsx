@@ -115,6 +115,26 @@ export function RecapPage() {
         </section>
 
         <section className="panel">
+          <h2>Staples</h2>
+          <CardList cards={recap.staples} />
+        </section>
+
+        <section className="panel">
+          <h2>Pool balance</h2>
+          {Object.keys(recap.typeCounts).length === 0 ? (
+            <div className="empty-inline">None</div>
+          ) : (
+            <div className="recap-chips">
+              {Object.entries(recap.typeCounts).map(([type, count]) => (
+                <span key={type}>
+                  {type} <b>{count}</b>
+                </span>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section className="panel">
           <h2>Best archetypes</h2>
           {recap.archetypes.length === 0 ? (
             <div className="empty-inline">None</div>
