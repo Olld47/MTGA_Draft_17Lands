@@ -329,6 +329,7 @@ export interface SuggestArchetype {
 export interface SuggestState {
   status: string;
   isBuilding: boolean;
+  stale: boolean;
   archetypes: SuggestArchetype[];
   selected: string;
   deck: DeckRow[];

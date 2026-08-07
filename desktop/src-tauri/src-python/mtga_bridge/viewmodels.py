@@ -496,6 +496,10 @@ class SuggestArchetypeVM(_VM):
 class SuggestStateVM(_VM):
     status: str = ""  # empty when a build succeeded; otherwise why it didn't
     is_building: bool = False
+    # True when the shown suggestion was built from a pool that no longer
+    # matches the scanner's (freshly finished draft, or new picks since build).
+    # The frontend auto-triggers a rebuild while this is set.
+    stale: bool = False
     archetypes: List[SuggestArchetypeVM] = []
     selected: str = ""
     deck: List[DeckRowVM] = []

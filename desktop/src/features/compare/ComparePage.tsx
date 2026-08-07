@@ -80,7 +80,7 @@ export function ComparePage({ colorTint }: { colorTint: boolean }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "var(--gap)" }}>
       <section className="panel">
-        <h2>Compare cards</h2>
+        <h2>Compare Cards</h2>
         <div className="compare-search">
           <input
             list={listId.current}

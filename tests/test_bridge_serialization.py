@@ -434,7 +434,6 @@ _UNREAD_FIELD_EXCEPTIONS = {
     "rating": "already inside the rendered label ('(Power: N)')",
     "labelPrefix": "already inside the rendered label",
     "identityColors": "engine-internal; legacy never rendered it",
-    "takenCount": "redundant with poolSummary.cardCount (TakenPage)",
     "gpwr": "opt-in legacy column; desktop's 4-stat subset is deliberate",
     "gih": "sample-size tooltip metadata; desktop has no tooltip",
     "ngp": "sample-size tooltip metadata; never displayed even in legacy",

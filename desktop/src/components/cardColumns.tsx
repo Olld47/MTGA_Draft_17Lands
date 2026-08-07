@@ -25,6 +25,23 @@ const RARITY_COLOR: Record<string, string> = {
   common: "#8a8a8a",
 };
 
+/** Mana flair for card names: mono-color cards render in their color,
+ *  multi-color in gold, colorless in grey — the legacy CardToolTip look. */
+const CARD_NAME_COLOR: Record<string, string> = {
+  w: "var(--mana-w)",
+  u: "var(--mana-u)",
+  b: "var(--mana-b)",
+  r: "var(--mana-r)",
+  g: "var(--mana-g)",
+};
+
+export function cardNameColor(colors: string[]): string {
+  if (colors.length === 1) {
+    return CARD_NAME_COLOR[colors[0].toLowerCase()] ?? "var(--gruff)";
+  }
+  return colors.length > 1 ? "var(--gold-foil)" : "var(--gruff)";
+}
+
 /** Shared row class: picked/elite state + optional color tint. */
 export function cardRowClass(card: Card, colorTint: boolean): string {
   const classes: string[] = [];
@@ -40,7 +57,7 @@ export function cardRowClass(card: Card, colorTint: boolean): string {
   return classes.join(" ");
 }
 
-export function nameColumn(): Column<Card> {
+export function nameColumn(opts?: { colorName?: boolean }): Column<Card> {
   return {
     id: "name",
     header: "Card",
@@ -55,7 +72,12 @@ export function nameColumn(): Column<Card> {
             {c.rarity[0]}
           </span>
         )}
-        <span className="card-name">{c.name}</span>
+        <span
+          className="card-name"
+          style={opts?.colorName ? { color: cardNameColor(c.colors) } : undefined}
+        >
+          {c.name}
+        </span>
         {c.returnableAt.length > 0 && (
           <span title={`May wheel at pick ${c.returnableAt.join(", ")}`}>
             {" "}

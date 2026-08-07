@@ -41,12 +41,12 @@ type Tab =
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "draft", label: "Draft" },
-  { id: "taken", label: "Taken" },
+  { id: "taken", label: "Taken Cards" },
   { id: "recap", label: "Recap" },
-  { id: "deck", label: "Deck" },
-  { id: "suggest", label: "Suggest" },
-  { id: "sealed", label: "Sealed" },
-  { id: "compare", label: "Compare" },
+  { id: "deck", label: "Custom Deck" },
+  { id: "suggest", label: "Suggest Deck" },
+  { id: "sealed", label: "Sealed Deck" },
+  { id: "compare", label: "Compare Cards" },
   { id: "tiers", label: "Tiers" },
   { id: "datasets", label: "Datasets" },
   { id: "settings", label: "Settings" },
@@ -220,6 +220,7 @@ export default function App() {
           {tab === "suggest" && (
             <SuggestPage
               colorTint={colorTint}
+              draftState={state}
               onSentToBuilder={() => setTab("deck")}
             />
           )}

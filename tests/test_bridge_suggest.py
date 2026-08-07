@@ -191,6 +191,68 @@ def test_calculate_swallows_builder_error(env):
     assert session.is_building is False
 
 
+# --- stale flag (auto-build trigger) -----------------------------------------
+
+
+def test_build_state_flags_stale_without_build(env):
+    """A session that has never built (e.g. the app just opened onto a finished
+    draft) reports stale=True so the frontend auto-triggers the build."""
+    state = _session(env).build_state()
+    assert state.stale is True
+    assert state.deck == []
+
+
+def test_calculate_clears_stale_on_success(env):
+    session = _built(
+        env,
+        {
+            "WU Consistent (Power: 72)": _suggestion(
+                [_card("WU Flex", 3, ["Creature"], ["W", "U"], "{1}{W}{U}", 61.0, count=4)]
+            )
+        },
+    )
+    assert session.build_state().stale is False
+
+
+def test_build_state_flags_stale_after_pool_change(env):
+    """Drafting more cards after a build invalidates the shown suggestion."""
+    session = _built(
+        env,
+        {
+            "WU Consistent (Power: 72)": _suggestion(
+                [_card("WU Flex", 3, ["Creature"], ["W", "U"], "{1}{W}{U}", 61.0, count=4)]
+            )
+        },
+    )
+    assert session.build_state().stale is False
+
+    env["scanner"].retrieve_taken_cards = lambda: _pool(count_each=6)  # +6 cards
+    assert session.build_state().stale is True
+
+
+def test_engine_error_keeps_stale_for_retry(env):
+    """A failed build leaves stale=True so the frontend retries on a fresh
+    draft instead of pinning the 'Builder error' message to a finished pool."""
+    session = _session(env)
+    with patch("src.card_logic.suggest_deck", side_effect=RuntimeError("boom")):
+        session.calculate()
+    assert session.status == "Builder error — see the log for details."
+    assert session.build_state().stale is True
+
+
+def test_thin_pool_records_key_then_stale_on_change(env):
+    """The not-enough-spells path settles on the pool it saw, so stale only
+    re-arms once the pool actually grows past the 22-spell check."""
+    env["scanner"].retrieve_taken_cards = lambda: _pool(count_each=1)  # 6 spells
+    session = _session(env)
+    session.calculate()
+    assert "Not enough spells" in session.status
+    assert session.build_state().stale is False
+
+    env["scanner"].retrieve_taken_cards = lambda: _pool(count_each=5)
+    assert session.build_state().stale is True
+
+
 def test_calculate_selects_strongest_deck_first(env):
     session = _session(env)
     results = {

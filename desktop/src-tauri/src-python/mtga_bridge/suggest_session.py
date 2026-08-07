@@ -36,6 +36,18 @@ logger = logging.getLogger(__name__)
 MIN_PLAYABLE_SPELLS = 22
 
 
+def _pool_key(pool) -> tuple:
+    """Fingerprint of a draft pool: accumulated (name, count) pairs, sorted.
+    Two pools with the same cards in the same quantities compare equal no
+    matter the row order or whether copies are one row or several."""
+    counts: Dict[str, int] = {}
+    for card in pool or []:
+        counts[card.get("name", "")] = counts.get(card.get("name", ""), 0) + card.get(
+            "count", 1
+        )
+    return tuple(sorted(counts.items()))
+
+
 class SuggestSession:
     """Stateful AI-suggestion model. One instance per runtime, reused across
     commands. Holds the last build's suggestions and the selected archetype."""
@@ -47,6 +59,7 @@ class SuggestSession:
         self.selected: str = ""
         self.status: str = ""
         self.is_building = False
+        self._built_pool_key = None
 
     # --- build ---------------------------------------------------------------
 
@@ -63,6 +76,7 @@ class SuggestSession:
             raw_pool = self.scanner.retrieve_taken_cards() or []
             metrics = self.scanner.retrieve_set_metrics()
             _, event_type = self.scanner.retrieve_current_limited_event()
+        pool_key = _pool_key(raw_pool)
 
         playable_spells = [c for c in raw_pool if "Land" not in c.get("types", [])]
         if len(playable_spells) < MIN_PLAYABLE_SPELLS:
@@ -72,6 +86,7 @@ class SuggestSession:
                 f"Not enough spells drafted yet (Have {len(playable_spells)}, "
                 f"Need {MIN_PLAYABLE_SPELLS})."
             )
+            self._built_pool_key = pool_key
             return
 
         if self.is_building:
@@ -120,12 +135,14 @@ class SuggestSession:
                 f"Not enough on-color playables to form a 40-card deck "
                 f"(Need {MIN_PLAYABLE_SPELLS})."
             )
+            self._built_pool_key = pool_key
             return
 
         self.suggestions = results
         self.status = ""
         # Snap to the mathematically strongest deck, as _finalize_build did.
         self.selected = next(iter(results))
+        self._built_pool_key = pool_key
 
     def select(self, label: str) -> None:
         if label in self.suggestions:
@@ -178,6 +195,14 @@ class SuggestSession:
         )
 
     def build_state(self) -> SuggestStateVM:
+        with self.scanner.lock:
+            current_pool_key = _pool_key(self.scanner.retrieve_taken_cards() or [])
+        # Stale: the shown suggestion was built from a pool that no longer
+        # matches what the scanner holds — e.g. a freshly finished draft with no
+        # build yet (_built_pool_key is None), or the user has drafted more
+        # cards since the last build. Deliberately left True on engine error so
+        # the frontend can retry instead of pinning an outdated message.
+        stale = self._built_pool_key is None or current_pool_key != self._built_pool_key
         active_filter = self._active_filter()
         archetypes = [
             self._archetype_vm(label, data) for label, data in self.suggestions.items()
@@ -189,6 +214,7 @@ class SuggestSession:
                 is_building=self.is_building,
                 archetypes=archetypes,
                 active_filter=active_filter,
+                stale=stale,
             )
 
         deck, sideboard = self._active_lists()
@@ -215,4 +241,5 @@ class SuggestSession:
             breakdown=data.get("breakdown", ""),
             sim=sim,
             active_filter=active_filter,
+            stale=stale,
         )

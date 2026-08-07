@@ -8,7 +8,7 @@ import {
   suggestSelectArchetype,
   suggestSendToBuilder,
 } from "../../api/client";
-import type { SampleHand, SuggestState } from "../../api/types";
+import type { DraftState, SampleHand, SuggestState } from "../../api/types";
 import { artUrl } from "../../components/cardColumns";
 import { DeckStatsView, DeckTable } from "../deck/DeckStatsView";
 import { SimResultView } from "../deck/SimResultView";
@@ -34,9 +34,11 @@ function SampleHandView({ hand }: { hand: SampleHand }) {
 
 export function SuggestPage({
   colorTint,
+  draftState,
   onSentToBuilder,
 }: {
   colorTint: boolean;
+  draftState: DraftState | null;
   onSentToBuilder: () => void;
 }) {
   const [state, setState] = useState<SuggestState | null>(null);
@@ -44,9 +46,17 @@ export function SuggestPage({
   const [building, setBuilding] = useState(false);
   const [progress, setProgress] = useState("");
 
+  // Re-read the suggestion whenever the draft's pool changes (a new pick, a
+  // finished draft, or a different history log) — the backend recomputes its
+  // `stale` flag against the current taken-cards pool.
   useEffect(() => {
     getSuggestState().then(setState).catch(console.warn);
-  }, []);
+  }, [
+    draftState?.logName,
+    draftState?.takenCount,
+    draftState?.pack,
+    draftState?.pick,
+  ]);
 
   const build = useCallback(() => {
     setBuilding(true);
@@ -63,6 +73,18 @@ export function SuggestPage({
       .catch(console.warn)
       .finally(() => setBuilding(false));
   }, []);
+
+  // A finished draft (cards taken, no pack in progress) whose suggestion is
+  // stale triggers the build automatically — no manual "Build decks" click.
+  const finishedDraft =
+    !!draftState && draftState.takenCount > 0 && draftState.pack === 0;
+
+  useEffect(() => {
+    if (!finishedDraft) return;
+    if (building) return;
+    if (!state?.stale) return;
+    build();
+  }, [finishedDraft, building, state?.stale, build]);
 
   const select = (label: string) => {
     setHand(null);

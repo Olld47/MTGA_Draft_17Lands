@@ -39,7 +39,7 @@ export function TakenPage({ colorTint }: { colorTint: boolean }) {
 
   const columns: Column<Card>[] = [
     countColumn(),
-    nameColumn(),
+    nameColumn({ colorName: true }),
     manaColumn(),
     ...statColumns(),
   ];
@@ -53,7 +53,7 @@ export function TakenPage({ colorTint }: { colorTint: boolean }) {
         </section>
       )}
       <section className="panel">
-        <h2>Taken cards {taken ? `(${taken.poolSummary.cardCount})` : ""}</h2>
+        <h2>Taken Cards {taken ? `(${taken.poolSummary.cardCount})` : ""}</h2>
         <DataTable
           columns={columns}
           rows={taken?.cards ?? []}

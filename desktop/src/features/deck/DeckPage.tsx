@@ -108,7 +108,7 @@ export function DeckPage({ colorTint }: { colorTint: boolean }) {
         </section>
 
         <DeckTable
-          title="Deck"
+          title="Custom Deck"
           rows={state?.deck ?? []}
           count={state?.mainCount ?? 0}
           onMove={(name) => run(() => deckMoveCard(name, true))}
