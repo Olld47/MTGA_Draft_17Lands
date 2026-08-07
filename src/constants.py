@@ -243,6 +243,11 @@ DESKTOP_THEME_LIGHT = "Light"
 DESKTOP_THEME_LIST = [DESKTOP_THEME_SYSTEM, DESKTOP_THEME_DARK, DESKTOP_THEME_LIGHT]
 DESKTOP_THEME_DEFAULT = DESKTOP_THEME_SYSTEM
 
+# UI language for the pytauri desktop UI. Only the frontend reads this (it picks
+# the locale dictionary); the tkinter app has no localization.
+LANGUAGE_DEFAULT = "en"
+LANGUAGE_LIST = ["en", "zh"]
+
 RESULT_UNKNOWN_STRING = " "
 RESULT_UNKNOWN_VALUE = 0.0
 

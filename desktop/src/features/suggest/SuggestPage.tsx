@@ -12,6 +12,7 @@ import type { DraftState, SampleHand, SuggestState } from "../../api/types";
 import { SampleHandView } from "../../components/SampleHandView";
 import { DeckStatsView, DeckTable } from "../deck/DeckStatsView";
 import { SimResultView } from "../deck/SimResultView";
+import { useLanguage } from "../../i18n/useLanguage";
 
 export function SuggestPage({
   colorTint,
@@ -22,6 +23,7 @@ export function SuggestPage({
   draftState: DraftState | null;
   onSentToBuilder: () => void;
 }) {
+  const { t } = useLanguage();
   const [state, setState] = useState<SuggestState | null>(null);
   const [hand, setHand] = useState<SampleHand | null>(null);
   const [building, setBuilding] = useState(false);
@@ -41,11 +43,11 @@ export function SuggestPage({
 
   const build = useCallback(() => {
     setBuilding(true);
-    setProgress("Initializing AI builder...");
+    setProgress(t("suggest.initializing"));
     setHand(null);
     suggestCalculate((p) => {
       if (p.kind === "status") setProgress(p.text);
-      else if (p.archetype) setProgress(`Found ${p.archetype.label}`);
+      else if (p.archetype) setProgress(t("suggest.found", { archetype: p.archetype.label }));
     })
       .then((s) => {
         setState(s);
@@ -53,7 +55,7 @@ export function SuggestPage({
       })
       .catch(console.warn)
       .finally(() => setBuilding(false));
-  }, []);
+  }, [t]);
 
   // A finished draft (cards taken, no pack in progress) whose suggestion is
   // stale triggers the build automatically — no manual "Build decks" click.
@@ -80,7 +82,7 @@ export function SuggestPage({
         <section className="panel">
           <div className="deck-toolbar">
             <button onClick={build} disabled={building}>
-              {building ? "Building..." : "Build decks"}
+              {building ? t("suggest.building") : t("suggest.build")}
             </button>
             <select
               className="archetype-select"
@@ -95,7 +97,7 @@ export function SuggestPage({
                   </option>
                 ))
               ) : (
-                <option value="">No suggestions yet</option>
+                <option value="">{t("suggest.noSuggestions")}</option>
               )}
             </select>
             <span className="spacer" />
@@ -104,7 +106,7 @@ export function SuggestPage({
               disabled={!hasDeck}
               onClick={() => suggestSampleHand().then(setHand).catch(console.warn)}
             >
-              Sample hand
+              {t("deck.sampleHand")}
             </button>
             <button
               className="ghost-btn"
@@ -113,7 +115,7 @@ export function SuggestPage({
                 suggestSendToBuilder().then(onSentToBuilder).catch(console.warn)
               }
             >
-              Send to builder
+              {t("suggest.sendToBuilder")}
             </button>
             <button
               className="ghost-btn"
@@ -122,7 +124,7 @@ export function SuggestPage({
                 suggestExport().then((e) => navigator.clipboard?.writeText(e.text))
               }
             >
-              Copy export
+              {t("deck.copyExport")}
             </button>
           </div>
           {building && progress && <div className="sim-note">{progress}</div>}
@@ -135,23 +137,23 @@ export function SuggestPage({
         </section>
 
         <DeckTable
-          title="Main deck"
+          title={t("suggest.mainDeck")}
           rows={state?.deck ?? []}
           count={state?.mainCount ?? 0}
-          emptyText="Build decks to see the AI's suggested 40"
+          emptyText={t("suggest.emptyMain")}
           colorTint={colorTint}
         />
         <DeckTable
-          title="Sideboard"
+          title={t("deck.sideboard")}
           rows={state?.sideboard ?? []}
           count={state?.sideboardCount ?? 0}
-          emptyText="Leftover playables land here"
+          emptyText={t("suggest.emptySideboard")}
           colorTint={colorTint}
         />
 
         {hand && (
           <section className="panel">
-            <h2>Sample hand</h2>
+            <h2>{t("deck.sampleHandTitle")}</h2>
             <SampleHandView hand={hand} />
           </section>
         )}
@@ -159,7 +161,7 @@ export function SuggestPage({
 
       <aside className="deck-rail">
         <section className="panel">
-          <h2>Deck stats</h2>
+          <h2>{t("deck.stats")}</h2>
           {state && <DeckStatsView stats={state.stats} />}
         </section>
         {state?.sim && <SimResultView result={state.sim} />}

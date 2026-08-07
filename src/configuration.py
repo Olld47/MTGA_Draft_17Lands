@@ -102,6 +102,9 @@ class Settings(BaseModel):
     # is a ttkbootstrap palette name the React UI has no equivalent for, and
     # narrowing it here would strip a tkinter user's choice.
     desktop_theme: str = constants.DESKTOP_THEME_DEFAULT
+    # UI language for the pytauri desktop (frontend picks the locale dict from
+    # this); the tkinter app has no localization and ignores it.
+    language: str = constants.LANGUAGE_DEFAULT
 
     # Core Feature Toggles
     always_on_top: bool = False
@@ -156,6 +159,14 @@ class Settings(BaseModel):
     @classmethod
     def validate_desktop_theme(cls, value, info):
         allowed_values = constants.DESKTOP_THEME_LIST
+        if value not in allowed_values:
+            return cls.model_fields[info.field_name].default
+        return value
+
+    @field_validator("language")
+    @classmethod
+    def validate_language(cls, value, info):
+        allowed_values = constants.LANGUAGE_LIST
         if value not in allowed_values:
             return cls.model_fields[info.field_name].default
         return value

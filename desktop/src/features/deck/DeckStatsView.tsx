@@ -11,6 +11,7 @@ import {
 import { useCardMenu } from "../../components/CardContextMenu";
 import { ManaCost } from "../../components/ManaCost";
 import { DataTable, type Column } from "../../components/DataTable";
+import { useLanguage } from "../../i18n/useLanguage";
 import { useStatFormat } from "../../state/useStatFormat";
 
 const PIP_CLASS: Record<string, string> = {
@@ -24,31 +25,35 @@ const PIP_CLASS: Record<string, string> = {
 /** Curve histogram + pips + tribes/tags, shared by the custom-deck and sealed
  *  pages (both consume the identical DeckStats view-model). */
 export function DeckStatsView({ stats }: { stats: DeckStats }) {
+  const { t } = useLanguage();
   const maxCurve = Math.max(1, ...Object.values(stats.curve));
   return (
     <div className="deck-stats">
       <div className="deck-stat-tiles">
         <span>
-          <b>{stats.totalCards}</b> cards
+          <b>{stats.totalCards}</b> {t("deck.cards")}
         </span>
         <span>
-          <b>{stats.creatures}</b> creatures
+          <b>{stats.creatures}</b> {t("deck.creatures")}
         </span>
         <span>
-          <b>{stats.noncreatures}</b> spells
+          <b>{stats.noncreatures}</b> {t("deck.spells")}
         </span>
         <span>
-          <b>{stats.lands}</b> lands
+          <b>{stats.lands}</b> {t("deck.lands")}
         </span>
         <span>
-          <b>{stats.avgCmc.toFixed(2)}</b> avg CMC
+          <b>{stats.avgCmc.toFixed(2)}</b> {t("deck.avgCmc")}
         </span>
       </div>
 
       <div className="deck-curve">
         {Object.entries(stats.curve).map(([cmc, n]) => (
           <div key={cmc} className="curve-col">
-            <i style={{ height: `${(n / maxCurve) * 100}%` }} title={`${n} card(s)`} />
+            <i
+              style={{ height: `${(n / maxCurve) * 100}%` }}
+              title={t("deck.curveCard", { n })}
+            />
             <span className="curve-label">{cmc}</span>
           </div>
         ))}
@@ -76,7 +81,7 @@ export function DeckStatsView({ stats }: { stats: DeckStats }) {
 
       {stats.tribes.length > 0 && (
         <div className="deck-tribes">
-          <span className="stat-label">Top Tribes:</span>
+          <span className="stat-label">{t("deck.topTribes")}</span>
           <div className="recap-chips">
             {stats.tribes.map((t) => (
               <span key={t.label}>
@@ -129,18 +134,19 @@ export function DeckTable({
   onGroupChange,
 }: DeckTableProps) {
   const { resultFormat, metrics } = useStatFormat();
+  const { t } = useLanguage();
   const menu = useCardMenu();
   const columns: Column<DeckRow>[] = [
     {
       id: "count",
-      header: "#",
+      header: t("deck.tableHash"),
       numeric: true,
       cell: (r) => r.count,
       sortValue: (r) => r.count,
     },
     {
       id: "name",
-      header: "Card",
+      header: t("col.card"),
       cell: (r) => (
         <span className="card-name" style={{ color: cardNameColor(r.colors) }}>
           {r.name}
@@ -150,13 +156,13 @@ export function DeckTable({
     },
     {
       id: "cost",
-      header: "Cost",
+      header: t("col.cost"),
       cell: (r) => <ManaCost cost={r.manaCost} />,
       sortValue: (r) => r.cmc,
     },
     {
       id: "gihwr",
-      header: "GIHWR",
+      header: t("deck.tableGihwr"),
       numeric: true,
       cell: (r) =>
         formatWinRate(r.gihwr, r.colors, "gihwr", resultFormat, metrics),
@@ -189,7 +195,7 @@ export function DeckTable({
     ? {
         key: (r: DeckRow) => groupKey(r, group),
         order: groupOrder(group),
-        label: (key: string, rows: DeckRow[]) => groupLabel(group, key, rows),
+        label: (key: string, rows: DeckRow[]) => groupLabel(group, key, rows, t),
       }
     : undefined;
 
@@ -203,25 +209,25 @@ export function DeckTable({
           ) : count > targetCount ? (
             <span className="deck-incomplete">
               {" "}
-              ⚠️ CUT {count - targetCount}
+              {t("deck.cut", { n: count - targetCount })}
             </span>
           ) : (
             <span className="deck-incomplete">
               {" "}
-              ⚠️ ADD {targetCount - count}
+              {t("deck.add", { n: targetCount - count })}
             </span>
           ))}
       </h2>
       {onGroupChange && (
         <div className="deck-group-control">
-          <span className="stat-label">Group:</span>
+          <span className="stat-label">{t("deck.group")}</span>
           <select
             value={group ?? ""}
             onChange={(e) =>
               onGroupChange((e.target.value as GroupBy) || null)
             }
           >
-            <option value="">None</option>
+            <option value="">{t("deck.groupNone")}</option>
             {GROUP_OPTIONS.map((o) => (
               <option key={o.id} value={o.id}>
                 {o.label}

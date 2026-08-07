@@ -162,6 +162,7 @@ def settings_vm(config) -> SettingsVM:
         result_format=s.result_format,
         ui_size=s.ui_size,
         desktop_theme=s.desktop_theme,
+        language=s.language,
         card_colors_enabled=s.card_colors_enabled,
         draft_log_enabled=s.draft_log_enabled,
         update_notifications_enabled=s.update_notifications_enabled,

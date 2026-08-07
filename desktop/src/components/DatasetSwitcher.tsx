@@ -2,11 +2,13 @@ import { useEffect, useRef, useState } from "react";
 
 import { selectDataset } from "../api/client";
 import type { DatasetSwitcher } from "../api/types";
+import { useLanguage } from "../i18n/useLanguage";
 
 /** Masthead event-type + user-group dataset switcher, a port of the legacy
  *  top_bar om_event / om_group dropdowns. Selecting a combination loads that
  *  dataset file (which the backend makes the active one for every view). */
 export function DatasetSwitcher({ switcher }: { switcher: DatasetSwitcher }) {
+  const { t } = useLanguage();
   const [event, setEvent] = useState("");
   const [group, setGroup] = useState("");
   const syncedKey = useRef("");
@@ -70,7 +72,7 @@ export function DatasetSwitcher({ switcher }: { switcher: DatasetSwitcher }) {
       <select
         value={event}
         onChange={(e) => onEvent(e.target.value)}
-        title={`Dataset event type — ${switcher.setCode}`}
+        title={t("datasetsw.eventType", { setCode: switcher.setCode })}
       >
         {switcher.events.map((e) => (
           <option key={e.name} value={e.name}>
@@ -85,7 +87,7 @@ export function DatasetSwitcher({ switcher }: { switcher: DatasetSwitcher }) {
           setGroup(v);
           pick(event, v);
         }}
-        title="Dataset user group"
+        title={t("datasetsw.userGroup")}
       >
         {groups.map((g) => (
           <option key={g.name} value={g.name}>

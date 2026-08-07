@@ -2,6 +2,8 @@
 // the legacy TypePieChart (src/ui/components.py). Types follow the legacy
 // priority order (Creature → … → Land); basic lands are excluded upstream.
 
+import { useLanguage } from "../../i18n/useLanguage";
+
 // One entry per non-zero type, in the order PoolSummaryVM.typeCounts ships.
 interface Props {
   counts: Record<string, number>;
@@ -19,6 +21,7 @@ const TYPE_COLORS: Record<string, string> = {
 };
 
 export function PoolBalanceChart({ counts }: Props) {
+  const { t } = useLanguage();
   const entries = Object.entries(counts).filter(([, n]) => n > 0);
   const total = entries.reduce((sum, [, n]) => sum + n, 0);
   if (total === 0) return null;
@@ -38,13 +41,13 @@ export function PoolBalanceChart({ counts }: Props) {
         className="pool-balance-pie"
         style={{ background: `conic-gradient(${stops.join(", ")})` }}
         role="img"
-        aria-label="Pool type balance"
+        aria-label={t("dash.poolBalanceAria")}
       />
       <ul className="pool-balance-legend">
         {entries.map(([type, n]) => (
           <li key={type}>
             <i style={{ background: TYPE_COLORS[type] ?? "var(--gruff)" }} />
-            {type}: <b>{n}</b>
+            {t(`type.${type.toLowerCase()}`)}: <b>{n}</b>
           </li>
         ))}
       </ul>

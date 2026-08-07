@@ -265,6 +265,7 @@ _PATCH_VALUES = {
     "result_format": constants.RESULT_FORMAT_RATING,
     "ui_size": "80%",
     "desktop_theme": constants.DESKTOP_THEME_LIGHT,
+    "language": "zh",
     "card_colors_enabled": True,
     "draft_log_enabled": False,
     "update_notifications_enabled": False,

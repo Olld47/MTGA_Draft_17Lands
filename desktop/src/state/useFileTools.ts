@@ -5,6 +5,7 @@ import {
   locateMtgaData,
   saveExportFile,
 } from "../api/client";
+import { t } from "../i18n/useLanguage";
 
 // The legacy File menu's tools (src/ui/menu_bar.py): draft export and the
 // native file/directory pickers. Path selection uses the Tauri dialog plugin;
@@ -54,7 +55,7 @@ export function useFileTools() {
       const saved = await saveExportFile(path, result.text);
       setMessage(saved.message);
     } catch (err) {
-      setMessage(`Export failed: ${err}`);
+      setMessage(t("file.exportFailed", { err: String(err) }));
     } finally {
       setBusy(false);
     }
@@ -63,9 +64,9 @@ export function useFileTools() {
   const browseLogFile = useCallback(async (): Promise<string | null> => {
     setBusy(true);
     try {
-      return await pickPath(false, "Select Player.log");
+      return await pickPath(false, t("file.selectLog"));
     } catch (err) {
-      setMessage(`Could not open the picker: ${err}`);
+      setMessage(t("file.pickerFailed", { err: String(err) }));
       return null;
     } finally {
       setBusy(false);
@@ -75,13 +76,13 @@ export function useFileTools() {
   const browseMtgaData = useCallback(async (): Promise<string | null> => {
     setBusy(true);
     try {
-      const folder = await pickPath(true, "Select MTGA_Data Folder");
+      const folder = await pickPath(true, t("file.selectDataFolder"));
       if (!folder) return null;
       const result = await locateMtgaData(folder);
       setMessage(result.message);
       return result.ok ? result.path : null;
     } catch (err) {
-      setMessage(`Could not set the data folder: ${err}`);
+      setMessage(t("file.dataFolderFailed", { err: String(err) }));
       return null;
     } finally {
       setBusy(false);

@@ -2,6 +2,16 @@ import type { Card, SetMetrics } from "../api/types";
 import { ManaCost } from "./ManaCost";
 import type { Column } from "./DataTable";
 
+/** Translate callback — mirrors useLanguage().t. Builders take it as a param so
+ *  the caller's render (which subscribes to the language store) re-invokes them
+ *  with fresh translations on switch. The identity fallback keeps standalone
+ *  builder tests (which only exercise .cell) compiling without wiring a store. */
+export type Translate = (
+  key: string,
+  vars?: Record<string, string | number>,
+) => string;
+const identityT: Translate = (key) => key;
+
 export const fmtPct = (v: number | null) => (v == null ? "—" : v.toFixed(1));
 export const fmtNum = (v: number | null) => (v == null ? "—" : v.toFixed(1));
 
@@ -15,18 +25,18 @@ export const WIN_RATE_FIELDS = new Set(["gihwr", "ohwr", "gpwr"]);
  *  into the single per-card `tier` field). Card tables identify themselves with
  *  a viewId and persist their visible set through Settings.columnConfigs. */
 export const CARD_COLUMN_LABELS: Record<string, string> = {
-  value: "Value",
-  gihwr: "GIH WR",
-  ohwr: "OH WR",
-  gpwr: "GP WR",
-  alsa: "ALSA",
-  ata: "ATA",
-  iwd: "IWD",
-  wheel: "Wheel",
-  colors: "Colors",
-  count: "Count",
-  tags: "Tags",
-  tier: "Tier",
+  value: "col.value",
+  gihwr: "col.gihwr",
+  ohwr: "col.ohwr",
+  gpwr: "col.gpwr",
+  alsa: "col.alsa",
+  ata: "col.ata",
+  iwd: "col.iwd",
+  wheel: "col.wheel",
+  colors: "col.colors",
+  count: "col.count",
+  tags: "col.tags",
+  tier: "col.tier",
 };
 
 export const CARD_COLUMN_FIELDS = Object.keys(CARD_COLUMN_LABELS);
@@ -160,10 +170,13 @@ export function cardRowClass(card: Card, colorTint: boolean): string {
   return classes.join(" ");
 }
 
-export function nameColumn(opts?: { colorName?: boolean }): Column<Card> {
+export function nameColumn(
+  opts?: { colorName?: boolean },
+  t: Translate = identityT,
+): Column<Card> {
   return {
     id: "name",
-    header: "Card",
+    header: t("col.card"),
     cell: (c) => (
       <span>
         {c.rarity && (
@@ -186,7 +199,7 @@ export function nameColumn(opts?: { colorName?: boolean }): Column<Card> {
           {c.name}
         </span>
         {c.returnableAt.length > 0 && (
-          <span title={`May wheel at pick ${c.returnableAt.join(", ")}`}>
+          <span title={t("table.wheelTitle", { picks: c.returnableAt.join(", ") })}>
             {" "}
             ⟳{c.returnableAt.join(",")}
           </span>
@@ -197,10 +210,10 @@ export function nameColumn(opts?: { colorName?: boolean }): Column<Card> {
   };
 }
 
-export function manaColumn(): Column<Card> {
+export function manaColumn(t: Translate = identityT): Column<Card> {
   return {
     id: "cost",
-    header: "Cost",
+    header: t("col.cost"),
     cell: (c) => <ManaCost cost={c.manaCost} />,
     sortValue: (c) => c.cmc,
   };
@@ -215,6 +228,7 @@ export interface StatFormat {
 function winRateColumn(
   field: "gihwr" | "ohwr" | "gpwr",
   format?: StatFormat,
+  t: Translate = identityT,
 ): Column<Card> {
   const wr = (c: Card) =>
     format
@@ -222,42 +236,49 @@ function winRateColumn(
       : fmtPct(c.stats[field]);
   return {
     id: field,
-    header: CARD_COLUMN_LABELS[field],
+    header: t(CARD_COLUMN_LABELS[field]),
     numeric: true,
     cell: (c) => wr(c),
     sortValue: (c) => c.stats[field] ?? -1,
   };
 }
 
-function statNumColumn(field: "alsa" | "ata" | "iwd"): Column<Card> {
+function statNumColumn(
+  field: "alsa" | "ata" | "iwd",
+  t: Translate = identityT,
+): Column<Card> {
   return {
     id: field,
-    header: CARD_COLUMN_LABELS[field],
+    header: t(CARD_COLUMN_LABELS[field]),
     numeric: true,
     cell: (c) => fmtNum(c.stats[field]),
     sortValue: (c) => c.stats[field] ?? (field === "iwd" ? -99 : 99),
   };
 }
 
-export function statColumns(format?: StatFormat): Column<Card>[] {
+export function statColumns(format?: StatFormat, t: Translate = identityT): Column<Card>[] {
   return [
-    winRateColumn("gihwr", format),
-    winRateColumn("ohwr", format),
-    statNumColumn("alsa"),
-    statNumColumn("ata"),
-    statNumColumn("iwd"),
+    winRateColumn("gihwr", format, t),
+    winRateColumn("ohwr", format, t),
+    statNumColumn("alsa", t),
+    statNumColumn("ata", t),
+    statNumColumn("iwd", t),
   ];
 }
 
 /** Build one card column by field id — the registry behind the per-table
  *  column config (useColumnConfig). The win-rate columns take the live
  *  result_format + metrics so a later table refresh re-renders them. */
-export function cardColumn(field: string, format?: StatFormat): Column<Card> {
+export function cardColumn(
+  field: string,
+  format?: StatFormat,
+  t: Translate = identityT,
+): Column<Card> {
   switch (field) {
     case "value":
       return {
         id: "value",
-        header: "Value",
+        header: t("col.value"),
         numeric: true,
         cell: (c) =>
           c.recommendation ? c.recommendation.contextualScore.toFixed(0) : "—",
@@ -266,15 +287,15 @@ export function cardColumn(field: string, format?: StatFormat): Column<Card> {
     case "gihwr":
     case "ohwr":
     case "gpwr":
-      return winRateColumn(field, format);
+      return winRateColumn(field, format, t);
     case "alsa":
     case "ata":
     case "iwd":
-      return statNumColumn(field);
+      return statNumColumn(field, t);
     case "wheel":
       return {
         id: "wheel",
-        header: "Wheel",
+        header: t("col.wheel"),
         numeric: true,
         cell: (c) =>
           c.recommendation && c.recommendation.wheelChance > 0
@@ -285,14 +306,14 @@ export function cardColumn(field: string, format?: StatFormat): Column<Card> {
     case "colors":
       return {
         id: "colors",
-        header: "Colors",
+        header: t("col.colors"),
         cell: (c) => (c.colors.length > 0 ? c.colors.join("") : "—"),
         sortValue: (c) => c.colors.join(""),
       };
     case "count":
       return {
         id: "count",
-        header: "Count",
+        header: t("col.count"),
         numeric: true,
         cell: (c) => c.count,
         sortValue: (c) => c.count,
@@ -301,7 +322,7 @@ export function cardColumn(field: string, format?: StatFormat): Column<Card> {
       const tags = (c: Card) => c.recommendation?.tags ?? [];
       return {
         id: "tags",
-        header: "Tags",
+        header: t("col.tags"),
         cell: (c) =>
           tags(c).length > 0 ? tags(c).map((t) => TAG_ICONS[t] ?? t).join(" ") : "—",
         sortValue: (c) => tags(c).join(" "),
@@ -310,7 +331,7 @@ export function cardColumn(field: string, format?: StatFormat): Column<Card> {
     case "tier":
       return {
         id: "tier",
-        header: "Tier",
+        header: t("col.tier"),
         cell: (c) => c.tier ?? "—",
         sortValue: (c) => c.tier ?? "",
       };

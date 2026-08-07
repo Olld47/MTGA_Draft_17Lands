@@ -11,6 +11,8 @@
       try {
         document.documentElement.dataset.theme =
           localStorage.getItem("mtga.theme") || "dark";
+        document.documentElement.lang =
+          localStorage.getItem("mtga.lang") || "en";
       } catch (e) {
         document.documentElement.dataset.theme = "dark";
       }

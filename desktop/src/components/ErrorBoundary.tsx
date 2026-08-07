@@ -1,6 +1,7 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
 
 import { reportFrontendError } from "../api/client";
+import { useLanguage } from "../i18n/useLanguage";
 
 interface Props {
   /** Clears a caught error when it changes, so switching tabs recovers. */
@@ -10,6 +11,26 @@ interface Props {
 
 interface State {
   message: string;
+}
+
+/** Functional fallback so the class boundary can translate: class components
+ *  can't call useLanguage(), so the render hands off to this subscribed view. */
+function ErrorFallback({
+  message,
+  onRetry,
+}: {
+  message: string;
+  onRetry: () => void;
+}) {
+  const { t } = useLanguage();
+  return (
+    <div className="page-error">
+      <h2>{t("error.title")}</h2>
+      <div className="page-error-message">{message}</div>
+      <p>{t("error.body")}</p>
+      <button onClick={onRetry}>{t("error.retry")}</button>
+    </div>
+  );
 }
 
 /** Keeps one page's render failure from blanking the whole window. Before this
@@ -39,17 +60,10 @@ export class ErrorBoundary extends Component<Props, State> {
   render() {
     if (this.state.message) {
       return (
-        <div className="page-error">
-          <h2>This page failed to render</h2>
-          <div className="page-error-message">{this.state.message}</div>
-          <p>
-            Other tabs still work. The full stack trace was written to the
-            application log.
-          </p>
-          <button onClick={() => this.setState({ message: "" })}>
-            Try again
-          </button>
-        </div>
+        <ErrorFallback
+          message={this.state.message}
+          onRetry={() => this.setState({ message: "" })}
+        />
       );
     }
     return this.props.children;

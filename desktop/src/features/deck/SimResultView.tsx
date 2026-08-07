@@ -1,4 +1,5 @@
 import type { SimResult } from "../../api/types";
+import { useLanguage } from "../../i18n/useLanguage";
 
 const pct = (v: number) => `${v.toFixed(1)}%`;
 
@@ -41,6 +42,7 @@ interface Metric {
 }
 
 function MetricRow({ m }: { m: Metric }) {
+  const { t } = useLanguage();
   const grade = m.thresholds
     ? gradeOf(m.value, m.thresholds[0], m.thresholds[1], m.reverse)
     : null;
@@ -51,8 +53,11 @@ function MetricRow({ m }: { m: Metric }) {
         {m.percent === false ? m.value.toFixed(2) : pct(m.value)}
       </td>
       {grade ? (
-        <td className={`sim-grade ${GRADE_CLASS[grade]}`} title={grade}>
-          {GRADE_ICON[grade]} {grade}
+        <td
+          className={`sim-grade ${GRADE_CLASS[grade]}`}
+          title={t(`sim.${grade.toLowerCase()}`)}
+        >
+          {GRADE_ICON[grade]} {t(`sim.${grade.toLowerCase()}`)}
         </td>
       ) : (
         <td />
@@ -84,71 +89,74 @@ function MetricSection({
  *  per metric exactly as the legacy custom-deck and suggest-deck panels did.
  *  Shared by the Custom Deck and Suggest pages. */
 export function SimResultView({ result }: { result: SimResult }) {
+  const { t } = useLanguage();
   if (!result.ok || !result.stats) {
     return (
       <section className="panel">
-        <h2>Simulation</h2>
-        <div className="empty-inline">{result.message || "No result."}</div>
+        <h2>{t("sim.title")}</h2>
+        <div className="empty-inline">
+          {result.message || t("sim.noResult")}
+        </div>
       </section>
     );
   }
   const s = result.stats;
   return (
     <section className="panel">
-      <h2>Simulation</h2>
+      <h2>{t("sim.title")}</h2>
       {result.optimizationNote && (
         <div className="sim-note">{result.optimizationNote}</div>
       )}
       <table className="sim-table">
         <tbody>
           <MetricSection
-            title="Consistency metrics"
+            title={t("sim.consistency")}
             metrics={[
-              { label: "T2 play (2-drop)", value: s.castT2, thresholds: [65, 50] },
-              { label: "T3 play (3-drop)", value: s.castT3, thresholds: [65, 50] },
-              { label: "T4 play (4-drop)", value: s.castT4, thresholds: [55, 40] },
+              { label: t("sim.t2Play"), value: s.castT2, thresholds: [65, 50] },
+              { label: t("sim.t3Play"), value: s.castT3, thresholds: [65, 50] },
+              { label: t("sim.t4Play"), value: s.castT4, thresholds: [55, 40] },
               {
-                label: "Perfect curve (T2–T4)",
+                label: t("sim.perfectCurve"),
                 value: s.curveOut,
                 thresholds: [25, 15],
               },
-              { label: "Removal by T4", value: s.removalT4, thresholds: [60, 45] },
+              { label: t("sim.removalByT4"), value: s.removalT4, thresholds: [60, 45] },
             ]}
           />
           <MetricSection
-            title="Risk factors"
+            title={t("sim.risk")}
             metrics={[
               {
-                label: "Mulligans",
+                label: t("sim.mulligans"),
                 value: s.mulligans,
                 thresholds: [15, 25],
                 reverse: true,
               },
               {
-                label: "Avg. hand size",
+                label: t("sim.avgHandSize"),
                 value: s.avgHandSize,
                 thresholds: [6.8, 6.5],
                 percent: false,
               },
               {
-                label: "Missed 3rd land drop",
+                label: t("sim.missed3rdLand"),
                 value: s.screwT3,
                 thresholds: [15, 25],
                 reverse: true,
               },
               {
-                label: "Missed 4th land drop",
+                label: t("sim.missed4thLand"),
                 value: s.screwT4,
                 thresholds: [25, 35],
                 reverse: true,
               },
               {
-                label: "Color screwed (T3)",
+                label: t("sim.colorScrewed"),
                 value: s.colorScrewT3,
                 thresholds: [6, 12],
                 reverse: true,
               },
-              { label: "Flood by T5", value: s.floodT5 },
+              { label: t("sim.floodByT5"), value: s.floodT5 },
             ]}
           />
         </tbody>

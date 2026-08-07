@@ -1,28 +1,50 @@
 import { useState } from "react";
 
+import { useLanguage } from "../../i18n/useLanguage";
 import { useFileTools } from "../../state/useFileTools";
 import { useFilterOptions } from "../../state/useFilterOptions";
 import { useSettings } from "../../state/useSettings";
 
-const RESULT_FORMATS = ["Percentage", "Rating", "Grade"];
+// Option arrays carry the persisted value + a label i18n key: the <select>
+// value stays the backend string ("Percentage", "Dark", ...) while the option
+// text is translated.
+const RESULT_FORMATS = [
+  { value: "Percentage", labelKey: "settings.resultFormat.percentage" },
+  { value: "Rating", labelKey: "settings.resultFormat.ratingValue" },
+  { value: "Grade", labelKey: "settings.resultFormat.grade" },
+];
 
-const FILTER_FORMATS = ["Colors", "Names"];
+const FILTER_FORMATS = [
+  { value: "Colors", labelKey: "settings.filterFormat.colors" },
+  { value: "Names", labelKey: "settings.filterFormat.names" },
+];
 
-const THEMES = ["System", "Dark", "Light"];
+const THEMES = [
+  { value: "System", labelKey: "settings.theme.system" },
+  { value: "Dark", labelKey: "settings.theme.dark" },
+  { value: "Light", labelKey: "settings.theme.light" },
+];
+
+// Languages name themselves (a locale's endonym is never translated).
+const LANGUAGES = [
+  { value: "en", label: "English" },
+  { value: "zh", label: "简体中文" },
+];
 
 interface ToggleRowProps {
-  label: string;
-  hint?: string;
+  labelKey: string;
+  hintKey?: string;
   checked: boolean;
   onChange: (value: boolean) => void;
 }
 
-function ToggleRow({ label, hint, checked, onChange }: ToggleRowProps) {
+function ToggleRow({ labelKey, hintKey, checked, onChange }: ToggleRowProps) {
+  const { t } = useLanguage();
   return (
     <div className="setting-row">
       <label>
-        {label}
-        {hint && <div className="hint">{hint}</div>}
+        {t(labelKey)}
+        {hintKey && <div className="hint">{t(hintKey)}</div>}
       </label>
       <input
         type="checkbox"
@@ -35,6 +57,7 @@ function ToggleRow({ label, hint, checked, onChange }: ToggleRowProps) {
 
 export function SettingsPage() {
   const { settings, patch, reset } = useSettings();
+  const { t } = useLanguage();
   const { busy, message, browseLogFile, browseMtgaData } = useFileTools();
   const filters = useFilterOptions(settings?.filterFormat);
   // Two-click confirm — Tauri's webview doesn't reliably support
@@ -51,7 +74,7 @@ export function SettingsPage() {
   };
 
   if (!settings) {
-    return <div className="empty-state">Loading settings...</div>;
+    return <div className="empty-state">{t("settings.loading")}</div>;
   }
 
   // card_logic.filter_options reports "All Decks" until pick 5, which as a
@@ -59,34 +82,52 @@ export function SettingsPage() {
   const detected = filters?.autoDetected ?? "";
   const autoHint =
     settings.deckFilter !== "Auto"
-      ? "Auto detects your two strongest colors"
+      ? t("settings.deckFilterAutoHint")
       : !detected || detected === "All Decks"
-        ? "Auto: detecting..."
-        : `Auto: ${filters?.autoDetectedLabel || detected}`;
+        ? t("settings.deckFilterAutoDetecting")
+        : t("settings.deckFilterAuto", {
+            label: filters?.autoDetectedLabel || detected,
+          });
 
   return (
     <div className="settings-grid">
       <section className="settings-group">
-        <h2>Display</h2>
+        <h2>{t("settings.display")}</h2>
         <div className="setting-row">
           <label>
-            Appearance
-            <div className="hint">System follows your OS light/dark setting</div>
+            {t("settings.appearance")}
+            <div className="hint">{t("settings.appearanceHint")}</div>
           </label>
           <select
             value={settings.desktopTheme}
             onChange={(e) => patch({ desktopTheme: e.target.value })}
           >
-            {THEMES.map((t) => (
-              <option key={t} value={t}>
-                {t}
+            {THEMES.map((o) => (
+              <option key={o.value} value={o.value}>
+                {t(o.labelKey)}
               </option>
             ))}
           </select>
         </div>
         <div className="setting-row">
           <label>
-            Deck filter
+            {t("settings.language")}
+            <div className="hint">{t("settings.languageHint")}</div>
+          </label>
+          <select
+            value={settings.language}
+            onChange={(e) => patch({ language: e.target.value })}
+          >
+            {LANGUAGES.map((l) => (
+              <option key={l.value} value={l.value}>
+                {l.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="setting-row">
+          <label>
+            {t("settings.deckFilter")}
             <div className="hint">{autoHint}</div>
           </label>
           <select
@@ -106,74 +147,76 @@ export function SettingsPage() {
         </div>
         <div className="setting-row">
           <label>
-            Deck filter format
-            <div className="hint">Names shows "Azorius" instead of "WU"</div>
+            {t("settings.filterFormat")}
+            <div className="hint">{t("settings.filterFormatHint")}</div>
           </label>
           <select
             value={settings.filterFormat}
             onChange={(e) => patch({ filterFormat: e.target.value })}
           >
-            {FILTER_FORMATS.map((f) => (
-              <option key={f} value={f}>
-                {f}
+            {FILTER_FORMATS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {t(o.labelKey)}
               </option>
             ))}
           </select>
         </div>
         <div className="setting-row">
-          <label>Result format</label>
+          <label>{t("settings.resultFormat")}</label>
           <select
             value={settings.resultFormat}
             onChange={(e) => patch({ resultFormat: e.target.value })}
           >
-            {RESULT_FORMATS.map((f) => (
-              <option key={f} value={f}>
-                {f}
+            {RESULT_FORMATS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {t(o.labelKey)}
               </option>
             ))}
           </select>
         </div>
         <ToggleRow
-          label="Color-code card rows"
-          hint="Tints table rows by mana color"
+          labelKey="settings.colorCode"
+          hintKey="settings.colorCodeHint"
           checked={settings.cardColorsEnabled}
           onChange={(v) => patch({ cardColorsEnabled: v })}
         />
         <ToggleRow
-          label="Always on top"
-          hint="Keeps the window above other apps; mini mode pins regardless"
+          labelKey="settings.alwaysOnTop"
+          hintKey="settings.alwaysOnTopHint"
           checked={settings.alwaysOnTop}
           onChange={(v) => patch({ alwaysOnTop: v })}
         />
       </section>
 
       <section className="settings-group">
-        <h2>Data</h2>
+        <h2>{t("settings.data")}</h2>
         <ToggleRow
-          label="Auto-sync cloud datasets"
-          hint="Downloads pre-compiled 17Lands datasets at startup"
+          labelKey="settings.autoSync"
+          hintKey="settings.autoSyncHint"
           checked={settings.autoSyncDatasets}
           onChange={(v) => patch({ autoSyncDatasets: v })}
         />
         <ToggleRow
-          label="Save draft logs"
-          hint="Keeps per-draft logs in the Logs folder for 30 days"
+          labelKey="settings.saveDraftLogs"
+          hintKey="settings.saveDraftLogsHint"
           checked={settings.draftLogEnabled}
           onChange={(v) => patch({ draftLogEnabled: v })}
         />
         <ToggleRow
-          label="Missing dataset notifications"
+          labelKey="settings.missingDatasetNotifs"
           checked={settings.missingNotificationsEnabled}
           onChange={(v) => patch({ missingNotificationsEnabled: v })}
         />
       </section>
 
       <section className="settings-group">
-        <h2>Locations</h2>
+        <h2>{t("settings.locations")}</h2>
         <div className="setting-row">
           <label>
-            Arena log
-            <div className="hint path">{settings.arenaLogLocation || "not set"}</div>
+            {t("settings.arenaLog")}
+            <div className="hint path">
+              {settings.arenaLogLocation || t("settings.notSet")}
+            </div>
           </label>
           <button
             disabled={busy}
@@ -183,13 +226,15 @@ export function SettingsPage() {
               })
             }
           >
-            Browse...
+            {t("settings.browse")}
           </button>
         </div>
         <div className="setting-row">
           <label>
-            MTGA database
-            <div className="hint path">{settings.databaseLocation || "not set"}</div>
+            {t("settings.mtgaDatabase")}
+            <div className="hint path">
+              {settings.databaseLocation || t("settings.notSet")}
+            </div>
           </label>
           <button
             disabled={busy}
@@ -200,27 +245,27 @@ export function SettingsPage() {
               })
             }
           >
-            Locate...
+            {t("settings.locate")}
           </button>
         </div>
         {message && <div className="setting-note">{message}</div>}
       </section>
 
       <section className="settings-group">
-        <h2>Reset</h2>
+        <h2>{t("settings.reset")}</h2>
         <div className="setting-row">
           <label>
-            Restore defaults
-            <div className="hint">
-              Writes the baseline configuration (legacy "Restore Defaults")
-            </div>
+            {t("settings.restoreDefaults")}
+            <div className="hint">{t("settings.restoreDefaultsHint")}</div>
           </label>
           <button
             className="ghost-btn"
             onClick={restoreDefaults}
             onBlur={() => setConfirmReset(false)}
           >
-            {confirmReset ? "Click again to confirm" : "Restore Defaults"}
+            {confirmReset
+              ? t("settings.clickAgainToConfirm")
+              : t("settings.restoreDefaults")}
           </button>
         </div>
       </section>

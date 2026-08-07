@@ -1,5 +1,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
+import { useLanguage } from "../i18n/useLanguage";
+
 export interface Column<T> {
   id: string;
   header: string;
@@ -82,7 +84,7 @@ export function DataTable<T>({
   defaultSort,
   initialSort,
   onSortChange,
-  emptyText = "No data",
+  emptyText,
   hoverContent,
   onRowDoubleClick,
   onContextMenu,
@@ -90,6 +92,7 @@ export function DataTable<T>({
   showAddColumn = true,
   groupBy,
 }: Props<T>) {
+  const { t } = useLanguage();
   const [sort, setSort] = useState(initialSort ?? defaultSort ?? null);
   const [hovered, setHovered] = useState<T | null>(null);
   const [menu, setMenu] = useState<MenuState | null>(null);
@@ -188,7 +191,7 @@ export function DataTable<T>({
     : undefined;
 
   if (rows.length === 0) {
-    return <div className="empty-state">{emptyText}</div>;
+    return <div className="empty-state">{emptyText ?? t("table.noData")}</div>;
   }
 
   const renderRow = (row: T, index: number) => (
@@ -291,7 +294,7 @@ export function DataTable<T>({
             {columnMenu && showAddColumn && (
               <th
                 className="col-add"
-                title="Add column"
+                title={t("table.addColumn")}
                 onClick={(e) => {
                   const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
                   setMenu({ x: r.right - 8, y: r.bottom + 2 });
@@ -337,7 +340,7 @@ export function DataTable<T>({
                 setMenu(null);
               }}
             >
-              Remove “{columnMenu.label(menu.field)}”
+              {t("table.removeColumn", { label: columnMenu.label(menu.field) })}
             </button>
           )}
           {columnMenu.addable.length > 0 && (
@@ -359,7 +362,7 @@ export function DataTable<T>({
           )}
           <hr />
           <button role="menuitem" onClick={() => { columnMenu.onReset(); setMenu(null); }}>
-            Reset to Defaults
+            {t("table.resetToDefaults")}
           </button>
         </div>
       )}

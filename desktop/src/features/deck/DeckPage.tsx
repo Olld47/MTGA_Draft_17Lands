@@ -16,11 +16,13 @@ import { EVENTS, on, type RefreshPayload } from "../../api/events";
 import type { DeckState, SampleHand, SimResult } from "../../api/types";
 import { DeckStatsView, DeckTable } from "./DeckStatsView";
 import { SampleHandView } from "../../components/SampleHandView";
+import { useLanguage } from "../../i18n/useLanguage";
 import { SimResultView } from "./SimResultView";
 
 const BASICS = ["Plains", "Island", "Swamp", "Mountain", "Forest"];
 
 export function DeckPage({ colorTint }: { colorTint: boolean }) {
+  const { t } = useLanguage();
   const [state, setState] = useState<DeckState | null>(null);
   const [sim, setSim] = useState<SimResult | null>(null);
   const [hand, setHand] = useState<SampleHand | null>(null);
@@ -61,22 +63,24 @@ export function DeckPage({ colorTint }: { colorTint: boolean }) {
       <div className="deck-main">
         <section className="panel">
           <div className="deck-toolbar">
-            <button onClick={() => run(deckRefreshPool)}>Refresh pool</button>
+            <button onClick={() => run(deckRefreshPool)}>
+              {t("deck.refreshPool")}
+            </button>
             <button onClick={() => runSim(deckAutoOptimize)} disabled={busy}>
-              Auto-build
+              {t("deck.autobuild")}
             </button>
             <button onClick={() => runSim(deckAutoLands)} disabled={busy}>
-              Auto-lands
+              {t("deck.autolands")}
             </button>
             <button onClick={() => runSim(deckSimulate)} disabled={busy}>
-              Simulate
+              {t("deck.simulate")}
             </button>
             <button onClick={() => deckSampleHand().then(setHand)}>
-              Sample hand
+              {t("deck.sampleHand")}
             </button>
             <span className="spacer" />
             <button className="ghost-btn" onClick={() => run(deckClear)}>
-              Clear
+              {t("deck.clear")}
             </button>
             <button
               className="ghost-btn"
@@ -84,11 +88,11 @@ export function DeckPage({ colorTint }: { colorTint: boolean }) {
                 deckExport().then((e) => navigator.clipboard?.writeText(e.text))
               }
             >
-              Copy export
+              {t("deck.copyExport")}
             </button>
           </div>
           <div className="basics-row">
-            <span className="stat-label">Basics:</span>
+            <span className="stat-label">{t("deck.basics")}</span>
             {BASICS.map((b) => (
               <span key={b} className="basic-stepper">
                 <button
@@ -111,21 +115,21 @@ export function DeckPage({ colorTint }: { colorTint: boolean }) {
         </section>
 
         <DeckTable
-          title="Custom Deck"
+          title={t("deck.customDeck")}
           rows={state?.deck ?? []}
           count={state?.mainCount ?? 0}
           targetCount={40}
           onMove={(name) => run(() => deckMoveCard(name, true))}
-          emptyText="Auto-build or double-click a card to add it"
+          emptyText={t("deck.emptyAdd")}
           colorTint={colorTint}
           dblClickMove
         />
         <DeckTable
-          title="Sideboard"
+          title={t("deck.sideboard")}
           rows={state?.sideboard ?? []}
           count={state?.sideboardCount ?? 0}
           onMove={(name) => run(() => deckMoveCard(name, false))}
-          emptyText="Double-click a card to add it to the deck"
+          emptyText={t("deck.emptySideboard")}
           colorTint={colorTint}
           dblClickMove
         />
@@ -133,13 +137,13 @@ export function DeckPage({ colorTint }: { colorTint: boolean }) {
 
       <aside className="deck-rail">
         <section className="panel">
-          <h2>Deck stats</h2>
+          <h2>{t("deck.stats")}</h2>
           {state && <DeckStatsView stats={state.stats} />}
         </section>
         {sim && <SimResultView result={sim} />}
         {hand && (
           <section className="panel">
-            <h2>Sample hand</h2>
+            <h2>{t("deck.sampleHandTitle")}</h2>
             <SampleHandView hand={hand} />
           </section>
         )}

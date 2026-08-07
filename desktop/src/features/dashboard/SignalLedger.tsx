@@ -1,6 +1,8 @@
 // The Signal Ledger — five WUBRG lanes filling like a mana pool over the
 // draft. The strongest lane reads "open", the weakest "cut" — table slang.
 
+import { useLanguage } from "../../i18n/useLanguage";
+
 const ORDER = ["W", "U", "B", "R", "G"] as const;
 
 interface Props {
@@ -8,6 +10,7 @@ interface Props {
 }
 
 export function SignalLedger({ scores }: Props) {
+  const { t } = useLanguage();
   const values = ORDER.map((c) => scores[c] ?? 0);
   const max = Math.max(...values, 0.001);
   const maxColor = ORDER[values.indexOf(Math.max(...values))];
@@ -35,7 +38,11 @@ export function SignalLedger({ scores }: Props) {
               />
             </span>
             <span className={`lane-word${word === "open" ? " open" : ""}`}>
-              {word}
+              {word === "open"
+                ? t("dash.open")
+                : word === "cut"
+                  ? t("dash.cut")
+                  : ""}
             </span>
           </div>
         );

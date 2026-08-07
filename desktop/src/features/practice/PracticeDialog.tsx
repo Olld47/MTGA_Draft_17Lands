@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 import { listPracticeSets, startPractice } from "../../api/client";
 import type { PracticeSet, SealedAction } from "../../api/types";
+import { useLanguage } from "../../i18n/useLanguage";
 
 type Mode = "generate" | "import";
 
@@ -12,6 +13,7 @@ export function PracticeDialog({
   onClose: () => void;
   onStarted: (result: SealedAction) => void;
 }) {
+  const { t } = useLanguage();
   const [sets, setSets] = useState<PracticeSet[]>([]);
   const [setCode, setSetCode] = useState("");
   const [mode, setMode] = useState<Mode>("generate");
@@ -52,20 +54,20 @@ export function PracticeDialog({
       <div
         className="modal"
         role="dialog"
-        aria-label="Practice sealed pool"
+        aria-label={t("practice.aria")}
         onClick={(e) => e.stopPropagation()}
       >
-        <h2>Practice sealed pool</h2>
+        <h2>{t("practice.title")}</h2>
 
         <label className="modal-field">
-          <span>Set</span>
+          <span>{t("practice.set")}</span>
           <select
             className="archetype-select"
             value={setCode}
             onChange={(e) => setSetCode(e.target.value)}
           >
             {active.length > 0 && (
-              <optgroup label="Active">
+              <optgroup label={t("practice.active")}>
                 {active.map((s) => (
                   <option key={s.code} value={s.code}>
                     {s.label}
@@ -74,7 +76,7 @@ export function PracticeDialog({
               </optgroup>
             )}
             {inactive.length > 0 && (
-              <optgroup label="Other sets">
+              <optgroup label={t("practice.otherSets")}>
                 {inactive.map((s) => (
                   <option key={s.code} value={s.code}>
                     {s.label}
@@ -92,7 +94,7 @@ export function PracticeDialog({
               checked={mode === "generate"}
               onChange={() => setMode("generate")}
             />
-            Generate 6 random packs
+            {t("practice.generate6")}
           </label>
           <label>
             <input
@@ -100,14 +102,14 @@ export function PracticeDialog({
               checked={mode === "import"}
               onChange={() => setMode("import")}
             />
-            Import an MTGA pool
+            {t("practice.importPool")}
           </label>
         </div>
 
         {mode === "import" && (
           <textarea
             className="modal-textarea"
-            placeholder={"4 Card Name\n2 Another Card"}
+            placeholder={t("practice.placeholder")}
             value={text}
             onChange={(e) => setText(e.target.value)}
             rows={8}
@@ -118,13 +120,13 @@ export function PracticeDialog({
 
         <div className="modal-actions">
           <button className="ghost-btn" onClick={onClose}>
-            Cancel
+            {t("practice.cancel")}
           </button>
           <button
             onClick={confirm}
             disabled={busy || !setCode || (mode === "import" && !text.trim())}
           >
-            {mode === "import" ? "Import pool" : "Generate pool"}
+            {mode === "import" ? t("practice.importPoolBtn") : t("practice.generatePool")}
           </button>
         </div>
       </div>

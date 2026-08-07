@@ -8,6 +8,9 @@ export default defineConfig({
   plugins: [react()],
   test: {
     environment: "jsdom",
+    // A real origin (not the default about:blank) so jsdom enables its
+    // localStorage implementation for the language store's persistence.
+    environmentOptions: { jsdom: { url: "http://localhost:3000" } },
     setupFiles: ["./src/test/setup.ts"],
     include: ["src/**/*.test.{ts,tsx}"],
   },

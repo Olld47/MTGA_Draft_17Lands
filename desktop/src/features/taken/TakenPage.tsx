@@ -14,6 +14,7 @@ import {
 } from "../../components/cardColumns";
 import { CardHoverTip, hoverDataFromCard } from "../../components/CardHover";
 import { useCardMenu } from "../../components/CardContextMenu";
+import { useLanguage } from "../../i18n/useLanguage";
 import { useColumnConfig } from "../../state/useColumnConfig";
 import { useStatFormat } from "../../state/useStatFormat";
 import { PoolSummaryStrip } from "../dashboard/PoolSummaryStrip";
@@ -25,6 +26,7 @@ export function TakenPage({ colorTint }: { colorTint: boolean }) {
   const [taken, setTaken] = useState<TakenCards | null>(null);
   const { resultFormat, metrics } = useStatFormat();
   const format = { resultFormat, metrics };
+  const { t } = useLanguage();
   const { fields, order, add, remove, reset, move, initialSort, setSort } =
     useColumnConfig(
       "taken_table",
@@ -45,9 +47,9 @@ export function TakenPage({ colorTint }: { colorTint: boolean }) {
   }, [refresh]);
 
   const columns: Column<Card>[] = [
-    nameColumn({ colorName: true }),
-    manaColumn(),
-    ...order.map((f) => cardColumn(f, format)),
+    nameColumn({ colorName: true }, t),
+    manaColumn(t),
+    ...order.map((f) => cardColumn(f, format, t)),
   ];
   const menu = useCardMenu();
 
@@ -55,12 +57,16 @@ export function TakenPage({ colorTint }: { colorTint: boolean }) {
     <div style={{ display: "flex", flexDirection: "column", gap: "var(--gap)" }}>
       {taken && taken.poolSummary.cardCount > 0 && (
         <section className="panel">
-          <h2>Pool</h2>
+          <h2>{t("taken.pool")}</h2>
           <PoolSummaryStrip summary={taken.poolSummary} />
         </section>
       )}
       <section className="panel">
-        <h2>Taken Cards {taken ? `(${taken.poolSummary.cardCount})` : ""}</h2>
+        <h2>
+          {taken
+            ? t("taken.takenCards", { n: taken.poolSummary.cardCount })
+            : t("tab.taken")}
+        </h2>
         <DataTable
           columns={columns}
           rows={taken?.cards ?? []}
@@ -69,16 +75,16 @@ export function TakenPage({ colorTint }: { colorTint: boolean }) {
           defaultSort={{ id: "cost", desc: false }}
           initialSort={initialSort}
           onSortChange={setSort}
-          emptyText="Cards you draft appear here"
+          emptyText={t("taken.empty")}
           hoverContent={(c) => <CardHoverTip data={hoverDataFromCard(c)} />}
           onContextMenu={(c, x, y) => menu.open(c.name, x, y)}
           columnMenu={{
             active: fields,
             addable: CARD_COLUMN_FIELDS.filter((f) => !fields.includes(f)).map(
-              (f) => ({ id: f, label: CARD_COLUMN_LABELS[f] }),
+              (f) => ({ id: f, label: t(CARD_COLUMN_LABELS[f]) }),
             ),
             removable: (id) => fields.includes(id),
-            label: (id) => CARD_COLUMN_LABELS[id] ?? id,
+            label: (id) => t(CARD_COLUMN_LABELS[id] ?? id),
             onAdd: add,
             onRemove: remove,
             onReset: reset,

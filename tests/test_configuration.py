@@ -12,6 +12,7 @@ from src.configuration import (
     reset_configuration,
     Configuration,
     get_config_path,
+    Settings,
 )
 
 
@@ -142,6 +143,16 @@ def test_get_config_path():
         # On Linux logic: expanduser("~/.config") -> "/User/Home/.config"
         expected = os.path.join("/User/Home/.config", "MTGA_Draft_Tool", "config.json")
         assert get_config_path() == expected
+
+
+def test_language_validator_accepts_listed_and_falls_back():
+    """Settings.language accepts the constants.LANGUAGE_LIST values and falls
+    back to the default on anything else (mirrors validate_desktop_theme)."""
+    from src import constants
+
+    assert Settings().language == constants.LANGUAGE_DEFAULT
+    assert Settings(language="zh").language == "zh"
+    assert Settings(language="fr").language == constants.LANGUAGE_DEFAULT
 
 
 def test_write_configuration_error_notifier(tmp_path, example_configuration):

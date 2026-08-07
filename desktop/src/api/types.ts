@@ -104,6 +104,7 @@ export interface Settings {
   resultFormat: string;
   uiSize: string;
   desktopTheme: string;
+  language: string;
   cardColorsEnabled: boolean;
   draftLogEnabled: boolean;
   updateNotificationsEnabled: boolean;

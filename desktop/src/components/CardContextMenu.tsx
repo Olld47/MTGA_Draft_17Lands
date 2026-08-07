@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { compareAddCard, openUrl } from "../api/client";
+import { useLanguage } from "../i18n/useLanguage";
 import { navigateTab } from "../state/navigation";
 
 /** Scryfall search URL for a card name — legacy card_interactions.open_scryfall. */
@@ -59,6 +60,7 @@ function CardContextMenu({
   menu: CardMenuState;
   onClose: () => void;
 }) {
+  const { t } = useLanguage();
   const { name } = menu;
 
   const compare = () => {
@@ -83,14 +85,14 @@ function CardContextMenu({
       role="menu"
     >
       <button role="menuitem" onClick={compare}>
-        🔍 Compare “{name}”
+        {t("ctx.compare", { name })}
       </button>
       <button role="menuitem" onClick={copy}>
-        📋 Copy Name
+        {t("ctx.copyName")}
       </button>
       <hr />
       <button role="menuitem" onClick={scryfall}>
-        🌐 View on Scryfall
+        {t("ctx.viewScryfall")}
       </button>
     </div>
   );

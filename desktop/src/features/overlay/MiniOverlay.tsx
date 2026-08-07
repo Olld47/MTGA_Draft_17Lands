@@ -17,6 +17,7 @@ import { useFilterOptions } from "../../state/useFilterOptions";
 import { useMiniMode } from "../../state/useMiniMode";
 import { useSettings } from "../../state/useSettings";
 import { navigateTab } from "../../state/navigation";
+import { useLanguage } from "../../i18n/useLanguage";
 
 // The compact Mini Mode overlay — a dense, tabbed re-display of the live
 // `DraftState` (Pack / Advisor / Stats / Pool), matching the four notebook
@@ -28,11 +29,11 @@ import { navigateTab } from "../../state/navigation";
 
 type MiniTab = "pack" | "advisor" | "stats" | "pool";
 
-const MINI_TABS: { id: MiniTab; label: string }[] = [
-  { id: "pack", label: "Pack" },
-  { id: "advisor", label: "Advisor" },
-  { id: "stats", label: "Stats" },
-  { id: "pool", label: "Pool" },
+const MINI_TABS: { id: MiniTab; labelKey: string }[] = [
+  { id: "pack", labelKey: "overlay.tabPack" },
+  { id: "advisor", labelKey: "overlay.tabAdvisor" },
+  { id: "stats", labelKey: "overlay.tabStats" },
+  { id: "pool", labelKey: "overlay.tabPool" },
 ];
 
 interface Props {
@@ -53,6 +54,7 @@ export function MiniOverlay({
   onRestore,
   onDragStart,
 }: Props) {
+  const { t } = useLanguage();
   const [tab, setTab] = useState<MiniTab>("pack");
   const [gearOpen, setGearOpen] = useState(false);
   const { settings, patch } = useSettings();
@@ -132,10 +134,10 @@ export function MiniOverlay({
       <header
         className="mini-header"
         onMouseDown={onDragStart}
-        title="Drag to move"
+        title={t("overlay.dragToMove")}
       >
         <span className="mini-info">
-          {state?.eventString || "Waiting..."} · {state?.filterLabel ?? ""}
+          {state?.eventString || t("overlay.waiting")} · {state?.filterLabel ?? ""}
         </span>
         <span className="spacer" />
         {state && state.pack > 0 && (
@@ -145,21 +147,21 @@ export function MiniOverlay({
         )}
         <span
           className={`status-dot${live ? " live" : ""}`}
-          title={live ? "Arena log is live" : "Arena log idle"}
+          title={live ? t("masthead.statusLive") : t("masthead.statusIdle")}
         />
         <div className="mini-gear-wrap" ref={gearRef}>
           <button
             className={`mini-btn${gearOpen ? " active" : ""}`}
             onClick={() => setGearOpen((o) => !o)}
             onMouseDown={(e) => e.stopPropagation()}
-            title="Overlay settings"
+            title={t("overlay.settings")}
           >
             ⚙
           </button>
           {gearOpen && (
             <div className="mini-gear">
               <label className="mini-gear-row">
-                <span>Colors</span>
+                <span>{t("overlay.colors")}</span>
                 <select
                   value={settings?.deckFilter ?? "Auto"}
                   onChange={(e) => patch({ deckFilter: e.target.value })}
@@ -173,7 +175,7 @@ export function MiniOverlay({
               </label>
               {switcher.events.length > 0 && (
                 <div className="mini-gear-row">
-                  <span>Dataset</span>
+                  <span>{t("overlay.dataset")}</span>
                   <DatasetSwitcher switcher={switcher} />
                 </div>
               )}
@@ -185,7 +187,7 @@ export function MiniOverlay({
                   onRestore();
                 }}
               >
-                Preferences…
+                {t("overlay.preferences")}
               </button>
             </div>
           )}
@@ -194,27 +196,27 @@ export function MiniOverlay({
           className="mini-btn"
           onClick={onRestore}
           onMouseDown={(e) => e.stopPropagation()}
-          title="Restore full window"
+          title={t("overlay.restore")}
         >
           ⤢
         </button>
       </header>
 
       <nav className="mini-tabs">
-        {MINI_TABS.map((t) => (
+        {MINI_TABS.map((tabDef) => (
           <button
-            key={t.id}
-            className={tab === t.id ? "active" : ""}
-            onClick={() => setTab(t.id)}
+            key={tabDef.id}
+            className={tab === tabDef.id ? "active" : ""}
+            onClick={() => setTab(tabDef.id)}
           >
-            {t.label}
+            {t(tabDef.labelKey)}
           </button>
         ))}
       </nav>
 
       <div className="mini-body">
         {!state ? (
-          <div className="empty-state">Waiting for draft data...</div>
+          <div className="empty-state">{t("shell.waitingDraft")}</div>
         ) : tab === "pack" ? (
           <>
             <PackTable
@@ -224,12 +226,14 @@ export function MiniOverlay({
             />
             {state.missingCards.length > 0 && (
               <details className="disclosure">
-                <summary>Seen · wheel ({state.missingCards.length})</summary>
+                <summary>
+                  {t("overlay.seenWheel", { n: state.missingCards.length })}
+                </summary>
                 <PackTable
                   cards={state.missingCards}
                   colorTint={colorTint}
                   viewId="missing_table"
-                  emptyText="No seen cards"
+                  emptyText={t("overlay.noSeen")}
                 />
               </details>
             )}
@@ -238,16 +242,16 @@ export function MiniOverlay({
           <AdvisorPanel recommendations={recommendations} limit={5} />
         ) : tab === "stats" ? (
           <div className="mini-stats">
-            <h3>Open lanes</h3>
+            <h3>{t("overlay.openLanes")}</h3>
             <SignalLedger scores={state.signals.scores} />
             {state.poolSummary && state.poolSummary.cardCount > 0 && (
               <>
-                <h3>Mana curve</h3>
+                <h3>{t("dash.manaCurve")}</h3>
                 <ManaCurveChart
                   distribution={state.poolSummary.cmcDistribution}
                   ideal={idealCurve}
                 />
-                <h3>Pool balance</h3>
+                <h3>{t("dash.poolBalance")}</h3>
                 <PoolSummaryStrip summary={state.poolSummary} />
               </>
             )}
@@ -261,7 +265,7 @@ export function MiniOverlay({
         <span
           className="mini-grip"
           onMouseDown={onResizeDown}
-          title="Drag to resize"
+          title={t("overlay.dragToResize")}
         >
           ⇲
         </span>

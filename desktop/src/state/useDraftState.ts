@@ -3,12 +3,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { getDraftState } from "../api/client";
 import { EVENTS, on, type RefreshPayload, type StatusPayload } from "../api/events";
 import type { DraftState } from "../api/types";
+import { t } from "../i18n/useLanguage";
 
 /** Listens for draft://refresh and re-fetches the full draft state.
  *  A monotonically increasing sequence drops stale responses. */
 export function useDraftState(booted: boolean) {
   const [state, setState] = useState<DraftState | null>(null);
-  const [statusText, setStatusText] = useState("Waiting for draft...");
+  const [statusText, setStatusText] = useState(t("state.waitingDraft"));
   const seqRef = useRef(0);
 
   const refresh = useCallback(async () => {
@@ -18,7 +19,9 @@ export function useDraftState(booted: boolean) {
       if (mySeq === seqRef.current) {
         setState(s);
         setStatusText(
-          s.pack > 0 ? `Pack ${s.pack} Pick ${s.pick}` : "Waiting for draft...",
+          s.pack > 0
+            ? t("state.packPick", { pack: s.pack, pick: s.pick })
+            : t("state.waitingDraft"),
         );
       }
     } catch (e) {

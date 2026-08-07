@@ -203,6 +203,8 @@ class SettingsVM(_VM):
     result_format: str
     ui_size: str
     desktop_theme: str
+    # UI language (en/zh) the frontend uses for its localization dictionary.
+    language: str
     card_colors_enabled: bool
     draft_log_enabled: bool
     update_notifications_enabled: bool
@@ -233,6 +235,7 @@ class SettingsPatch(_VM):
     result_format: Optional[str] = None
     ui_size: Optional[str] = None
     desktop_theme: Optional[str] = None
+    language: Optional[str] = None
     card_colors_enabled: Optional[bool] = None
     draft_log_enabled: Optional[bool] = None
     update_notifications_enabled: Optional[bool] = None

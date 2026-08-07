@@ -19,6 +19,7 @@ import { useDraftLogs } from "./state/useDraftLogs";
 import { useSettings } from "./state/useSettings";
 import { useMiniMode } from "./state/useMiniMode";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { useLanguage } from "./i18n/useLanguage";
 import { DashboardPage } from "./features/dashboard/DashboardPage";
 import { MiniOverlay } from "./features/overlay/MiniOverlay";
 import { TakenPage } from "./features/taken/TakenPage";
@@ -42,35 +43,37 @@ type Tab =
   | "datasets"
   | "settings";
 
-const TABS: { id: Tab; label: string }[] = [
-  { id: "draft", label: "Draft" },
-  { id: "taken", label: "Taken Cards" },
-  { id: "deck", label: "Custom Deck" },
-  { id: "suggest", label: "Suggest Deck" },
-  { id: "sealed", label: "Sealed Deck" },
-  { id: "compare", label: "Compare Cards" },
-  { id: "tiers", label: "Tiers" },
-  { id: "datasets", label: "Datasets" },
-  { id: "settings", label: "Settings" },
+const TABS: { id: Tab; labelKey: string }[] = [
+  { id: "draft", labelKey: "tab.draft" },
+  { id: "taken", labelKey: "tab.taken" },
+  { id: "deck", labelKey: "tab.deck" },
+  { id: "suggest", labelKey: "tab.suggest" },
+  { id: "sealed", labelKey: "tab.sealed" },
+  { id: "compare", labelKey: "tab.compare" },
+  { id: "tiers", labelKey: "tab.tiers" },
+  { id: "datasets", labelKey: "tab.datasets" },
+  { id: "settings", labelKey: "tab.settings" },
 ];
 
 function BootScreen({ message, error }: { message: string; error: string }) {
+  const { t } = useLanguage();
   return (
     <div className="boot-screen">
       <h1>MTGA Draft Tool</h1>
       {error ? (
         <>
           <div className="boot-error">{error}</div>
-          <button onClick={() => window.location.reload()}>Retry</button>
+          <button onClick={() => window.location.reload()}>{t("boot.retry")}</button>
         </>
       ) : (
-        <div className="boot-log">{message || "Starting..."}</div>
+        <div className="boot-log">{message || t("boot.starting")}</div>
       )}
     </div>
   );
 }
 
 export default function App() {
+  const { t } = useLanguage();
   const [booted, setBooted] = useState(false);
   const [bootMessage, setBootMessage] = useState("");
   const [bootError, setBootError] = useState("");
@@ -157,7 +160,7 @@ export default function App() {
     <div className="app-shell">
       <header className="masthead">
         <span className="event-name">
-          {state?.eventString || "No active draft"}
+          {state?.eventString || t("masthead.noActiveDraft")}
         </span>
         {state && state.pack > 0 && (
           <span className="pack-pick">
@@ -169,7 +172,7 @@ export default function App() {
         {logs.logs.length > 0 && (
           <select
             className="log-switcher"
-            title="Replay a past draft, or return to the live Arena log"
+            title={t("masthead.logSwitcherTitle")}
             value={logs.selected}
             disabled={logs.swapping}
             onChange={(e) => logs.select(e.target.value)}
@@ -184,7 +187,7 @@ export default function App() {
         {state && (
           <button
             className="filter-pill"
-            title="Active deck-color filter"
+            title={t("masthead.filterTitle")}
             onClick={() => setTab("settings")}
           >
             {state.filterLabel}
@@ -192,25 +195,28 @@ export default function App() {
         )}
         <span
           className={`status-dot${live ? " live" : ""}`}
-          title={live ? "Arena log is live" : "Arena log idle"}
+          title={live ? t("masthead.statusLive") : t("masthead.statusIdle")}
         />
         <span className="status-text">{statusText}</span>
-        <button onClick={() => toggleMini()} title="Shrink to always-on-top Mini Mode">
-          Mini
+        <button
+          onClick={() => toggleMini()}
+          title={t("masthead.miniTitle")}
+        >
+          {t("masthead.mini")}
         </button>
-        <button onClick={() => forceReload()} title="Deep-rescan the Arena log">
-          Rescan
+        <button onClick={() => forceReload()} title={t("masthead.rescanTitle")}>
+          {t("masthead.rescan")}
         </button>
       </header>
 
       <nav className="tab-strip">
-        {TABS.map((t) => (
+        {TABS.map((tabDef) => (
           <button
-            key={t.id}
-            className={tab === t.id ? "active" : ""}
-            onClick={() => setTab(t.id)}
+            key={tabDef.id}
+            className={tab === tabDef.id ? "active" : ""}
+            onClick={() => setTab(tabDef.id)}
           >
-            {t.label}
+            {t(tabDef.labelKey)}
           </button>
         ))}
       </nav>
@@ -230,7 +236,7 @@ export default function App() {
                 idealCurve={settings?.deckMidDistribution ?? []}
               />
             ) : (
-              <div className="empty-state">Waiting for draft data...</div>
+              <div className="empty-state">{t("shell.waitingDraft")}</div>
             ))}
           {tab === "taken" && <TakenPage colorTint={colorTint} />}
           {tab === "deck" && <DeckPage colorTint={colorTint} />}

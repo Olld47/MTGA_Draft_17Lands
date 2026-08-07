@@ -22,6 +22,7 @@ import type { SealedAction, SealedState } from "../../api/types";
 import { DeckStatsView, DeckTable } from "../deck/DeckStatsView";
 import { PracticeDialog } from "../practice/PracticeDialog";
 import type { GroupBy } from "../../components/cardGroups";
+import { useLanguage } from "../../i18n/useLanguage";
 
 const BASICS = ["Plains", "Island", "Swamp", "Mountain", "Forest"];
 
@@ -44,6 +45,7 @@ const POOL_FILTER_TYPES = ["creatures", "spells", "lands"] as const;
 const POOL_FILTER_COLORS = ["W", "U", "B", "R", "G", "C", "M"] as const;
 
 export function SealedPage({ colorTint }: { colorTint: boolean }) {
+  const { t } = useLanguage();
   const [state, setState] = useState<SealedState | null>(null);
   const [message, setMessage] = useState("");
   const [shareUrl, setShareUrl] = useState("");
@@ -118,24 +120,24 @@ export function SealedPage({ colorTint }: { colorTint: boolean }) {
     sealedReloadPool()
       .then((s) => {
         setState(s);
-        setMessage("Pool reloaded from the Arena log");
+        setMessage(t("sealed.poolReloaded"));
       })
       .catch((e) => setMessage(String(e)))
       .finally(() => setBusy(false));
   };
 
   const addVariant = () => {
-    const name = window.prompt("New build name?");
+    const name = window.prompt(t("sealed.newBuildName"));
     if (name) act(() => sealedCreateVariant(name));
   };
 
   const renameVariant = (old: string) => {
-    const name = window.prompt("Rename build to?", old);
+    const name = window.prompt(t("sealed.renameBuildTo"), old);
     if (name && name !== old) act(() => sealedRenameVariant(old, name));
   };
 
   const importDeck = () => {
-    const text = window.prompt("Paste an MTGA decklist:");
+    const text = window.prompt(t("sealed.pasteDecklist"));
     if (text) act(() => sealedImportDeck(text));
   };
 
@@ -144,7 +146,7 @@ export function SealedPage({ colorTint }: { colorTint: boolean }) {
     sealedExportSealeddeck()
       .then((r) => {
         setShareUrl(r.url);
-        setMessage(r.ok ? "Shared to sealeddeck.tech" : r.message);
+        setMessage(r.ok ? t("sealed.shared") : r.message);
         if (!r.ok && r.text) navigator.clipboard?.writeText(r.text);
       })
       .catch((e) => setMessage(String(e)))
@@ -167,11 +169,13 @@ export function SealedPage({ colorTint }: { colorTint: boolean }) {
   if (state && !state.hasPool) {
     return (
       <div className="empty-state">
-        <p>No sealed pool detected. Open a Sealed event in Arena, then rescan.</p>
+        <p>{t("sealed.emptyPool")}</p>
         <button onClick={reloadPool} disabled={busy}>
-          Reload pool
+          {t("sealed.reloadPool")}
         </button>
-        <button onClick={() => setPracticeOpen(true)}>Practice pool...</button>
+        <button onClick={() => setPracticeOpen(true)}>
+          {t("sealed.practicePool")}
+        </button>
         {message && <p className="hint">{message}</p>}
         {practiceDialog}
       </div>
@@ -193,7 +197,7 @@ export function SealedPage({ colorTint }: { colorTint: boolean }) {
                 </button>
                 <button
                   className="variant-edit"
-                  title="Rename"
+                  title={t("sealed.renameTitle")}
                   onClick={() => renameVariant(v.name)}
                 >
                   ✎
@@ -201,7 +205,7 @@ export function SealedPage({ colorTint }: { colorTint: boolean }) {
                 {(state?.variants.length ?? 0) > 1 && (
                   <button
                     className="variant-edit"
-                    title="Delete"
+                    title={t("sealed.deleteTitle")}
                     onClick={() => act(() => sealedDeleteVariant(v.name))}
                   >
                     ✕
@@ -210,21 +214,23 @@ export function SealedPage({ colorTint }: { colorTint: boolean }) {
               </span>
             ))}
             <button className="ghost-btn" onClick={addVariant}>
-              + Build
+              {t("sealed.addBuild")}
             </button>
           </div>
           <div className="deck-toolbar">
             <button onClick={() => act(sealedAutoGenerate)} disabled={busy}>
-              Auto-generate shells
+              {t("sealed.autoShells")}
             </button>
             <button onClick={() => act(sealedAutoLands)} disabled={busy}>
-              Auto-lands
+              {t("deck.autolands")}
             </button>
-            <button onClick={importDeck}>Import</button>
+            <button onClick={importDeck}>{t("sealed.import")}</button>
             <button onClick={reloadPool} disabled={busy}>
-              Reload pool
+              {t("sealed.reloadPool")}
             </button>
-            <button onClick={() => setPracticeOpen(true)}>Practice...</button>
+            <button onClick={() => setPracticeOpen(true)}>
+              {t("sealed.practice")}
+            </button>
             <span className="spacer" />
             <button
               className="ghost-btn"
@@ -232,20 +238,20 @@ export function SealedPage({ colorTint }: { colorTint: boolean }) {
                 sealedExport().then((e) => navigator.clipboard?.writeText(e.text))
               }
             >
-              Copy export
+              {t("deck.copyExport")}
             </button>
             <button className="ghost-btn" onClick={share} disabled={busy}>
-              Share
+              {t("sealed.share")}
             </button>
             <button
               className="ghost-btn"
               onClick={() => act(sealedClearDeck)}
             >
-              Clear
+              {t("deck.clear")}
             </button>
           </div>
           <div className="basics-row">
-            <span className="stat-label">Basics:</span>
+            <span className="stat-label">{t("deck.basics")}</span>
             {BASICS.map((b) => (
               <span key={b} className="basic-stepper">
                 <button
@@ -276,20 +282,20 @@ export function SealedPage({ colorTint }: { colorTint: boolean }) {
         </section>
 
         <DeckTable
-          title="Main deck"
+          title={t("sealed.mainDeck")}
           rows={state?.deck ?? []}
           count={state?.mainCount ?? 0}
           targetCount={40}
           onMove={(name) => act(() => sealedMoveCard(name, true))}
-          moveLabel="→ pool"
-          emptyText="Auto-generate a shell or double-click a card to add it"
+          moveLabel={t("deck.moveToPool")}
+          emptyText={t("sealed.emptyMain")}
           colorTint={colorTint}
           dblClickMove
           group={deckGroup}
           onGroupChange={setDeckGroup}
         />
         <div className="pool-filter-bar">
-          <span className="stat-label">Show:</span>
+          <span className="stat-label">{t("sealed.show")}</span>
           {POOL_FILTER_TYPES.map((k) => (
             <label key={k}>
               <input
@@ -299,7 +305,7 @@ export function SealedPage({ colorTint }: { colorTint: boolean }) {
                   setPoolFilter({ ...poolFilter, [k]: e.target.checked })
                 }
               />
-              {k[0].toUpperCase() + k.slice(1)}
+              {t(`sealed.${k}`)}
             </label>
           ))}
           <span className="pool-filter-divider" />
@@ -317,12 +323,12 @@ export function SealedPage({ colorTint }: { colorTint: boolean }) {
           ))}
         </div>
         <DeckTable
-          title="Pool"
+          title={t("sealed.pool")}
           rows={filteredPool}
           count={filteredPoolCount}
           onMove={(name) => act(() => sealedMoveCard(name, false))}
-          moveLabel="↑ main"
-          emptyText="Double-click a card to add it to the main deck"
+          moveLabel={t("deck.moveToMain")}
+          emptyText={t("sealed.emptyPoolAdd")}
           colorTint={colorTint}
           dblClickMove
           group={poolGroup}
@@ -332,12 +338,14 @@ export function SealedPage({ colorTint }: { colorTint: boolean }) {
 
       <aside className="deck-rail">
         <section className="panel">
-          <h2>Deck stats</h2>
+          <h2>{t("deck.stats")}</h2>
           {state && <DeckStatsView stats={state.stats} />}
         </section>
         <section className="panel">
-          <h2>Pool</h2>
-          <div className="empty-inline">{state?.poolSize ?? 0} cards</div>
+          <h2>{t("sealed.pool")}</h2>
+          <div className="empty-inline">
+            {t("sealed.poolCards", { n: state?.poolSize ?? 0 })}
+          </div>
         </section>
       </aside>
       {practiceDialog}

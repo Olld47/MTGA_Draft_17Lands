@@ -7,8 +7,10 @@ import {
 } from "../../api/client";
 import type { TierListEntry, TierLists } from "../../api/types";
 import { DataTable, type Column } from "../../components/DataTable";
+import { useLanguage } from "../../i18n/useLanguage";
 
 export function TiersPage() {
+  const { t } = useLanguage();
   const [lists, setLists] = useState<TierLists | null>(null);
   const [url, setUrl] = useState("");
   const [label, setLabel] = useState("");
@@ -52,28 +54,28 @@ export function TiersPage() {
   const columns: Column<TierListEntry>[] = [
     {
       id: "set",
-      header: "Set",
-      cell: (t) => <span className="card-name">{t.setCode}</span>,
-      sortValue: (t) => t.setCode,
+      header: t("tiers.colSet"),
+      cell: (e) => <span className="card-name">{e.setCode}</span>,
+      sortValue: (e) => e.setCode,
     },
     {
       id: "label",
-      header: "Label",
-      cell: (t) => t.label,
-      sortValue: (t) => t.label,
+      header: t("tiers.colLabel"),
+      cell: (e) => e.label,
+      sortValue: (e) => e.label,
     },
     {
       id: "date",
-      header: "Added",
-      cell: (t) => t.date || "—",
-      sortValue: (t) => t.date,
+      header: t("tiers.colAdded"),
+      cell: (e) => e.date || "—",
+      sortValue: (e) => e.date,
     },
     {
       id: "actions",
       header: "",
-      cell: (t) => (
-        <button className="ghost-btn" onClick={() => remove(t)}>
-          Delete
+      cell: (e) => (
+        <button className="ghost-btn" onClick={() => remove(e)}>
+          {t("tiers.delete")}
         </button>
       ),
     },
@@ -82,35 +84,35 @@ export function TiersPage() {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "var(--gap)" }}>
       <section className="panel">
-        <h2>Import a tier list</h2>
+        <h2>{t("tiers.importTitle")}</h2>
         <div className="download-form">
           <label className="field" style={{ flex: 2 }}>
-            <span>17Lands / URL</span>
+            <span>{t("tiers.urlLabel")}</span>
             <input
               value={url}
-              placeholder="https://www.17lands.com/tier_list/..."
+              placeholder={t("tiers.urlPlaceholder")}
               onChange={(e) => setUrl(e.target.value)}
             />
           </label>
           <label className="field">
-            <span>Label (optional)</span>
+            <span>{t("tiers.labelOptional")}</span>
             <input value={label} onChange={(e) => setLabel(e.target.value)} />
           </label>
           <button onClick={doImport} disabled={busy || !url.trim()}>
-            {busy ? "Importing..." : "Import"}
+            {busy ? t("tiers.importing") : t("tiers.import")}
           </button>
         </div>
         {message && <div className="sim-note">{message}</div>}
       </section>
 
       <section className="panel">
-        <h2>Installed tier lists</h2>
+        <h2>{t("tiers.installed")}</h2>
         <DataTable
           columns={columns}
           rows={lists?.lists ?? []}
-          rowKey={(t) => t.fileName}
+          rowKey={(e) => e.fileName}
           defaultSort={{ id: "date", desc: true }}
-          emptyText="Import a tier list to fold community grades into your picks"
+          emptyText={t("tiers.empty")}
         />
       </section>
     </div>

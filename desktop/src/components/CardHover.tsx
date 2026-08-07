@@ -1,4 +1,6 @@
 import type { Card, DeckColor, DeckRow } from "../api/types";
+import { useLanguage } from "../i18n/useLanguage";
+import type { Translate } from "./cardColumns";
 import {
   artUrl,
   cardNameColor,
@@ -114,33 +116,40 @@ interface StatRow {
   cls?: string;
 }
 
-function statRows(stats: CardHoverData["stats"]): StatRow[] {
+function statRows(
+  stats: CardHoverData["stats"],
+  t: Translate,
+): StatRow[] {
   const rows: StatRow[] = [];
   if (stats.gihwr != null) {
     rows.push({
-      label: "GIH WR",
+      label: t("col.gihwr"),
       value: fmtPct(stats.gihwr),
       cls: stats.gihwr >= 55 ? "up" : undefined,
     });
   }
   if (stats.iwd != null) {
     rows.push({
-      label: "IWD",
+      label: t("col.iwd"),
       value: fmtSigned(stats.iwd),
       cls: stats.iwd >= 3 ? "accent" : undefined,
     });
   }
-  if (stats.alsa != null) rows.push({ label: "ALSA", value: stats.alsa.toFixed(1) });
-  if (stats.ata != null) rows.push({ label: "ATA", value: stats.ata.toFixed(1) });
-  if (stats.games != null) rows.push({ label: "Games", value: fmtGames(stats.games) });
+  if (stats.alsa != null)
+    rows.push({ label: t("col.alsa"), value: stats.alsa.toFixed(1) });
+  if (stats.ata != null)
+    rows.push({ label: t("col.ata"), value: stats.ata.toFixed(1) });
+  if (stats.games != null)
+    rows.push({ label: t("hover.games"), value: fmtGames(stats.games) });
   return rows;
 }
 
 /** Cursor-following hover card: art + the legacy CardToolTip stat panel.
  *  Rendered by DataTable when `hoverContent` is wired (pack / taken / deck). */
 export function CardHoverTip({ data }: { data: CardHoverData }) {
+  const { t } = useLanguage();
   const image = artUrl(data.image);
-  const stats = statRows(data.stats);
+  const stats = statRows(data.stats, t);
   return (
     <div className="card-hover-panel">
       <div className="ch-header">
@@ -167,7 +176,7 @@ export function CardHoverTip({ data }: { data: CardHoverData }) {
           <div className="ch-info">
             {stats.length > 0 && (
               <>
-                <div className="ch-section">GLOBAL PERFORMANCE</div>
+                <div className="ch-section">{t("hover.globalPerformance")}</div>
                 <dl className="ch-grid">
                   {stats.flatMap((s) => [
                     <dt key={`${s.label}-t`} className={s.cls}>
@@ -182,7 +191,7 @@ export function CardHoverTip({ data }: { data: CardHoverData }) {
             )}
             {data.deckColors.length > 0 && (
               <>
-                <div className="ch-section">ARCHETYPE PLAY SHARE</div>
+                <div className="ch-section">{t("hover.archetypeShare")}</div>
                 <div className="ch-archetype">
                   {data.deckColors.map((d) => (
                     <div
@@ -198,7 +207,7 @@ export function CardHoverTip({ data }: { data: CardHoverData }) {
             )}
             {data.tags.length > 0 && (
               <>
-                <div className="ch-section">CARD ROLES</div>
+                <div className="ch-section">{t("hover.cardRoles")}</div>
                 <div className="ch-tags">
                   {data.tags.map((t) => (
                     <span key={t}>{TAG_ICONS[t] ?? t}</span>

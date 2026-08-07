@@ -1,5 +1,6 @@
 import type { Recommendation } from "../../api/types";
 import { TAG_ICONS } from "../../components/cardColumns";
+import { useLanguage } from "../../i18n/useLanguage";
 
 interface Props {
   recommendations: Recommendation[];
@@ -10,12 +11,13 @@ interface Props {
 
 /** Top-`limit` advisor picks with reasoning chips and card-role tags. */
 export function AdvisorPanel({ recommendations, limit = 3 }: Props) {
+  const { t } = useLanguage();
   const top = [...recommendations]
     .sort((a, b) => b.contextualScore - a.contextualScore)
     .slice(0, limit);
 
   if (top.length === 0) {
-    return <div className="empty-state">Advice appears with the next pack</div>;
+    return <div className="empty-state">{t("dash.adviceNextPack")}</div>;
   }
 
   return (

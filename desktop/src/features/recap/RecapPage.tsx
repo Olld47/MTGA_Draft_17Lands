@@ -4,12 +4,14 @@ import { getDraftRecord, getRecap, openUrl } from "../../api/client";
 import { EVENTS, on, type RefreshPayload } from "../../api/events";
 import type { DraftRecord, Recap, RecapCard, RecapRole } from "../../api/types";
 import { ManaCurveChart } from "../dashboard/ManaCurveChart";
+import { useLanguage } from "../../i18n/useLanguage";
 import { navigateTab } from "../../state/navigation";
 
 const fmt = (v: number | null) => (v == null ? "—" : v.toFixed(1));
 
 function CardList({ cards }: { cards: RecapCard[] }) {
-  if (cards.length === 0) return <div className="empty-inline">None</div>;
+  const { t } = useLanguage();
+  if (cards.length === 0) return <div className="empty-inline">{t("recap.none")}</div>;
   return (
     <ul className="recap-card-list">
       {cards.map((c) => (
@@ -23,7 +25,8 @@ function CardList({ cards }: { cards: RecapCard[] }) {
 }
 
 function RoleChips({ roles }: { roles: RecapRole[] }) {
-  if (roles.length === 0) return <div className="empty-inline">None</div>;
+  const { t } = useLanguage();
+  if (roles.length === 0) return <div className="empty-inline">{t("recap.none")}</div>;
   return (
     <div className="recap-chips">
       {roles.map((r) => (
@@ -39,7 +42,8 @@ function RoleChips({ roles }: { roles: RecapRole[] }) {
  *  formats steals positive (pick − ALSA) and reaches negative (ATA − pick),
  *  with the reference stat next to each. */
 function PickLine({ p, kind }: { p: { pack: number; pick: number; reference: number; delta: number }; kind: "steal" | "reach" }) {
-  const ref = kind === "steal" ? "ALSA" : "ATA";
+  const { t } = useLanguage();
+  const ref = kind === "steal" ? t("col.alsa") : t("col.ata");
   const sign = kind === "steal" ? "+" : "-";
   return (
     <span className="num">
@@ -50,6 +54,7 @@ function PickLine({ p, kind }: { p: { pack: number; pick: number; reference: num
 }
 
 export function RecapPage({ idealCurve = [] }: { idealCurve?: number[] }) {
+  const { t } = useLanguage();
   const [recap, setRecap] = useState<Recap | null>(null);
   const [record, setRecord] = useState<DraftRecord | null>(null);
 
@@ -73,11 +78,7 @@ export function RecapPage({ idealCurve = [] }: { idealCurve?: number[] }) {
   }, [refresh]);
 
   if (!recap || !recap.hasData) {
-    return (
-      <div className="empty-state">
-        Finish a draft to see your pool recap and grade.
-      </div>
-    );
+    return <div className="empty-state">{t("recap.empty")}</div>;
   }
 
   return (
@@ -89,16 +90,16 @@ export function RecapPage({ idealCurve = [] }: { idealCurve?: number[] }) {
         </div>
         <div className="recap-hero-stats">
           <div>
-            <span className="stat-label">Top-23 avg GIHWR</span>
+            <span className="stat-label">{t("recap.top23")}</span>
             <span className="stat-value">{fmt(recap.top23Avg)}%</span>
           </div>
           <div>
-            <span className="stat-label">Format avg</span>
+            <span className="stat-label">{t("recap.formatAvg")}</span>
             <span className="stat-value">{fmt(recap.formatAvg)}%</span>
           </div>
           {record?.found && (
             <div>
-              <span className="stat-label">Trophy record</span>
+              <span className="stat-label">{t("recap.trophy")}</span>
               <span className="stat-value">
                 {record.url ? (
                   // Open through the open_url bridge: a bare target=_blank
@@ -125,31 +126,31 @@ export function RecapPage({ idealCurve = [] }: { idealCurve?: number[] }) {
           // into the recap header for Sealed events — a natural hop from the
           // recap into tuning the pool (App subscribes to the nav bus).
           <button className="sealed-studio-btn" onClick={() => navigateTab("sealed")}>
-            ⚔️ Enter Sealed Studio
+            {t("recap.enterSealed")}
           </button>
         )}
       </section>
 
       <div className="recap-grid">
         <section className="panel">
-          <h2>Best cards</h2>
+          <h2>{t("recap.bestCards")}</h2>
           <CardList cards={recap.bestCards} />
         </section>
 
         <section className="panel">
-          <h2>Staples</h2>
+          <h2>{t("recap.staples")}</h2>
           <CardList cards={recap.staples} />
         </section>
 
         <section className="panel">
-          <h2>Pool balance</h2>
+          <h2>{t("dash.poolBalance")}</h2>
           {Object.keys(recap.typeCounts).length === 0 ? (
-            <div className="empty-inline">None</div>
+            <div className="empty-inline">{t("recap.none")}</div>
           ) : (
             <div className="recap-chips">
               {Object.entries(recap.typeCounts).map(([type, count]) => (
                 <span key={type}>
-                  {type} <b>{count}</b>
+                  {t(`type.${type.toLowerCase()}`)} <b>{count}</b>
                 </span>
               ))}
             </div>
@@ -157,7 +158,7 @@ export function RecapPage({ idealCurve = [] }: { idealCurve?: number[] }) {
         </section>
 
         <section className="panel">
-          <h2>Mana curve</h2>
+          <h2>{t("dash.manaCurve")}</h2>
           <ManaCurveChart
             distribution={recap.cmcDistribution}
             ideal={idealCurve}
@@ -165,9 +166,9 @@ export function RecapPage({ idealCurve = [] }: { idealCurve?: number[] }) {
         </section>
 
         <section className="panel">
-          <h2>Best archetypes</h2>
+          <h2>{t("recap.bestArchetypes")}</h2>
           {recap.archetypes.length === 0 ? (
-            <div className="empty-inline">None</div>
+            <div className="empty-inline">{t("recap.none")}</div>
           ) : (
             <ul className="recap-card-list">
               {recap.archetypes.map((a) => (
@@ -183,9 +184,9 @@ export function RecapPage({ idealCurve = [] }: { idealCurve?: number[] }) {
         </section>
 
         <section className="panel">
-          <h2>Steals {recap.isSealed ? "" : "(late picks)"}</h2>
+          <h2>{recap.isSealed ? t("recap.steals") : t("recap.stealsLate")}</h2>
           {recap.steals.length === 0 ? (
-            <div className="empty-inline">None</div>
+            <div className="empty-inline">{t("recap.none")}</div>
           ) : (
             <ul className="recap-card-list">
               {recap.steals.map((p) => (
@@ -199,9 +200,9 @@ export function RecapPage({ idealCurve = [] }: { idealCurve?: number[] }) {
         </section>
 
         <section className="panel">
-          <h2>Reaches (early picks)</h2>
+          <h2>{t("recap.reaches")}</h2>
           {recap.reaches.length === 0 ? (
-            <div className="empty-inline">None</div>
+            <div className="empty-inline">{t("recap.none")}</div>
           ) : (
             <ul className="recap-card-list">
               {recap.reaches.map((p) => (
@@ -215,22 +216,22 @@ export function RecapPage({ idealCurve = [] }: { idealCurve?: number[] }) {
         </section>
 
         <section className="panel">
-          <h2>Tribes</h2>
+          <h2>{t("recap.tribes")}</h2>
           <RoleChips roles={recap.tribes} />
         </section>
 
         <section className="panel">
-          <h2>Roles</h2>
+          <h2>{t("recap.roles")}</h2>
           <RoleChips roles={recap.roles} />
         </section>
 
         <section className="panel">
-          <h2>Bombs &amp; rares</h2>
+          <h2>{t("recap.bombs")}</h2>
           <CardList cards={recap.rares} />
         </section>
 
         <section className="panel">
-          <h2>Fixing / lands</h2>
+          <h2>{t("recap.fixing")}</h2>
           <CardList cards={recap.nonBasicLands} />
         </section>
       </div>

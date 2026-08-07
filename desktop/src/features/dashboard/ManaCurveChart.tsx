@@ -1,3 +1,5 @@
+import { useLanguage } from "../../i18n/useLanguage";
+
 // ManaCurveChart — the pool's mana curve as 7 columns (CMC 0…6+) with a dashed
 // "ideal" overlay from the mid-range deck config. Port of the legacy
 // ManaCurvePlot (src/ui/components.py): a bar above the ideal by more than one
@@ -11,6 +13,7 @@ interface Props {
 }
 
 export function ManaCurveChart({ distribution, ideal }: Props) {
+  const { t } = useLanguage();
   const current = [
     ...distribution.slice(0, 6),
     distribution.slice(6).reduce((a, b) => a + b, 0),
@@ -21,7 +24,7 @@ export function ManaCurveChart({ distribution, ideal }: Props) {
   const maxVal = Math.max(...current, ...ideal7, 5);
 
   return (
-    <div className="mana-curve" aria-label="Mana curve">
+    <div className="mana-curve" aria-label={t("dash.manaCurve")}>
       {current.map((count, i) => {
         const target = ideal7[i];
         const cls =
@@ -32,18 +35,18 @@ export function ManaCurveChart({ distribution, ideal }: Props) {
               <span
                 className={`curve-bar ${cls}`}
                 style={{ height: `${(count / maxVal) * 100}%` }}
-                title={`CMC ${i}: ${count} (ideal ${target})`}
+                title={t("dash.curveIdeal", { i, count, target })}
               />
               {target > 0 && (
                 <span
                   className="curve-ideal"
                   style={{ height: `${(target / maxVal) * 100}%` }}
-                  title={`CMC ${i}: ideal ${target}`}
+                  title={t("dash.curveIdealTarget", { i, target })}
                 />
               )}
             </div>
             <span className="curve-value">{count > 0 ? count : ""}</span>
-            <span className="curve-label">{i === 6 ? "6+" : i}</span>
+            <span className="curve-label">{i === 6 ? t("dash.curveBucket6") : i}</span>
           </div>
         );
       })}

@@ -9,6 +9,7 @@ import {
 } from "../../api/client";
 import type { AvailableSet, DatasetInfo, DatasetList } from "../../api/types";
 import { DataTable, type Column } from "../../components/DataTable";
+import { useLanguage } from "../../i18n/useLanguage";
 
 const EVENT_TYPES = ["PremierDraft", "TradDraft", "QuickDraft", "Sealed", "TradSealed"];
 const USER_GROUPS = ["All", "Top", "Middle", "Bottom"];
@@ -25,6 +26,7 @@ interface Props {
 }
 
 export function DatasetsPage({ missingSet }: Props) {
+  const { t } = useLanguage();
   const [list, setList] = useState<DatasetList | null>(null);
   const [sets, setSets] = useState<AvailableSet[]>([]);
   const [setCode, setSetCode] = useState("");
@@ -58,7 +60,7 @@ export function DatasetsPage({ missingSet }: Props) {
   const startDownload = async () => {
     if (!setCode || dl.running) return;
     setError("");
-    setDl({ running: true, percent: 0, status: "Starting..." });
+    setDl({ running: true, percent: 0, status: t("datasets.starting") });
     try {
       const result = await downloadDataset(setCode, eventType, userGroup, (p) => {
         setDl((prev) => ({
@@ -79,7 +81,7 @@ export function DatasetsPage({ missingSet }: Props) {
   const columns: Column<DatasetInfo>[] = [
     {
       id: "label",
-      header: "Dataset",
+      header: t("datasets.colDataset"),
       cell: (d) => (
         <span className="card-name">
           {d.isActive ? "● " : ""}
@@ -90,7 +92,7 @@ export function DatasetsPage({ missingSet }: Props) {
     },
     {
       id: "modified",
-      header: "Updated",
+      header: t("datasets.colUpdated"),
       numeric: true,
       cell: (d) =>
         d.modified ? new Date(d.modified * 1000).toLocaleDateString() : "—",
@@ -98,7 +100,7 @@ export function DatasetsPage({ missingSet }: Props) {
     },
     {
       id: "size",
-      header: "Size",
+      header: t("datasets.colSize"),
       numeric: true,
       cell: (d) => `${(d.sizeBytes / 1024 / 1024).toFixed(1)} MB`,
       sortValue: (d) => d.sizeBytes,
@@ -110,13 +112,13 @@ export function DatasetsPage({ missingSet }: Props) {
         <span style={{ display: "inline-flex", gap: 6 }}>
           {!d.isActive && (
             <button onClick={() => selectDataset(d.path).then(refresh)}>
-              Use
+              {t("datasets.use")}
             </button>
           )}
           <button
             onClick={() => deleteDataset(d.path).then(setList).catch((e) => setError(String(e)))}
           >
-            Delete
+            {t("datasets.delete")}
           </button>
         </span>
       ),
@@ -127,18 +129,15 @@ export function DatasetsPage({ missingSet }: Props) {
     <div style={{ display: "flex", flexDirection: "column", gap: "var(--gap)" }}>
       {missingSet && (
         <div className="dataset-banner">
-          <span>
-            You're drafting <strong>{missingSet}</strong> but no dataset is
-            loaded. Download one below to get pick advice.
-          </span>
+          <span>{t("datasets.missingBanner", { set: missingSet })}</span>
         </div>
       )}
 
       <section className="panel">
-        <h2>Download from 17Lands</h2>
+        <h2>{t("datasets.downloadTitle")}</h2>
         <div className="download-form">
           <label className="field">
-            <span>Set</span>
+            <span>{t("datasets.set")}</span>
             <select value={setCode} onChange={(e) => setSetCode(e.target.value)}>
               {sets.map((s) => (
                 <option key={s.name} value={s.name}>
@@ -148,7 +147,7 @@ export function DatasetsPage({ missingSet }: Props) {
             </select>
           </label>
           <label className="field">
-            <span>Event</span>
+            <span>{t("datasets.event")}</span>
             <select
               value={eventType}
               onChange={(e) => setEventType(e.target.value)}
@@ -161,7 +160,7 @@ export function DatasetsPage({ missingSet }: Props) {
             </select>
           </label>
           <label className="field">
-            <span>Players</span>
+            <span>{t("datasets.players")}</span>
             <select
               value={userGroup}
               onChange={(e) => setUserGroup(e.target.value)}
@@ -174,7 +173,7 @@ export function DatasetsPage({ missingSet }: Props) {
             </select>
           </label>
           <button onClick={startDownload} disabled={dl.running || !setCode}>
-            {dl.running ? "Downloading..." : "Download"}
+            {dl.running ? t("datasets.downloading") : t("datasets.download")}
           </button>
         </div>
         {(dl.running || dl.status) && (
@@ -192,13 +191,13 @@ export function DatasetsPage({ missingSet }: Props) {
       </section>
 
       <section className="panel">
-        <h2>Local datasets</h2>
+        <h2>{t("datasets.local")}</h2>
         <DataTable
           columns={columns}
           rows={list?.datasets ?? []}
           rowKey={(d) => d.path}
           defaultSort={{ id: "modified", desc: true }}
-          emptyText="No datasets downloaded yet"
+          emptyText={t("datasets.empty")}
         />
       </section>
     </div>

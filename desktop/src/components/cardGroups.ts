@@ -119,8 +119,17 @@ function groupBaseLabel(by: GroupBy, key: string): string {
 }
 
 /** "Label (N)" header text, N = total copies in the group (legacy summed each
- *  card's count field, not the number of distinct names). */
-export function groupLabel(by: GroupBy, key: string, rows: DeckRow[]): string {
+ *  card's count field, not the number of distinct names). Only the Type bucket
+ *  labels are localized (color/CMC/rarity words stay English per the i18n
+ *  boundary) — the caller passes its useLanguage().t. */
+export function groupLabel(
+  by: GroupBy,
+  key: string,
+  rows: DeckRow[],
+  t?: (key: string, vars?: Record<string, string | number>) => string,
+): string {
   const n = rows.reduce((total, r) => total + r.count, 0);
-  return `${groupBaseLabel(by, key)} (${n})`;
+  const base =
+    by === "type" && t ? t(`group.type.${key}`) : groupBaseLabel(by, key);
+  return `${base} (${n})`;
 }

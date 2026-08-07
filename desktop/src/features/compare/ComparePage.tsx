@@ -16,22 +16,27 @@ import {
   cardRowClass,
   manaColumn,
   nameColumn,
+  type Translate,
 } from "../../components/cardColumns";
 import { useCardMenu } from "../../components/CardContextMenu";
+import { useLanguage } from "../../i18n/useLanguage";
 import { useColumnConfig } from "../../state/useColumnConfig";
 import { useStatFormat } from "../../state/useStatFormat";
 
 /** Default visible fields — the pre-column-config hardcoded columns. */
 const DEFAULT_FIELDS = ["gihwr", "ohwr", "alsa", "ata", "iwd", "tier"];
 
-function removeColumn(onRemove: (name: string) => void): Column<Card> {
+function removeColumn(
+  onRemove: (name: string) => void,
+  t: Translate,
+): Column<Card> {
   return {
     id: "remove",
     header: "",
     cell: (c) => (
       <button
         className="ghost-btn"
-        title={`Remove ${c.name}`}
+        title={t("compare.remove", { name: c.name })}
         onClick={() => onRemove(c.name)}
       >
         ✕
@@ -45,6 +50,7 @@ export function ComparePage({ colorTint }: { colorTint: boolean }) {
   const [query, setQuery] = useState("");
   const { resultFormat, metrics } = useStatFormat();
   const format = { resultFormat, metrics };
+  const { t } = useLanguage();
   const {
     fields,
     order,
@@ -89,22 +95,22 @@ export function ComparePage({ colorTint }: { colorTint: boolean }) {
   };
 
   const columns: Column<Card>[] = [
-    nameColumn(),
-    manaColumn(),
-    ...order.map((f) => cardColumn(f, format)),
-    removeColumn(remove),
+    nameColumn(undefined, t),
+    manaColumn(t),
+    ...order.map((f) => cardColumn(f, format, t)),
+    removeColumn(remove, t),
   ];
   const menu = useCardMenu();
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "var(--gap)" }}>
       <section className="panel">
-        <h2>Compare Cards</h2>
+        <h2>{t("compare.title")}</h2>
         <div className="compare-search">
           <input
             list={listId.current}
             value={query}
-            placeholder="Search a card to add..."
+            placeholder={t("compare.placeholder")}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && add()}
           />
@@ -114,7 +120,7 @@ export function ComparePage({ colorTint }: { colorTint: boolean }) {
             ))}
           </datalist>
           <button onClick={add} disabled={!query.trim()}>
-            Add
+            {t("compare.add")}
           </button>
           <span className="spacer" />
           <button
@@ -122,14 +128,15 @@ export function ComparePage({ colorTint }: { colorTint: boolean }) {
             onClick={() => compareClear().then(setState).catch(console.warn)}
             disabled={!state?.cards.length}
           >
-            Clear
+            {t("compare.clear")}
           </button>
         </div>
       </section>
 
       <section className="panel">
         <h2>
-          Side by side {state ? `(${state.cards.length})` : ""}
+          {t("compare.sideBySide")}
+          {state ? ` (${state.cards.length})` : ""}
           {state && (
             <span className="filter-note"> · {state.activeFilter}</span>
           )}
@@ -139,7 +146,7 @@ export function ComparePage({ colorTint }: { colorTint: boolean }) {
           rows={state?.cards ?? []}
           rowKey={(c) => c.name}
           rowClass={(c) => cardRowClass(c, colorTint)}
-          emptyText="Add cards above to compare their 17Lands stats"
+          emptyText={t("compare.empty")}
           initialSort={initialSort}
           onSortChange={setSort}
           onContextMenu={(c, x, y) => menu.open(c.name, x, y)}
@@ -147,10 +154,10 @@ export function ComparePage({ colorTint }: { colorTint: boolean }) {
           columnMenu={{
             active: fields,
             addable: CARD_COLUMN_FIELDS.filter((f) => !fields.includes(f)).map(
-              (f) => ({ id: f, label: CARD_COLUMN_LABELS[f] }),
+              (f) => ({ id: f, label: t(CARD_COLUMN_LABELS[f]) }),
             ),
             removable: (id) => fields.includes(id),
-            label: (id) => CARD_COLUMN_LABELS[id] ?? id,
+            label: (id) => t(CARD_COLUMN_LABELS[id] ?? id),
             onAdd: addField,
             onRemove: removeField,
             onReset: resetFields,

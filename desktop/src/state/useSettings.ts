@@ -2,6 +2,8 @@ import { useSyncExternalStore } from "react";
 
 import { getSettings, resetSettings, setSettings } from "../api/client";
 import type { Settings, SettingsPatch } from "../api/types";
+import type { Lang } from "../i18n/locales";
+import { setLanguage } from "../i18n/useLanguage";
 import { applyTheme, type ThemePreference } from "./theme";
 
 // Module-level shared store: every useSettings() call subscribes to the SAME
@@ -20,6 +22,7 @@ function emit() {
 function receive(next: Settings) {
   settings = next;
   applyTheme(next.desktopTheme as ThemePreference);
+  setLanguage(next.language as Lang);
   emit();
 }
 
@@ -50,6 +53,7 @@ async function patch(p: SettingsPatch) {
   if (settings) {
     settings = { ...settings, ...p };
     if (p.desktopTheme) applyTheme(p.desktopTheme as ThemePreference);
+    if (p.language) setLanguage(p.language as Lang);
     emit();
   }
   try {

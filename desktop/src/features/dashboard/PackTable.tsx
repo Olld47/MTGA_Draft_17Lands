@@ -10,6 +10,7 @@ import {
 } from "../../components/cardColumns";
 import { CardHoverTip, hoverDataFromCard } from "../../components/CardHover";
 import { useCardMenu } from "../../components/CardContextMenu";
+import { useLanguage } from "../../i18n/useLanguage";
 import { useColumnConfig } from "../../state/useColumnConfig";
 import { useStatFormat } from "../../state/useStatFormat";
 
@@ -39,6 +40,7 @@ export function PackTable({
 }: Props) {
   const { resultFormat, metrics } = useStatFormat();
   const format = { resultFormat, metrics };
+  const { t } = useLanguage();
   const { fields, order, add, remove, reset, move, initialSort, setSort } =
     useColumnConfig(
       viewId,
@@ -50,9 +52,9 @@ export function PackTable({
     );
 
   const columns: Column<Card>[] = [
-    nameColumn({ colorName: true }),
-    manaColumn(),
-    ...order.map((f) => cardColumn(f, format)),
+    nameColumn({ colorName: true }, t),
+    manaColumn(t),
+    ...order.map((f) => cardColumn(f, format, t)),
   ];
   const menu = useCardMenu();
 
@@ -66,16 +68,16 @@ export function PackTable({
         defaultSort={defaultSort ?? { id: "value", desc: true }}
         initialSort={initialSort}
         onSortChange={setSort}
-        emptyText={emptyText ?? "Waiting for a pack..."}
+        emptyText={emptyText ?? t("dash.waitingPack")}
         hoverContent={(c) => <CardHoverTip data={hoverDataFromCard(c)} />}
         onContextMenu={(c, x, y) => menu.open(c.name, x, y)}
         columnMenu={{
           active: fields,
           addable: CARD_COLUMN_FIELDS.filter((f) => !fields.includes(f)).map(
-            (f) => ({ id: f, label: CARD_COLUMN_LABELS[f] }),
+            (f) => ({ id: f, label: t(CARD_COLUMN_LABELS[f]) }),
           ),
           removable: (id) => fields.includes(id),
-          label: (id) => CARD_COLUMN_LABELS[id] ?? id,
+          label: (id) => t(CARD_COLUMN_LABELS[id] ?? id),
           onAdd: add,
           onRemove: remove,
           onReset: reset,
