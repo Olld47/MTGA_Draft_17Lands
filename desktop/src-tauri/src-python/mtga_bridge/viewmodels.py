@@ -159,6 +159,10 @@ class DraftStateVM(_VM):
     pack_cards: List[CardVM] = []
     missing_cards: List[CardVM] = []
     taken_count: int = 0
+    # True once the full pool is picked (legacy dashboard.py draft_complete:
+    # taken_count >= expected_total, expected_total from the largest pack seen).
+    # The Draft tab then swaps to the recap screen; frontend reads draftComplete.
+    draft_complete: bool = False
     signals: SignalsVM = SignalsVM(scores={})
     pool_summary: Optional[PoolSummaryVM] = None
     dataset_name: Optional[str] = None

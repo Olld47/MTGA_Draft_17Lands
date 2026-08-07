@@ -121,7 +121,7 @@ export function artUrl(image: string[]): string | null {
 }
 
 /** Rarity ink, lifted from the legacy CardToolTip header coloring. */
-const RARITY_COLOR: Record<string, string> = {
+export const RARITY_COLOR: Record<string, string> = {
   mythic: "#d4712a",
   rare: "#c9a227",
   uncommon: "#3a7bd5",
@@ -172,7 +172,7 @@ export function nameColumn(opts?: { colorName?: boolean }): Column<Card> {
             title={c.rarity}
             style={{ color: RARITY_COLOR[c.rarity] ?? "#8a8a8a" }}
           >
-            {c.rarity[0]}
+            {c.rarity[0].toUpperCase()}
           </span>
         )}
         <span

@@ -483,7 +483,6 @@ _UNREAD_FIELD_EXCEPTIONS = {
     "labelPrefix": "already inside the rendered label",
     "identityColors": "engine-internal; legacy never rendered it",
     "gih": "sample-size tooltip metadata; desktop has no tooltip",
-    "ngp": "sample-size tooltip metadata; never displayed even in legacy",
     "rowTag": "recomputed client-side from colors + colorTint",
     "archetypeFit": "legacy 'High' branch unreachable; engine emits lane names",
     "baseWinRate": "raw input to the score; never displayed in legacy either",
@@ -497,7 +496,9 @@ _UNREAD_FIELD_EXCEPTIONS = {
 }
 
 # Payload-type files mirror the VMs — their field names are the contract, not
-# readers. Everything else under desktop/src counts as a consumer.
+# readers. Test files mirror the type shapes too (typed fixtures must name every
+# required property) but never consume the IPC payload, so they don't count as
+# readers either. Everything else under desktop/src counts as a consumer.
 _FIELD_AUDIT_SKIP = {
     os.path.join(FRONTEND_DIR, "api", "types.ts"),
     os.path.join(FRONTEND_DIR, "api", "events.ts"),
@@ -510,7 +511,8 @@ def _read_frontend_sources():
             continue
         for name in files:
             path = os.path.join(root, name)
-            if not name.endswith((".ts", ".tsx")) or path in _FIELD_AUDIT_SKIP:
+            is_test = ".test." in name
+            if not name.endswith((".ts", ".tsx")) or path in _FIELD_AUDIT_SKIP or is_test:
                 continue
             with open(path, "r", encoding="utf-8") as handle:
                 yield handle.read()

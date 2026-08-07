@@ -1,7 +1,6 @@
 import type { Card } from "../../api/types";
 import { DataTable, type Column } from "../../components/DataTable";
 import {
-  artUrl,
   CARD_COLUMN_FIELDS,
   CARD_COLUMN_LABELS,
   cardColumn,
@@ -9,6 +8,7 @@ import {
   manaColumn,
   nameColumn,
 } from "../../components/cardColumns";
+import { CardHoverTip, hoverDataFromCard } from "../../components/CardHover";
 import { useCardMenu } from "../../components/CardContextMenu";
 import { useColumnConfig } from "../../state/useColumnConfig";
 import { useStatFormat } from "../../state/useStatFormat";
@@ -67,7 +67,7 @@ export function PackTable({
         initialSort={initialSort}
         onSortChange={setSort}
         emptyText={emptyText ?? "Waiting for a pack..."}
-        hoverImage={(c) => artUrl(c.image)}
+        hoverContent={(c) => <CardHoverTip data={hoverDataFromCard(c)} />}
         onContextMenu={(c, x, y) => menu.open(c.name, x, y)}
         columnMenu={{
           active: fields,

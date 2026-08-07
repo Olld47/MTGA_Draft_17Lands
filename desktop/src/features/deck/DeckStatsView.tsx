@@ -1,5 +1,6 @@
 import type { DeckRow, DeckStats } from "../../api/types";
-import { artUrl, cardNameColor, formatWinRate } from "../../components/cardColumns";
+import { cardNameColor, formatWinRate } from "../../components/cardColumns";
+import { CardHoverTip, hoverDataFromDeckRow } from "../../components/CardHover";
 import {
   GROUP_OPTIONS,
   groupKey,
@@ -236,7 +237,7 @@ export function DeckTable({
         rowClass={rowClass}
         defaultSort={{ id: "cost", desc: false }}
         emptyText={emptyText}
-        hoverImage={(r) => artUrl(r.image)}
+        hoverContent={(r) => <CardHoverTip data={hoverDataFromDeckRow(r)} />}
         onRowDoubleClick={
           dblClickMove && onMove ? (r) => onMove(r.name) : undefined
         }

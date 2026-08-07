@@ -309,17 +309,108 @@
   background: color-mix(in srgb, var(--line) 40%, transparent);
 }
 
-/* Card-art preview that follows the cursor over a pack row. */
+/* Hover tooltip that follows the cursor over a table row — a port of the
+   legacy CardToolTip: art beside a GLOBAL PERFORMANCE / CARD ROLES panel. */
 .card-hover {
   position: fixed;
-  width: 200px;
-  height: 280px;
-  object-fit: cover;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 420px;
+  padding: 8px;
+  background: var(--felt);
   border: 1px solid var(--gold-foil-dim);
-  border-radius: 4px;
+  border-radius: 8px;
   box-shadow: 0 8px 24px rgb(0 0 0 / 0.5);
   pointer-events: none;
   z-index: 100;
+}
+
+.card-hover .ch-header {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+
+.card-hover .ch-header .card-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.card-hover .ch-rarity {
+  flex-shrink: 0;
+  font-weight: 800;
+  font-size: var(--text-xs);
+  letter-spacing: 0.6px;
+}
+
+.card-hover .ch-body {
+  display: flex;
+  gap: 10px;
+}
+
+.card-hover .ch-image {
+  width: 168px;
+  height: 234px;
+  object-fit: cover;
+  flex-shrink: 0;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--ink);
+}
+
+.card-hover .ch-info {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+}
+
+.card-hover .ch-section {
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  color: var(--gruff);
+}
+
+.card-hover .ch-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 10px;
+  row-gap: 2px;
+  margin: 0;
+  font-size: var(--text-sm);
+}
+
+.card-hover .ch-grid dt {
+  color: var(--gruff);
+}
+
+.card-hover .ch-grid dd {
+  margin: 0;
+  font-weight: 700;
+  text-align: right;
+}
+
+.card-hover .ch-grid dd.up,
+.card-hover .ch-grid dt.up {
+  color: var(--ok);
+}
+
+.card-hover .ch-grid dd.accent,
+.card-hover .ch-grid dt.accent {
+  color: var(--gold-foil);
+}
+
+.card-hover .ch-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  font-size: var(--text-sm);
+  font-weight: 600;
 }
 
 .table-wrap {

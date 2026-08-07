@@ -42,8 +42,10 @@ interface Props<T> {
   /** Called on every sort toggle so the caller can persist the choice. */
   onSortChange?: (sort: { id: string; desc: boolean }) => void;
   emptyText?: string;
-  /** Optional card-art preview shown while hovering a row (pack tables). */
-  hoverImage?: (row: T) => string | null;
+  /** Optional hover tooltip rendered beside the cursor over a row — the card
+   *  art plus the legacy CardToolTip stat panel. Return null for rows without
+   *  a preview (basic lands, cards with no image). */
+  hoverContent?: (row: T) => ReactNode | null;
   /** Optional double-click handler — the legacy Custom Deck moved one copy of
    *  a card between deck and sideboard on <Double-Button-1>. */
   onRowDoubleClick?: (row: T) => void;
@@ -81,7 +83,7 @@ export function DataTable<T>({
   initialSort,
   onSortChange,
   emptyText = "No data",
-  hoverImage,
+  hoverContent,
   onRowDoubleClick,
   onContextMenu,
   columnMenu,
@@ -89,7 +91,7 @@ export function DataTable<T>({
   groupBy,
 }: Props<T>) {
   const [sort, setSort] = useState(initialSort ?? defaultSort ?? null);
-  const [hoverUrl, setHoverUrl] = useState<string | null>(null);
+  const [hovered, setHovered] = useState<T | null>(null);
   const [menu, setMenu] = useState<MenuState | null>(null);
   const posRef = useRef({ x: 0, y: 0 });
   // Header drag-to-reorder: the column being dragged, and a one-tick flag so
@@ -167,12 +169,23 @@ export function DataTable<T>({
   // leave/enter churn of per-row handlers.
   const handleRowOver = (e: React.MouseEvent<HTMLTableElement>) => {
     posRef.current = { x: e.clientX, y: e.clientY };
-    if (!hoverImage) return;
+    if (!hoverContent) return;
     const tr = (e.target as Element).closest("tr");
     const idx = tr?.getAttribute("data-index");
     const row = idx == null ? undefined : dataRows[Number(idx)];
-    setHoverUrl(row ? (hoverImage(row) ?? null) : null);
+    setHovered(row ?? null);
   };
+
+  // Position below-right of the cursor, clamped so the tooltip stays on-screen
+  // (it is much taller than the old image-only preview).
+  const hoverNode =
+    hovered && hoverContent ? hoverContent(hovered) : null;
+  const hoverStyle = hoverNode
+    ? {
+        left: Math.max(8, Math.min(posRef.current.x + 18, window.innerWidth - 436)),
+        top: Math.max(8, Math.min(posRef.current.y + 12, window.innerHeight - 300)),
+      }
+    : undefined;
 
   if (rows.length === 0) {
     return <div className="empty-state">{emptyText}</div>;
@@ -204,7 +217,7 @@ export function DataTable<T>({
 
   return (
     <div className="table-wrap">
-      <table className="data-table" onMouseMove={handleRowOver} onMouseLeave={() => setHoverUrl(null)}>
+      <table className="data-table" onMouseMove={handleRowOver} onMouseLeave={() => setHovered(null)}>
         <thead>
           <tr>
             {columns.map((c) => {
@@ -304,13 +317,10 @@ export function DataTable<T>({
             : sorted.map((row, i) => renderRow(row, i))}
         </tbody>
       </table>
-      {hoverUrl && (
-        <img
-          className="card-hover"
-          src={hoverUrl}
-          alt=""
-          style={{ left: posRef.current.x + 18, top: posRef.current.y - 140 }}
-        />
+      {hoverNode && (
+        <div className="card-hover" style={hoverStyle}>
+          {hoverNode}
+        </div>
       )}
       {columnMenu && menu && (
         <div

@@ -181,6 +181,46 @@ def compute_signals(scanner) -> Dict[str, float]:
     return scores
 
 
+# Event types that represent an actual draft — the legacy dashboard.py is_human
+# / is_bot arms of draft_complete. Sealed is handled by its own arm.
+_DRAFT_EVENT_TYPES = {
+    constants.LIMITED_TYPE_STRING_DRAFT_PREMIER,
+    constants.LIMITED_TYPE_STRING_DRAFT_QUICK,
+    constants.LIMITED_TYPE_STRING_DRAFT_TRAD,
+    constants.LIMITED_TYPE_STRING_DRAFT_PICK_TWO,
+    constants.LIMITED_TYPE_STRING_DRAFT_PICK_TWO_TRAD,
+    constants.LIMITED_TYPE_STRING_DRAFT_PICK_TWO_QUICK,
+}
+
+
+def _expected_pool_size(scanner) -> int:
+    """Port of dashboard.py's expected_total: the largest pack in the draft's
+    history determines the pick count (14 → 42, 13 → 39, ≥15 → size × 3)."""
+    history = scanner.retrieve_draft_history() if scanner else []
+    max_pack_size = 0
+    for entry in history:
+        pack_size = entry.get("Pick", 1) + len(entry.get("Cards", [])) - 1
+        if pack_size > max_pack_size:
+            max_pack_size = pack_size
+    if max_pack_size >= 15:
+        return max_pack_size * 3
+    if max_pack_size == 13:
+        return 39
+    return 42
+
+
+def compute_draft_complete(scanner, event_type, taken_count) -> bool:
+    """True once a draft's full pool is picked — or a Sealed pool reaches 40 —
+    matching the legacy dashboard's draft_complete/sealed_complete gates that
+    swap the dashboard to the recap screen."""
+    event_type = event_type or ""
+    if constants.LIMITED_TYPE_STRING_SEALED in event_type:
+        return taken_count >= 40
+    if event_type not in _DRAFT_EVENT_TYPES:
+        return False
+    return taken_count >= _expected_pool_size(scanner)
+
+
 def build_draft_state(scanner, config, include_pool_summary: bool = True) -> DraftStateVM:
     """Snapshots the scanner and runs the math engines. Blocking; call off the event loop."""
     with scanner.lock:
@@ -245,6 +285,9 @@ def build_draft_state(scanner, config, include_pool_summary: bool = True) -> Dra
             for c in (missing_cards or [])
         ],
         taken_count=len(taken_cards or []),
+        draft_complete=compute_draft_complete(
+            scanner, event_type, len(taken_cards or [])
+        ),
         signals=SignalsVM(scores=scores),
         pool_summary=pool_summary_vm(taken_cards or []) if include_pool_summary else None,
         dataset_name=config.card_data.latest_dataset or None,

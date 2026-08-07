@@ -252,6 +252,73 @@ def test_build_draft_state_with_pool(env):
     assert state.pool_summary.card_count == 3
 
 
+# --- draft_complete ----------------------------------------------------------
+
+# The Draft tab swaps to the recap once the full pool is picked (legacy
+# dashboard.py: taken_count >= expected_total). The fixture scanner has no
+# draft_label, so event_type resolves "" and draft_complete must stay False no
+# matter how many cards pile up.
+
+
+def test_draft_complete_false_mid_draft(env):
+    scanner = env["scanner"]
+    scanner.draft_label = constants.LIMITED_TYPE_STRING_DRAFT_PREMIER
+    scanner.taken_cards = ["101"] * 20
+    state = build_draft_state(scanner, env["config"])
+    assert state.taken_count == 20
+    assert state.draft_complete is False
+
+
+def test_draft_complete_true_at_42_cards(env):
+    """A 14-card Premier draft is complete at 42 picks — the same moment the
+    legacy dashboard swapped to the recap, not whenever the scanner happens to
+    retire the active state (pack == 0)."""
+    scanner = env["scanner"]
+    scanner.draft_label = constants.LIMITED_TYPE_STRING_DRAFT_PREMIER
+    scanner.taken_cards = ["101"] * 42
+    state = build_draft_state(scanner, env["config"])
+    assert state.draft_complete is True
+
+
+def test_draft_complete_uses_the_largest_pack_for_the_expected_total(env):
+    """A 13-card format completes at 39 picks; the flat 42 default would leave
+    the recap off while the draft is over."""
+    scanner = env["scanner"]
+    scanner.draft_label = constants.LIMITED_TYPE_STRING_DRAFT_QUICK
+    scanner.draft_history = [{"Pack": 1, "Pick": 13, "Cards": ["101"]}]
+    scanner.taken_cards = ["101"] * 39
+    assert build_draft_state(scanner, env["config"]).draft_complete is True
+
+    scanner.taken_cards = ["101"] * 38
+    assert build_draft_state(scanner, env["config"]).draft_complete is False
+
+
+def test_draft_complete_ignores_a_non_draft_event_type(env):
+    """An event that is neither a draft nor Sealed must never claim completion,
+    or the Draft tab would show the recap for a random event with 42 cards."""
+    scanner = env["scanner"]
+    scanner.draft_label = "SomeOtherEvent"
+    scanner.taken_cards = ["101"] * 42
+    assert build_draft_state(scanner, env["config"]).draft_complete is False
+
+
+def test_draft_complete_requires_a_sealed_pool_of_40(env):
+    scanner = env["scanner"]
+    scanner.draft_label = constants.LIMITED_TYPE_STRING_SEALED
+    scanner.taken_cards = ["101"] * 40
+    assert build_draft_state(scanner, env["config"]).draft_complete is True
+
+    scanner.taken_cards = ["101"] * 39
+    assert build_draft_state(scanner, env["config"]).draft_complete is False
+
+
+def test_draft_complete_survives_an_unknown_event_type(env):
+    """draft_label can be "" (restored state, boot) — the gate must not crash."""
+    scanner = env["scanner"]
+    scanner.taken_cards = ["101"] * 42
+    assert build_draft_state(scanner, env["config"]).draft_complete is False
+
+
 def test_draft_state_filter_label_carries_the_name_and_rate(env):
     """The masthead's `filterLabel`. Before this it read "Auto (WU)" where the
     tkinter top bar read "(Auto: Azorius 56.3%)"."""

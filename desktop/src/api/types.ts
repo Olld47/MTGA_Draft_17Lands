@@ -66,6 +66,9 @@ export interface DraftState {
   packCards: Card[];
   missingCards: Card[];
   takenCount: number;
+  /** True once the full pool is picked — the Draft tab then swaps to the
+   *  recap instead of an empty pack (legacy dashboard.py draft_complete). */
+  draftComplete: boolean;
   signals: { scores: Record<string, number> };
   poolSummary: PoolSummary | null;
   datasetName: string | null;

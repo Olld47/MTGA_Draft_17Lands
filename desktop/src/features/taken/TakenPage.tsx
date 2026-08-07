@@ -5,7 +5,6 @@ import { EVENTS, on, type RefreshPayload } from "../../api/events";
 import type { Card, TakenCards } from "../../api/types";
 import { DataTable, type Column } from "../../components/DataTable";
 import {
-  artUrl,
   CARD_COLUMN_FIELDS,
   CARD_COLUMN_LABELS,
   cardColumn,
@@ -13,6 +12,7 @@ import {
   manaColumn,
   nameColumn,
 } from "../../components/cardColumns";
+import { CardHoverTip, hoverDataFromCard } from "../../components/CardHover";
 import { useCardMenu } from "../../components/CardContextMenu";
 import { useColumnConfig } from "../../state/useColumnConfig";
 import { useStatFormat } from "../../state/useStatFormat";
@@ -70,7 +70,7 @@ export function TakenPage({ colorTint }: { colorTint: boolean }) {
           initialSort={initialSort}
           onSortChange={setSort}
           emptyText="Cards you draft appear here"
-          hoverImage={(c) => artUrl(c.image)}
+          hoverContent={(c) => <CardHoverTip data={hoverDataFromCard(c)} />}
           onContextMenu={(c, x, y) => menu.open(c.name, x, y)}
           columnMenu={{
             active: fields,

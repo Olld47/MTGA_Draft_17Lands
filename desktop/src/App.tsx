@@ -14,6 +14,7 @@ import { useDraftState } from "./state/useDraftState";
 import { DatasetSwitcher } from "./components/DatasetSwitcher";
 import { useDatasetSwitcher } from "./state/useDatasetSwitcher";
 import { onNavigateTab } from "./state/navigation";
+import { draftPhase } from "./state/draftPhase";
 import { useDraftLogs } from "./state/useDraftLogs";
 import { useSettings } from "./state/useSettings";
 import { useMiniMode } from "./state/useMiniMode";
@@ -33,7 +34,6 @@ import { TiersPage } from "./features/tiers/TiersPage";
 type Tab =
   | "draft"
   | "taken"
-  | "recap"
   | "deck"
   | "suggest"
   | "sealed"
@@ -45,7 +45,6 @@ type Tab =
 const TABS: { id: Tab; label: string }[] = [
   { id: "draft", label: "Draft" },
   { id: "taken", label: "Taken Cards" },
-  { id: "recap", label: "Recap" },
   { id: "deck", label: "Custom Deck" },
   { id: "suggest", label: "Suggest Deck" },
   { id: "sealed", label: "Sealed Deck" },
@@ -139,6 +138,7 @@ export default function App() {
   const missingSet =
     state && state.eventSet && !state.datasetName ? state.eventSet : undefined;
   const colorTint = settings?.cardColorsEnabled ?? false;
+  const phase = draftPhase(state);
 
   if (mini) {
     return (
@@ -218,11 +218,12 @@ export default function App() {
       <main className="tab-body">
         <ErrorBoundary resetKey={tab}>
           {tab === "draft" &&
-            (state && state.takenCount > 0 && state.pack === 0 ? (
-              // Draft finished: the legacy dashboard swaps to the recap screen
-              // (dashboard.py) instead of showing an empty pack — mirror that.
+            (phase === "recap" && state ? (
+              // Full pool picked: the legacy dashboard swaps to the recap
+              // screen (dashboard.py) instead of showing an empty pack. The
+              // standalone Recap tab was removed — this is the only recap.
               <RecapPage idealCurve={settings?.deckMidDistribution ?? []} />
-            ) : state ? (
+            ) : phase === "live" && state ? (
               <DashboardPage
                 state={state}
                 colorTint={colorTint}
@@ -232,9 +233,6 @@ export default function App() {
               <div className="empty-state">Waiting for draft data...</div>
             ))}
           {tab === "taken" && <TakenPage colorTint={colorTint} />}
-          {tab === "recap" && (
-            <RecapPage idealCurve={settings?.deckMidDistribution ?? []} />
-          )}
           {tab === "deck" && <DeckPage colorTint={colorTint} />}
           {tab === "suggest" && (
             <SuggestPage
