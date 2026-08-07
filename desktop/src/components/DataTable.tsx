@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 export interface Column<T> {
   id: string;
@@ -54,6 +54,14 @@ interface Props<T> {
   columnMenu?: ColumnMenu;
   /** Hide the trailing "+" add-cell (ComparePage has its own last column). */
   showAddColumn?: boolean;
+  /** Optional group-by (legacy sealed_studio group view): buckets the sorted
+   *  rows under header rows, in `order` (empty buckets skipped). The column
+   *  sort still applies within each group. */
+  groupBy?: {
+    key: (row: T) => string;
+    order: string[];
+    label: (key: string, rows: T[]) => string;
+  };
 }
 
 interface MenuState {
@@ -78,6 +86,7 @@ export function DataTable<T>({
   onContextMenu,
   columnMenu,
   showAddColumn = true,
+  groupBy,
 }: Props<T>) {
   const [sort, setSort] = useState(initialSort ?? defaultSort ?? null);
   const [hoverUrl, setHoverUrl] = useState<string | null>(null);
@@ -126,6 +135,25 @@ export function DataTable<T>({
     });
   }, [rows, sort, columns]);
 
+  // Group-by: bucket the already-sorted rows into canonical order (empty
+  // buckets skipped). `dataRows` is the flattened data list so the row-hover
+  // delegation can keep indexing by position — group-header rows carry no
+  // data-index, so hovering one clears the preview.
+  const buckets = useMemo(() => {
+    if (!groupBy) return null;
+    const map = new Map<string, T[]>();
+    for (const row of sorted) {
+      const key = groupBy.key(row);
+      const list = map.get(key);
+      if (list) list.push(row);
+      else map.set(key, [row]);
+    }
+    return groupBy.order
+      .map((key) => ({ key, rows: map.get(key) ?? [] }))
+      .filter((b) => b.rows.length > 0);
+  }, [sorted, groupBy]);
+  const dataRows = buckets ? buckets.flatMap((b) => b.rows) : sorted;
+
   const toggleSort = (id: string) => {
     setSort((prev) => {
       const next =
@@ -142,13 +170,37 @@ export function DataTable<T>({
     if (!hoverImage) return;
     const tr = (e.target as Element).closest("tr");
     const idx = tr?.getAttribute("data-index");
-    const row = idx == null ? undefined : sorted[Number(idx)];
+    const row = idx == null ? undefined : dataRows[Number(idx)];
     setHoverUrl(row ? (hoverImage(row) ?? null) : null);
   };
 
   if (rows.length === 0) {
     return <div className="empty-state">{emptyText}</div>;
   }
+
+  const renderRow = (row: T, index: number) => (
+    <tr
+      key={rowKey(row)}
+      data-index={index}
+      className={rowClass?.(row) ?? ""}
+      onDoubleClick={onRowDoubleClick ? () => onRowDoubleClick(row) : undefined}
+      onContextMenu={
+        onContextMenu
+          ? (e) => {
+              e.preventDefault();
+              onContextMenu(row, e.clientX, e.clientY);
+            }
+          : undefined
+      }
+    >
+      {columns.map((c) => (
+        <td key={c.id} className={c.numeric ? "num" : ""}>
+          {c.cell(row)}
+        </td>
+      ))}
+      {columnMenu && showAddColumn && <td />}
+    </tr>
+  );
 
   return (
     <div className="table-wrap">
@@ -238,29 +290,18 @@ export function DataTable<T>({
           </tr>
         </thead>
         <tbody>
-          {sorted.map((row, i) => (
-            <tr
-              key={rowKey(row)}
-              data-index={i}
-              className={rowClass?.(row) ?? ""}
-              onDoubleClick={onRowDoubleClick ? () => onRowDoubleClick(row) : undefined}
-              onContextMenu={
-                onContextMenu
-                  ? (e) => {
-                      e.preventDefault();
-                      onContextMenu(row, e.clientX, e.clientY);
-                    }
-                  : undefined
-              }
-            >
-              {columns.map((c) => (
-                <td key={c.id} className={c.numeric ? "num" : ""}>
-                  {c.cell(row)}
-                </td>
-              ))}
-              {columnMenu && showAddColumn && <td />}
-            </tr>
-          ))}
+          {buckets && groupBy
+            ? buckets.map((b) => (
+                <Fragment key={b.key}>
+                  <tr className="group-head">
+                    <td colSpan={columns.length + (columnMenu ? 1 : 0)}>
+                      {groupBy.label(b.key, b.rows)}
+                    </td>
+                  </tr>
+                  {b.rows.map((row) => renderRow(row, dataRows.indexOf(row)))}
+                </Fragment>
+              ))
+            : sorted.map((row, i) => renderRow(row, i))}
         </tbody>
       </table>
       {hoverUrl && (

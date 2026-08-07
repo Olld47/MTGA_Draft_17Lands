@@ -1,5 +1,12 @@
 import type { DeckRow, DeckStats } from "../../api/types";
 import { artUrl, cardNameColor, formatWinRate } from "../../components/cardColumns";
+import {
+  GROUP_OPTIONS,
+  groupKey,
+  groupLabel,
+  groupOrder,
+  type GroupBy,
+} from "../../components/cardGroups";
 import { useCardMenu } from "../../components/CardContextMenu";
 import { ManaCost } from "../../components/ManaCost";
 import { DataTable, type Column } from "../../components/DataTable";
@@ -100,6 +107,11 @@ interface DeckTableProps {
    *  move-button column — the legacy panel moved one copy per
    *  <Double-Button-1>. */
   dblClickMove?: boolean;
+  /** Group-by mode + change handler (legacy sealed_studio "Sort:" combobox).
+   *  Provide `onGroupChange` to render the Group: select; `group` is the active
+   *  mode (null = flat). Omit both for a flat table (custom deck / suggest). */
+  group?: GroupBy | null;
+  onGroupChange?: (g: GroupBy | null) => void;
 }
 
 export function DeckTable({
@@ -112,6 +124,8 @@ export function DeckTable({
   emptyText,
   colorTint,
   dblClickMove,
+  group,
+  onGroupChange,
 }: DeckTableProps) {
   const { resultFormat, metrics } = useStatFormat();
   const menu = useCardMenu();
@@ -168,6 +182,16 @@ export function DeckTable({
         ? "tint-multi"
         : "";
 
+  // Group-by wiring (Sealed page only): the mode maps to the DataTable groupBy
+  // contract from the pure cardGroups bucketing util.
+  const groupByObj = group
+    ? {
+        key: (r: DeckRow) => groupKey(r, group),
+        order: groupOrder(group),
+        label: (key: string, rows: DeckRow[]) => groupLabel(group, key, rows),
+      }
+    : undefined;
+
   return (
     <section className="panel">
       <h2>
@@ -187,6 +211,24 @@ export function DeckTable({
             </span>
           ))}
       </h2>
+      {onGroupChange && (
+        <div className="deck-group-control">
+          <span className="stat-label">Group:</span>
+          <select
+            value={group ?? ""}
+            onChange={(e) =>
+              onGroupChange((e.target.value as GroupBy) || null)
+            }
+          >
+            <option value="">None</option>
+            {GROUP_OPTIONS.map((o) => (
+              <option key={o.id} value={o.id}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
       <DataTable
         columns={columns}
         rows={rows}
@@ -199,6 +241,7 @@ export function DeckTable({
           dblClickMove && onMove ? (r) => onMove(r.name) : undefined
         }
         onContextMenu={(r, x, y) => menu.open(r.name, x, y)}
+        groupBy={groupByObj}
       />
       {menu.element}
     </section>

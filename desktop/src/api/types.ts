@@ -284,6 +284,7 @@ export interface DeckRow {
   cmc: number;
   types: string[];
   colors: string[];
+  rarity: string;
   manaCost: string;
   gihwr: number | null;
   rowTag: string;

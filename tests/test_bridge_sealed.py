@@ -157,6 +157,20 @@ def test_row_vm_uses_active_filter_gihwr():
     assert row_vm(card, "WU").gihwr is None
 
 
+def test_row_vm_surfaces_rarity():
+    """The Rarity group-by needs rarity on every deck/pool row. The raw card
+    dicts already carry it (stamped by file_extractor); row_vm must surface it
+    so the frontend can bucket without a backend round-trip."""
+    card = {
+        "name": "Green Beast", "cmc": 4, "types": ["Creature"], "colors": ["G"],
+        "mana_cost": "{2}{G}{G}", "rarity": "rare", "count": 1,
+    }
+    assert row_vm(card, "All Decks").rarity == "rare"
+    assert row_vm(card, "All Decks").colors == ["G"]
+    # No rarity on the dict (e.g. synthetic basic lands) -> empty, not None.
+    assert row_vm({"name": "Plains", "types": ["Land", "Basic"]}, "All Decks").rarity == ""
+
+
 # --- pool loading ------------------------------------------------------------
 
 

@@ -292,6 +292,23 @@
   background: var(--felt-hover);
 }
 
+/* Group-by section header (sealed pool / deck) — the legacy sealed_studio
+   "Label (N)" group heading. Spans the row; muted tint, no hover highlight. */
+.data-table tr.group-head td {
+  padding: 5px 8px 3px;
+  font-weight: 600;
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--gruff);
+  background: color-mix(in srgb, var(--line) 40%, transparent);
+  border-bottom: 1px solid var(--line);
+}
+
+.data-table tbody tr.group-head:hover {
+  background: color-mix(in srgb, var(--line) 40%, transparent);
+}
+
 /* Card-art preview that follows the cursor over a pack row. */
 .card-hover {
   position: fixed;
@@ -1008,6 +1025,26 @@
   font-family: var(--font-mono);
   min-width: 16px;
   text-align: center;
+}
+
+/* Group-by selector above the sealed pool / deck tables (legacy sealed_studio's
+   "Sort:" combobox). */
+.deck-group-control {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 0 10px;
+  font-size: var(--text-sm);
+}
+
+.deck-group-control select {
+  background: var(--felt-hover);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--parchment);
+  padding: 2px 6px;
+  font-size: var(--text-sm);
+  font-family: var(--font-body);
 }
 
 /* Sealed pool filter bar (type + color checkboxes, legacy sealed_studio's

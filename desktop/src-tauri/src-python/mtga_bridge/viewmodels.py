@@ -456,6 +456,7 @@ class DeckRowVM(_VM):
     cmc: float = 0.0
     types: List[str] = []
     colors: List[str] = []
+    rarity: str = ""
     mana_cost: str = ""
     gihwr: Optional[float] = None
     row_tag: str = ""

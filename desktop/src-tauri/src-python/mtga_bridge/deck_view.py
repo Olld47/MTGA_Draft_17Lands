@@ -68,6 +68,7 @@ def row_vm(card: dict, active_filter: str) -> DeckRowVM:
         cmc=cmc,
         types=list(card.get("types", []) or []),
         colors=list(card.get("colors", []) or []),
+        rarity=card.get("rarity", "") or "",
         mana_cost=card.get("mana_cost", "") or "",
         gihwr=gihwr,
         row_tag=row_color_tag(card.get("mana_cost", "")),

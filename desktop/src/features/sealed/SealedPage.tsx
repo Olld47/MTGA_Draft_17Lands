@@ -21,6 +21,7 @@ import { EVENTS, on, type RefreshPayload } from "../../api/events";
 import type { SealedAction, SealedState } from "../../api/types";
 import { DeckStatsView, DeckTable } from "../deck/DeckStatsView";
 import { PracticeDialog } from "../practice/PracticeDialog";
+import type { GroupBy } from "../../components/cardGroups";
 
 const BASICS = ["Plains", "Island", "Swamp", "Mountain", "Forest"];
 
@@ -48,6 +49,10 @@ export function SealedPage({ colorTint }: { colorTint: boolean }) {
   const [shareUrl, setShareUrl] = useState("");
   const [busy, setBusy] = useState(false);
   const [practiceOpen, setPracticeOpen] = useState(false);
+  // Group-by modes, matching the legacy sealed_studio defaults: the pool groups
+  // by Color, the built deck by CMC (sealed_studio.py:87-88).
+  const [poolGroup, setPoolGroup] = useState<GroupBy | null>("color");
+  const [deckGroup, setDeckGroup] = useState<GroupBy | null>("cmc");
   const [poolFilter, setPoolFilter] = useState<PoolFilter>({
     creatures: true,
     spells: true,
@@ -280,6 +285,8 @@ export function SealedPage({ colorTint }: { colorTint: boolean }) {
           emptyText="Auto-generate a shell or double-click a card to add it"
           colorTint={colorTint}
           dblClickMove
+          group={deckGroup}
+          onGroupChange={setDeckGroup}
         />
         <div className="pool-filter-bar">
           <span className="stat-label">Show:</span>
@@ -318,6 +325,8 @@ export function SealedPage({ colorTint }: { colorTint: boolean }) {
           emptyText="Double-click a card to add it to the main deck"
           colorTint={colorTint}
           dblClickMove
+          group={poolGroup}
+          onGroupChange={setPoolGroup}
         />
       </div>
 
