@@ -20,10 +20,14 @@ interface Props {
   /** Per-table column-config key (legacy view_id); defaults to the dashboard
    *  pack table. The mini overlay passes overlay_table / missing_table. */
   viewId?: string;
+  /** Initial sort override — the legacy wheel tracker (missing_table) sorts by
+   *  GIH WR desc because seen cards carry no advisor value. */
+  defaultSort?: { id: string; desc: boolean };
 }
 
-/** Default visible fields — the pre-column-config hardcoded columns, so an
- *  uncustomized table renders identically. */
+/** Default visible fields. Not byte-identical to the legacy 3-column default
+ *  (["value", "gihwr"]) — the desktop shows the full stat row by default; every
+ *  legacy field is still addable via the column menu. */
 const DEFAULT_FIELDS = ["value", "gihwr", "ohwr", "alsa", "ata", "iwd"];
 
 export function PackTable({
@@ -31,10 +35,18 @@ export function PackTable({
   colorTint,
   emptyText,
   viewId = "pack_table",
+  defaultSort,
 }: Props) {
   const { resultFormat, metrics } = useStatFormat();
   const format = { resultFormat, metrics };
-  const { fields, add, remove, reset } = useColumnConfig(viewId, DEFAULT_FIELDS);
+  const { fields, add, remove, reset } = useColumnConfig(
+    viewId,
+    DEFAULT_FIELDS,
+    // Legacy configs embed base columns ("name", "cost") that the desktop
+    // renders outside the configurable set — strip them or they'd render a
+    // duplicate "name" column (cardColumns' default branch).
+    (id) => CARD_COLUMN_FIELDS.includes(id),
+  );
 
   const columns: Column<Card>[] = [
     nameColumn(),
@@ -50,7 +62,7 @@ export function PackTable({
         rows={cards}
         rowKey={(c) => c.name}
         rowClass={(c) => cardRowClass(c, colorTint)}
-        defaultSort={{ id: "value", desc: true }}
+        defaultSort={defaultSort ?? { id: "value", desc: true }}
         emptyText={emptyText ?? "Waiting for a pack..."}
         hoverImage={(c) => artUrl(c.image)}
         onContextMenu={(c, x, y) => menu.open(c.name, x, y)}

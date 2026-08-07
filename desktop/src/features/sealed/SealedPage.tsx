@@ -198,6 +198,7 @@ export function SealedPage({ colorTint }: { colorTint: boolean }) {
           title="Main deck"
           rows={state?.deck ?? []}
           count={state?.mainCount ?? 0}
+          targetCount={40}
           onMove={(name) => act(() => sealedMoveCard(name, true))}
           moveLabel="→ pool"
           emptyText="Auto-generate a shell or move cards up from the pool"

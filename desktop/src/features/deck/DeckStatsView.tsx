@@ -65,6 +65,19 @@ export function DeckStatsView({ stats }: { stats: DeckStats }) {
           ))}
         </div>
       )}
+
+      {stats.tribes.length > 0 && (
+        <div className="deck-tribes">
+          <span className="stat-label">Top Tribes:</span>
+          <div className="recap-chips">
+            {stats.tribes.map((t) => (
+              <span key={t.label}>
+                {t.label} <b>{t.count}</b>
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -73,6 +86,10 @@ interface DeckTableProps {
   title: string;
   rows: DeckRow[];
   count: number;
+  /** When set, annotate the header with the legacy smart-deck-size cue:
+   *  "✔" at the target, "⚠️ ADD N" below, "⚠️ CUT N" above. The Custom Deck and
+   *  Sealed main tables pass 40; sideboard/pool tables leave it unset. */
+  targetCount?: number;
   /** Move a card to the other zone (deck⇄sideboard). Omit for a read-only
    *  table (the suggest page renders decks it doesn't let you edit). */
   onMove?: (name: string) => void;
@@ -89,6 +106,7 @@ export function DeckTable({
   title,
   rows,
   count,
+  targetCount,
   onMove,
   moveLabel,
   emptyText,
@@ -150,6 +168,20 @@ export function DeckTable({
     <section className="panel">
       <h2>
         {title} ({count})
+        {targetCount != null &&
+          (count === targetCount ? (
+            <span className="deck-complete"> ✔</span>
+          ) : count > targetCount ? (
+            <span className="deck-incomplete">
+              {" "}
+              ⚠️ CUT {count - targetCount}
+            </span>
+          ) : (
+            <span className="deck-incomplete">
+              {" "}
+              ⚠️ ADD {targetCount - count}
+            </span>
+          ))}
       </h2>
       <DataTable
         columns={columns}

@@ -1,14 +1,18 @@
 import type { Recommendation } from "../../api/types";
+import { TAG_ICONS } from "../../components/cardColumns";
 
 interface Props {
   recommendations: Recommendation[];
+  /** Max recommendations shown. The dashboard shows 3 (legacy advisor_view.py
+   *  default); the mini overlay shows 5 (legacy overlay mini_mode limit). */
+  limit?: number;
 }
 
-/** Top-3 advisor picks with reasoning chips. */
-export function AdvisorPanel({ recommendations }: Props) {
+/** Top-`limit` advisor picks with reasoning chips and card-role tags. */
+export function AdvisorPanel({ recommendations, limit = 3 }: Props) {
   const top = [...recommendations]
     .sort((a, b) => b.contextualScore - a.contextualScore)
-    .slice(0, 3);
+    .slice(0, limit);
 
   if (top.length === 0) {
     return <div className="empty-state">Advice appears with the next pack</div>;
@@ -31,8 +35,15 @@ export function AdvisorPanel({ recommendations }: Props) {
           </div>
           {rec.reasoning.length > 0 && (
             <div className="reason-chips">
-              {rec.reasoning.slice(0, 4).map((r) => (
+              {rec.reasoning.map((r) => (
                 <span key={r}>{r}</span>
+              ))}
+            </div>
+          )}
+          {rec.tags.length > 0 && (
+            <div className="rec-tags">
+              {rec.tags.map((t) => (
+                <span key={t}>{TAG_ICONS[t] ?? t}</span>
               ))}
             </div>
           )}

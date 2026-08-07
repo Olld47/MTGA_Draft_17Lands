@@ -427,6 +427,19 @@
   padding: 1px 6px;
 }
 
+/* Card-role tags line under an advisor pick (the legacy TAG_VISUALS row) */
+.rec-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.rec-tags span {
+  font-size: var(--text-xs);
+  padding: 1px 4px;
+}
+
 /* --- Signal Ledger (signature element) --- */
 
 .signal-ledger {
@@ -898,6 +911,12 @@
   font-size: var(--text-lg);
 }
 
+/* Legacy dashboard_recap.py's "⚔️ Enter Sealed Studio" — pushed to the right
+   edge of the hero row so the recap grade/stats keep the lead. */
+.recap-hero .sealed-studio-btn {
+  margin-left: auto;
+}
+
 .recap-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
@@ -1057,6 +1076,27 @@
 .pip-count.b { color: var(--mana-b); }
 .pip-count.r { color: var(--mana-r); }
 .pip-count.g { color: var(--mana-g); }
+
+/* Deck-completeness cue (legacy "MAIN DECK (40) ✔ / ⚠️ CUT N / ⚠️ ADD N") */
+.deck-complete {
+  color: var(--ok);
+}
+
+.deck-incomplete {
+  color: var(--gold-foil);
+  font-size: var(--text-sm);
+}
+
+.deck-tribes {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.deck-tribes .recap-chips {
+  margin-top: 0;
+}
 
 .sim-note {
   font-size: var(--text-sm);

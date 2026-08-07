@@ -220,7 +220,7 @@ export default function App() {
             (state && state.takenCount > 0 && state.pack === 0 ? (
               // Draft finished: the legacy dashboard swaps to the recap screen
               // (dashboard.py) instead of showing an empty pack — mirror that.
-              <RecapPage />
+              <RecapPage idealCurve={settings?.deckMidDistribution ?? []} />
             ) : state ? (
               <DashboardPage
                 state={state}
@@ -231,7 +231,9 @@ export default function App() {
               <div className="empty-state">Waiting for draft data...</div>
             ))}
           {tab === "taken" && <TakenPage colorTint={colorTint} />}
-          {tab === "recap" && <RecapPage />}
+          {tab === "recap" && (
+            <RecapPage idealCurve={settings?.deckMidDistribution ?? []} />
+          )}
           {tab === "deck" && <DeckPage colorTint={colorTint} />}
           {tab === "suggest" && (
             <SuggestPage

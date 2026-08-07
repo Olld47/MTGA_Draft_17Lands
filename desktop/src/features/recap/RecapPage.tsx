@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
 
-import { getDraftRecord, getRecap } from "../../api/client";
+import { getDraftRecord, getRecap, openUrl } from "../../api/client";
 import { EVENTS, on, type RefreshPayload } from "../../api/events";
 import type { DraftRecord, Recap, RecapCard, RecapRole } from "../../api/types";
+import { ManaCurveChart } from "../dashboard/ManaCurveChart";
+import { navigateTab } from "../../state/navigation";
 
 const fmt = (v: number | null) => (v == null ? "—" : v.toFixed(1));
 
@@ -33,7 +35,21 @@ function RoleChips({ roles }: { roles: RecapRole[] }) {
   );
 }
 
-export function RecapPage() {
+/** A steal/reach line: "P1P5 · ALSA 7.2 · +2.3". Legacy dashboard_recap.py
+ *  formats steals positive (pick − ALSA) and reaches negative (ATA − pick),
+ *  with the reference stat next to each. */
+function PickLine({ p, kind }: { p: { pack: number; pick: number; reference: number; delta: number }; kind: "steal" | "reach" }) {
+  const ref = kind === "steal" ? "ALSA" : "ATA";
+  const sign = kind === "steal" ? "+" : "-";
+  return (
+    <span className="num">
+      P{p.pack}p{p.pick} · {ref} {p.reference.toFixed(1)} · {sign}
+      {p.delta.toFixed(1)}
+    </span>
+  );
+}
+
+export function RecapPage({ idealCurve = [] }: { idealCurve?: number[] }) {
   const [recap, setRecap] = useState<Recap | null>(null);
   const [record, setRecord] = useState<DraftRecord | null>(null);
 
@@ -85,7 +101,16 @@ export function RecapPage() {
               <span className="stat-label">Trophy record</span>
               <span className="stat-value">
                 {record.url ? (
-                  <a href={record.url} target="_blank" rel="noreferrer">
+                  // Open through the open_url bridge: a bare target=_blank
+                  // anchor stays inside the Tauri webview instead of the OS
+                  // browser (CardContextMenu uses the same bridge).
+                  <a
+                    href={record.url}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      openUrl(record.url).catch(console.warn);
+                    }}
+                  >
                     {record.wins}–{record.losses}
                   </a>
                 ) : (
@@ -95,6 +120,14 @@ export function RecapPage() {
             </div>
           )}
         </div>
+        {recap.isSealed && (
+          // Legacy dashboard_recap.py packs a "⚔️ Enter Sealed Studio" button
+          // into the recap header for Sealed events — a natural hop from the
+          // recap into tuning the pool (App subscribes to the nav bus).
+          <button className="sealed-studio-btn" onClick={() => navigateTab("sealed")}>
+            ⚔️ Enter Sealed Studio
+          </button>
+        )}
       </section>
 
       <div className="recap-grid">
@@ -124,6 +157,14 @@ export function RecapPage() {
         </section>
 
         <section className="panel">
+          <h2>Mana curve</h2>
+          <ManaCurveChart
+            distribution={recap.cmcDistribution}
+            ideal={idealCurve}
+          />
+        </section>
+
+        <section className="panel">
           <h2>Best archetypes</h2>
           {recap.archetypes.length === 0 ? (
             <div className="empty-inline">None</div>
@@ -150,9 +191,7 @@ export function RecapPage() {
               {recap.steals.map((p) => (
                 <li key={`${p.name}-${p.pack}-${p.pick}`}>
                   <span className="card-name">{p.name}</span>
-                  <span className="num">
-                    P{p.pack}p{p.pick} · +{p.delta.toFixed(1)}
-                  </span>
+                  <PickLine p={p} kind="steal" />
                 </li>
               ))}
             </ul>
@@ -168,9 +207,7 @@ export function RecapPage() {
               {recap.reaches.map((p) => (
                 <li key={`${p.name}-${p.pack}-${p.pick}`}>
                   <span className="card-name">{p.name}</span>
-                  <span className="num">
-                    P{p.pack}p{p.pick} · {p.delta.toFixed(1)}
-                  </span>
+                  <PickLine p={p} kind="reach" />
                 </li>
               ))}
             </ul>

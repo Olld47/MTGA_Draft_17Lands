@@ -32,6 +32,8 @@ export function DashboardPage({ state, colorTint, idealCurve = [] }: Props) {
             <PackTable
               cards={state.missingCards}
               colorTint={colorTint}
+              viewId="missing_table"
+              defaultSort={{ id: "gihwr", desc: true }}
               emptyText="No missing cards"
             />
           </details>

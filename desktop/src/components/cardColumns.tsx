@@ -31,8 +31,9 @@ export const CARD_COLUMN_LABELS: Record<string, string> = {
 
 export const CARD_COLUMN_FIELDS = Object.keys(CARD_COLUMN_LABELS);
 
-/** Emoji per card role — the icon portion of legacy TAG_VISUALS. */
-const TAG_ICONS: Record<string, string> = {
+/** Emoji per card role — the icon portion of legacy TAG_VISUALS. Shared by the
+ *  tags column and the AdvisorPanel tags line. */
+export const TAG_ICONS: Record<string, string> = {
   removal: "🎯",
   evasion: "🦅",
   card_advantage: "📚",

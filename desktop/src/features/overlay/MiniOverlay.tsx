@@ -235,7 +235,7 @@ export function MiniOverlay({
             )}
           </>
         ) : tab === "advisor" ? (
-          <AdvisorPanel recommendations={recommendations} />
+          <AdvisorPanel recommendations={recommendations} limit={5} />
         ) : tab === "stats" ? (
           <div className="mini-stats">
             <h3>Open lanes</h3>

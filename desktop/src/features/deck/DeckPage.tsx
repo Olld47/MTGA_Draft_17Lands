@@ -15,6 +15,7 @@ import {
 import { EVENTS, on, type RefreshPayload } from "../../api/events";
 import type { DeckState, SampleHand, SimResult } from "../../api/types";
 import { DeckStatsView, DeckTable } from "./DeckStatsView";
+import { SampleHandView } from "../../components/SampleHandView";
 import { SimResultView } from "./SimResultView";
 
 const BASICS = ["Plains", "Island", "Swamp", "Mountain", "Forest"];
@@ -113,6 +114,7 @@ export function DeckPage({ colorTint }: { colorTint: boolean }) {
           title="Custom Deck"
           rows={state?.deck ?? []}
           count={state?.mainCount ?? 0}
+          targetCount={40}
           onMove={(name) => run(() => deckMoveCard(name, true))}
           emptyText="Auto-build or double-click a card to add it"
           colorTint={colorTint}
@@ -138,17 +140,7 @@ export function DeckPage({ colorTint }: { colorTint: boolean }) {
         {hand && (
           <section className="panel">
             <h2>Sample hand</h2>
-            {hand.message ? (
-              <div className="empty-inline">{hand.message}</div>
-            ) : (
-              <ul className="recap-card-list">
-                {hand.cards.map((c, i) => (
-                  <li key={`${c.name}-${i}`}>
-                    <span className="card-name">{c.name}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
+            <SampleHandView hand={hand} />
           </section>
         )}
       </aside>

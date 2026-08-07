@@ -9,28 +9,9 @@ import {
   suggestSendToBuilder,
 } from "../../api/client";
 import type { DraftState, SampleHand, SuggestState } from "../../api/types";
-import { artUrl } from "../../components/cardColumns";
+import { SampleHandView } from "../../components/SampleHandView";
 import { DeckStatsView, DeckTable } from "../deck/DeckStatsView";
 import { SimResultView } from "../deck/SimResultView";
-
-function SampleHandView({ hand }: { hand: SampleHand }) {
-  if (hand.message) {
-    return <div className="empty-inline">{hand.message}</div>;
-  }
-  return (
-    <div className="hand-fan">
-      {hand.cards.map((c, i) => {
-        const url = artUrl(c.image);
-        return (
-          <figure key={`${c.name}-${i}`} className="hand-card">
-            {url ? <img src={url} alt={c.name} loading="lazy" /> : null}
-            <figcaption>{c.name}</figcaption>
-          </figure>
-        );
-      })}
-    </div>
-  );
-}
 
 export function SuggestPage({
   colorTint,
