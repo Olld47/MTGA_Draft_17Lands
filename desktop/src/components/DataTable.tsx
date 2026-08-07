@@ -17,6 +17,9 @@ interface Props<T> {
   emptyText?: string;
   /** Optional card-art preview shown while hovering a row (pack tables). */
   hoverImage?: (row: T) => string | null;
+  /** Optional double-click handler — the legacy Custom Deck moved one copy of
+   *  a card between deck and sideboard on <Double-Button-1>. */
+  onRowDoubleClick?: (row: T) => void;
 }
 
 /** Small hand-rolled sortable table — pack tables are ≤15 rows, no
@@ -29,6 +32,7 @@ export function DataTable<T>({
   defaultSort,
   emptyText = "No data",
   hoverImage,
+  onRowDoubleClick,
 }: Props<T>) {
   const [sort, setSort] = useState(defaultSort ?? null);
   const [hoverUrl, setHoverUrl] = useState<string | null>(null);
@@ -94,6 +98,7 @@ export function DataTable<T>({
               key={rowKey(row)}
               data-index={i}
               className={rowClass?.(row) ?? ""}
+              onDoubleClick={onRowDoubleClick ? () => onRowDoubleClick(row) : undefined}
             >
               {columns.map((c) => (
                 <td key={c.id} className={c.numeric ? "num" : ""}>

@@ -11,7 +11,6 @@ import {
   deckRemoveBasic,
   deckSampleHand,
   deckSimulate,
-  getDeckState,
 } from "../../api/client";
 import { EVENTS, on, type RefreshPayload } from "../../api/events";
 import type { DeckState, SampleHand, SimResult } from "../../api/types";
@@ -27,7 +26,10 @@ export function DeckPage({ colorTint }: { colorTint: boolean }) {
   const [busy, setBusy] = useState(false);
 
   const refresh = useCallback(() => {
-    getDeckState().then(setState).catch(console.warn);
+    // Auto-sync the draft pool into the sideboard: newly drafted cards land in
+    // the pool table without a manual "Refresh pool" click (idempotent when the
+    // pool hasn't grown — refresh_pool only appends cards beyond the last count).
+    deckRefreshPool().then(setState).catch(console.warn);
   }, []);
 
   useEffect(() => {
@@ -112,18 +114,18 @@ export function DeckPage({ colorTint }: { colorTint: boolean }) {
           rows={state?.deck ?? []}
           count={state?.mainCount ?? 0}
           onMove={(name) => run(() => deckMoveCard(name, true))}
-          moveLabel="→ SB"
-          emptyText="Auto-build or move cards up from the sideboard"
+          emptyText="Auto-build or double-click a card to add it"
           colorTint={colorTint}
+          dblClickMove
         />
         <DeckTable
           title="Sideboard"
           rows={state?.sideboard ?? []}
           count={state?.sideboardCount ?? 0}
           onMove={(name) => run(() => deckMoveCard(name, false))}
-          moveLabel="↑ Deck"
-          emptyText="Your drafted pool lands here"
+          emptyText="Double-click a card to add it to the deck"
           colorTint={colorTint}
+          dblClickMove
         />
       </div>
 

@@ -77,6 +77,10 @@ interface DeckTableProps {
   moveLabel?: string;
   emptyText: string;
   colorTint: boolean;
+  /** Custom Deck interaction: double-click a row to move it. Hides the
+   *  move-button column — the legacy panel moved one copy per
+   *  <Double-Button-1>. */
+  dblClickMove?: boolean;
 }
 
 export function DeckTable({
@@ -87,6 +91,7 @@ export function DeckTable({
   moveLabel,
   emptyText,
   colorTint,
+  dblClickMove,
 }: DeckTableProps) {
   const columns: Column<DeckRow>[] = [
     {
@@ -117,7 +122,7 @@ export function DeckTable({
     },
   ];
 
-  if (onMove) {
+  if (onMove && !dblClickMove) {
     columns.push({
       id: "move",
       header: "",
@@ -149,6 +154,9 @@ export function DeckTable({
         defaultSort={{ id: "cost", desc: false }}
         emptyText={emptyText}
         hoverImage={(r) => artUrl(r.image)}
+        onRowDoubleClick={
+          dblClickMove && onMove ? (r) => onMove(r.name) : undefined
+        }
       />
     </section>
   );
