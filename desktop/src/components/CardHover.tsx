@@ -1,4 +1,4 @@
-import type { Card, DeckRow } from "../api/types";
+import type { Card, DeckColor, DeckRow } from "../api/types";
 import {
   artUrl,
   cardNameColor,
@@ -6,18 +6,54 @@ import {
   TAG_ICONS,
 } from "./cardColumns";
 
+/** Port of src/constants.py::COLOR_NAMES_DICT — WUBRG keys to the guild/shard
+ *  names the legacy tooltip renders in ARCHETYPE PLAY SHARE. */
+const COLOR_NAMES: Record<string, string> = {
+  W: "White",
+  U: "Blue",
+  B: "Black",
+  R: "Red",
+  G: "Green",
+  WU: "Azorius",
+  UB: "Dimir",
+  BR: "Rakdos",
+  RG: "Gruul",
+  WG: "Selesnya",
+  WB: "Orzhov",
+  BG: "Golgari",
+  UG: "Simic",
+  UR: "Izzet",
+  WR: "Boros",
+  WUR: "Jeskai",
+  UBG: "Sultai",
+  WBR: "Mardu",
+  URG: "Temur",
+  WBG: "Abzan",
+  WUB: "Esper",
+  UBR: "Grixis",
+  BRG: "Jund",
+  WRG: "Naya",
+  WUG: "Bant",
+  WUBR: "Not-Green",
+  UBRG: "Not-White",
+  WBRG: "Not-Blue",
+  WURG: "Not-Black",
+  WUBG: "Not-Red",
+  WUBRG: "Five-Color",
+};
+
 /** Data the hover tooltip renders for a row — a TS port of the legacy
  *  CardToolTip (src/ui/components.py): name + colored rarity header, the card
- *  art, a GLOBAL PERFORMANCE stat block, and CARD ROLES from the advisor tags.
- *  The legacy ARCHETYPE PLAY SHARE section is intentionally absent: per-color
- *  stats never crossed the IPC boundary, so there is no data to render. */
+ *  art, a GLOBAL PERFORMANCE stat block, an ARCHETYPE PLAY SHARE list, and CARD
+ *  ROLES from the advisor tags. */
 export interface CardHoverData {
   name: string;
   rarity: string;
   colors: string[];
   image: string[];
-  /** "All Decks" performance. Deck rows ship only a single GIH WR, so the
-   *  stats are mostly null there — the panel renders just the available rows. */
+  /** GLOBAL PERFORMANCE block. Deck rows ship the All Decks entry for
+   *  IWD/ALSA/ATA/Games (the legacy tooltip reads `deck_colors["All Decks"]`);
+   *  GIH WR keeps the active-filter value the table column shows. */
   stats: {
     gihwr: number | null;
     iwd: number | null;
@@ -25,6 +61,9 @@ export interface CardHoverData {
     ata: number | null;
     games: number | null;
   };
+  /** Per-color play shares (legacy: colors with GIH WR > 0, sorted by samples,
+   *  top 10) for the ARCHETYPE PLAY SHARE section. */
+  deckColors: DeckColor[];
   /** Advisor card roles (legacy TAG_VISUALS). */
   tags: string[];
 }
@@ -42,6 +81,7 @@ export function hoverDataFromCard(card: Card): CardHoverData {
       ata: card.stats.ata,
       games: card.stats.ngp,
     },
+    deckColors: card.deckColors,
     tags: card.recommendation?.tags ?? [],
   };
 }
@@ -52,8 +92,15 @@ export function hoverDataFromDeckRow(row: DeckRow): CardHoverData {
     rarity: row.rarity,
     colors: row.colors,
     image: row.image,
-    stats: { gihwr: row.gihwr, iwd: null, alsa: null, ata: null, games: null },
-    tags: [],
+    stats: {
+      gihwr: row.gihwr,
+      iwd: row.iwd,
+      alsa: row.alsa,
+      ata: row.ata,
+      games: row.samples,
+    },
+    deckColors: row.deckColors,
+    tags: row.tags,
   };
 }
 
@@ -114,7 +161,9 @@ export function CardHoverTip({ data }: { data: CardHoverData }) {
       </div>
       <div className="ch-body">
         {image && <img className="ch-image" src={image} alt={data.name} />}
-        {(stats.length > 0 || data.tags.length > 0) && (
+        {(stats.length > 0 ||
+          data.deckColors.length > 0 ||
+          data.tags.length > 0) && (
           <div className="ch-info">
             {stats.length > 0 && (
               <>
@@ -129,6 +178,22 @@ export function CardHoverTip({ data }: { data: CardHoverData }) {
                     </dd>,
                   ])}
                 </dl>
+              </>
+            )}
+            {data.deckColors.length > 0 && (
+              <>
+                <div className="ch-section">ARCHETYPE PLAY SHARE</div>
+                <div className="ch-archetype">
+                  {data.deckColors.map((d) => (
+                    <div
+                      key={d.color}
+                      className={d.gihwr != null && d.gihwr >= 55 ? "up" : ""}
+                    >
+                      • {COLOR_NAMES[d.color] ?? d.color} ({d.color}):{" "}
+                      {d.gihwr?.toFixed(1) ?? "—"}% WR
+                    </div>
+                  ))}
+                </div>
               </>
             )}
             {data.tags.length > 0 && (

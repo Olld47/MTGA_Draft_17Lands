@@ -35,6 +35,7 @@ const card = (over: Partial<Card> = {}): Card => ({
   isPicked: false,
   returnableAt: [],
   tier: null,
+  deckColors: [],
   ...over,
 });
 

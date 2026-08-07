@@ -23,6 +23,7 @@ from src.card_logic import (
 )
 from src.signals import SignalCalculator
 
+from mtga_bridge.deck_view import hover_share_vm
 from mtga_bridge.viewmodels import (
     CardStatsVM,
     CardVM,
@@ -134,6 +135,7 @@ def card_to_vm(
         is_picked=bool(picked_names and name in picked_names),
         returnable_at=list(card.get("returnable_at", []) or []),
         tier=_first_tier_rating(name, tier_data or {}),
+        deck_colors=hover_share_vm(card),
     )
 
 

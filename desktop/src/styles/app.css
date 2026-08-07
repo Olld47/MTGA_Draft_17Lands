@@ -413,6 +413,23 @@
   font-weight: 600;
 }
 
+.card-hover .ch-archetype {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: var(--text-sm);
+}
+
+.card-hover .ch-archetype > div {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.card-hover .ch-archetype > div.up {
+  color: var(--ok);
+}
+
 .table-wrap {
   position: relative;
 }

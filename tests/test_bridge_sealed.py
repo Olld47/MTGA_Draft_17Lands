@@ -171,6 +171,68 @@ def test_row_vm_surfaces_rarity():
     assert row_vm({"name": "Plains", "types": ["Land", "Basic"]}, "All Decks").rarity == ""
 
 
+def test_row_vm_surfaces_all_decks_hover_stats():
+    """The hover GLOBAL PERFORMANCE block reads the "All Decks" entry (legacy
+    CardToolTip: `deck_colors["All Decks"]`), while the table's GIH WR column
+    keeps the active-filter value. deck_colors feeds ARCHETYPE PLAY SHARE."""
+    card = {
+        "name": "Red Dragon", "cmc": 6, "types": ["Creature"], "colors": ["R"],
+        "mana_cost": "{4}{R}{R}", "count": 1,
+        "tags": ["removal", "bomb"],
+        "deck_colors": {
+            # Hover sources the All Decks stats (active filter affects only GIH WR).
+            "All Decks": {"gihwr": 60.1, "iwd": 2.6, "alsa": 3.8, "ata": 4.2, "samples": 12345},
+            "W": {"gihwr": 0, "samples": 200},
+            "BR": {"gihwr": 62.3, "samples": 400},
+            "WU": {"gihwr": 55.5, "samples": 300},
+        },
+    }
+    vm = row_vm(card, "W")
+    # Column value follows the active filter (W's raw GIH WR is 0.0)...
+    assert vm.gihwr == 0.0
+    # ...but the hover block reads All Decks, exactly like the legacy tooltip.
+    assert vm.iwd == 2.6
+    assert vm.alsa == 3.8
+    assert vm.ata == 4.2
+    assert vm.samples == 12345
+    assert vm.tags == ["removal", "bomb"]
+    # ARCHETYPE PLAY SHARE: excludes "All Decks" and zero-WR colors, sorts by
+    # samples desc, caps at 10.
+    assert [(d.color, d.samples) for d in vm.deck_colors] == [
+        ("BR", 400), ("WU", 300),
+    ]
+    assert vm.deck_colors[0].gihwr == 62.3
+    # Sparse card dicts (synthetic basics) yield safe defaults.
+    bare = row_vm({"name": "Plains", "types": ["Land", "Basic"]}, "All Decks")
+    assert bare.iwd is None
+    assert bare.deck_colors == []
+    assert bare.tags == []
+
+
+def test_hover_share_vm_caps_at_ten_and_rounds():
+    from mtga_bridge.deck_view import hover_share_vm
+
+    card = {
+        "deck_colors": {
+            f"W{i:02d}": {"gihwr": 50.0 + i, "samples": i}
+            for i in range(12)
+        }
+        | {"All Decks": {"gihwr": 99.0, "samples": 99999}},
+    }
+    shares = hover_share_vm(card)
+    assert len(shares) == 10
+    # Sorted by samples desc; the high-sample All Decks entry is never a share.
+    assert [s.samples for s in shares] == sorted(
+        [s.samples for s in shares], reverse=True
+    )
+    assert all(s.color != "All Decks" for s in shares)
+    # Bad numeric input is coerced (never raises); the entry is dropped.
+    card["deck_colors"]["RG"] = {"gihwr": "bad", "samples": "nope"}
+    shares = hover_share_vm(card)
+    assert len(shares) == 10
+    assert all(s.color != "RG" for s in shares)
+
+
 # --- pool loading ------------------------------------------------------------
 
 

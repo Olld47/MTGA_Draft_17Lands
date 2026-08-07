@@ -26,6 +26,15 @@ export interface Recommendation {
   tags: string[];
 }
 
+export interface DeckColor {
+  /** One color-identity's play-share entry for the hover ARCHETYPE PLAY SHARE
+   *  block (legacy CardToolTip: colors with GIH WR > 0, sorted by samples,
+   *  top 10). Never "All Decks". */
+  color: string;
+  gihwr: number | null;
+  samples: number;
+}
+
 export interface Card {
   name: string;
   manaCost: string;
@@ -40,6 +49,7 @@ export interface Card {
   isPicked: boolean;
   returnableAt: number[];
   tier: string | null;
+  deckColors: DeckColor[];
 }
 
 export interface PoolSummary {
@@ -290,6 +300,15 @@ export interface DeckRow {
   rarity: string;
   manaCost: string;
   gihwr: number | null;
+  /** "All Decks" performance for the hover GLOBAL PERFORMANCE block — the
+   *  same source the legacy CardToolTip reads (`deck_colors["All Decks"]`);
+   *  the table's GIH WR column keeps the active-filter value above. */
+  iwd: number | null;
+  alsa: number | null;
+  ata: number | null;
+  samples: number | null;
+  deckColors: DeckColor[];
+  tags: string[];
   rowTag: string;
   image: string[];
 }

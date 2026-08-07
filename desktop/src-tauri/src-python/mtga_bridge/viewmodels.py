@@ -112,6 +112,15 @@ class RecommendationVM(_VM):
     tags: List[str] = []
 
 
+class DeckColorVM(_VM):
+    """One color's play-share stats for the hover ARCHETYPE PLAY SHARE section
+    (legacy CardToolTip: colors with GIH WR > 0, sorted by samples, top 10)."""
+
+    color: str
+    gihwr: Optional[float] = None
+    samples: int = 0
+
+
 class CardVM(_VM):
     name: str
     mana_cost: str = ""
@@ -126,6 +135,7 @@ class CardVM(_VM):
     is_picked: bool = False
     returnable_at: List[int] = []
     tier: Optional[str] = None
+    deck_colors: List[DeckColorVM] = []
 
 
 class SignalsVM(_VM):
@@ -465,6 +475,15 @@ class DeckRowVM(_VM):
     gihwr: Optional[float] = None
     row_tag: str = ""
     image: List[str] = []
+    # "All Decks" performance for the hover GLOBAL PERFORMANCE block — the same
+    # source the legacy CardToolTip reads (`deck_colors["All Decks"]`); the
+    # table's GIH WR column keeps the active-filter value above.
+    iwd: Optional[float] = None
+    alsa: Optional[float] = None
+    ata: Optional[float] = None
+    samples: Optional[int] = None
+    deck_colors: List[DeckColorVM] = []
+    tags: List[str] = []
 
 
 class DeckPipVM(_VM):

@@ -9,7 +9,7 @@ no pytauri.
 """
 
 import random
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from src import constants
 from src.card_logic import (
@@ -20,6 +20,7 @@ from src.card_logic import (
 )
 
 from mtga_bridge.viewmodels import (
+    DeckColorVM,
     DeckPipVM,
     DeckRowVM,
     DeckStatsVM,
@@ -47,6 +48,47 @@ def card_sort_key(card: dict):
     return (card.get(constants.DATA_FIELD_CMC, 0), card.get(constants.DATA_FIELD_NAME, ""))
 
 
+def _clean_float(value) -> Optional[float]:
+    if value in (None, ""):
+        return None
+    try:
+        return round(float(value), 1)
+    except (TypeError, ValueError):
+        return None
+
+
+def _clean_int(value) -> Optional[int]:
+    if value in (None, ""):
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def hover_share_vm(card: dict) -> List[DeckColorVM]:
+    """Per-color play-share stats for the hover ARCHETYPE PLAY SHARE section.
+    Mirrors the legacy CardToolTip filter (`gihwr > 0`), sort (samples desc) and
+    cap (top 10); "All Decks" is never a play-share archetype."""
+    deck_colors = card.get("deck_colors", {}) or {}
+    shares = []
+    for color, stats in deck_colors.items():
+        if color == "All Decks":
+            continue
+        gihwr = _clean_float(stats.get("gihwr"))
+        if not gihwr or gihwr <= 0:
+            continue
+        shares.append(
+            DeckColorVM(
+                color=color,
+                gihwr=gihwr,
+                samples=_clean_int(stats.get("samples")) or 0,
+            )
+        )
+    shares.sort(key=lambda s: s.samples, reverse=True)
+    return shares[:10]
+
+
 def row_vm(card: dict, active_filter: str) -> DeckRowVM:
     raw = card.get("deck_colors", {}).get(active_filter, {}).get("gihwr")
     gihwr = None
@@ -55,6 +97,7 @@ def row_vm(card: dict, active_filter: str) -> DeckRowVM:
             gihwr = round(float(raw), 1)
         except (TypeError, ValueError):
             gihwr = None
+    all_decks = card.get("deck_colors", {}).get("All Decks", {}) or {}
     try:
         cmc = float(card.get("cmc", 0) or 0)
     except (TypeError, ValueError):
@@ -71,6 +114,12 @@ def row_vm(card: dict, active_filter: str) -> DeckRowVM:
         rarity=card.get("rarity", "") or "",
         mana_cost=card.get("mana_cost", "") or "",
         gihwr=gihwr,
+        iwd=_clean_float(all_decks.get("iwd")),
+        alsa=_clean_float(all_decks.get("alsa")),
+        ata=_clean_float(all_decks.get("ata")),
+        samples=_clean_int(all_decks.get("samples")),
+        deck_colors=hover_share_vm(card),
+        tags=list(card.get("tags", []) or []),
         row_tag=row_color_tag(card.get("mana_cost", "")),
         image=[u for u in image if u],
     )
