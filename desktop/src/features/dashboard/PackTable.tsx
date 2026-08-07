@@ -39,19 +39,20 @@ export function PackTable({
 }: Props) {
   const { resultFormat, metrics } = useStatFormat();
   const format = { resultFormat, metrics };
-  const { fields, add, remove, reset } = useColumnConfig(
-    viewId,
-    DEFAULT_FIELDS,
-    // Legacy configs embed base columns ("name", "cost") that the desktop
-    // renders outside the configurable set — strip them or they'd render a
-    // duplicate "name" column (cardColumns' default branch).
-    (id) => CARD_COLUMN_FIELDS.includes(id),
-  );
+  const { fields, order, add, remove, reset, move, initialSort, setSort } =
+    useColumnConfig(
+      viewId,
+      DEFAULT_FIELDS,
+      // Legacy configs embed base columns ("name", "cost") that the desktop
+      // renders outside the configurable set — strip them or they'd render a
+      // duplicate "name" column (cardColumns' default branch).
+      (id) => CARD_COLUMN_FIELDS.includes(id),
+    );
 
   const columns: Column<Card>[] = [
     nameColumn(),
     manaColumn(),
-    ...fields.map((f) => cardColumn(f, format)),
+    ...order.map((f) => cardColumn(f, format)),
   ];
   const menu = useCardMenu();
 
@@ -63,6 +64,8 @@ export function PackTable({
         rowKey={(c) => c.name}
         rowClass={(c) => cardRowClass(c, colorTint)}
         defaultSort={defaultSort ?? { id: "value", desc: true }}
+        initialSort={initialSort}
+        onSortChange={setSort}
         emptyText={emptyText ?? "Waiting for a pack..."}
         hoverImage={(c) => artUrl(c.image)}
         onContextMenu={(c, x, y) => menu.open(c.name, x, y)}
@@ -76,6 +79,7 @@ export function PackTable({
           onAdd: add,
           onRemove: remove,
           onReset: reset,
+          onMove: move,
         }}
       />
       {menu.element}

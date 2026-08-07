@@ -45,12 +45,20 @@ export function ComparePage({ colorTint }: { colorTint: boolean }) {
   const [query, setQuery] = useState("");
   const { resultFormat, metrics } = useStatFormat();
   const format = { resultFormat, metrics };
-  const { fields, add: addField, remove: removeField, reset: resetFields } =
-    useColumnConfig(
-      "compare_table",
-      DEFAULT_FIELDS,
-      (id) => CARD_COLUMN_FIELDS.includes(id),
-    );
+  const {
+    fields,
+    order,
+    add: addField,
+    remove: removeField,
+    reset: resetFields,
+    move,
+    initialSort,
+    setSort,
+  } = useColumnConfig(
+    "compare_table",
+    DEFAULT_FIELDS,
+    (id) => CARD_COLUMN_FIELDS.includes(id),
+  );
   const listId = useRef(`compare-names-${Math.round(performance.now())}`);
 
   const refresh = useCallback(() => {
@@ -83,7 +91,7 @@ export function ComparePage({ colorTint }: { colorTint: boolean }) {
   const columns: Column<Card>[] = [
     nameColumn(),
     manaColumn(),
-    ...fields.map((f) => cardColumn(f, format)),
+    ...order.map((f) => cardColumn(f, format)),
     removeColumn(remove),
   ];
   const menu = useCardMenu();
@@ -132,6 +140,8 @@ export function ComparePage({ colorTint }: { colorTint: boolean }) {
           rowKey={(c) => c.name}
           rowClass={(c) => cardRowClass(c, colorTint)}
           emptyText="Add cards above to compare their 17Lands stats"
+          initialSort={initialSort}
+          onSortChange={setSort}
           onContextMenu={(c, x, y) => menu.open(c.name, x, y)}
           showAddColumn={false}
           columnMenu={{
@@ -144,6 +154,7 @@ export function ComparePage({ colorTint }: { colorTint: boolean }) {
             onAdd: addField,
             onRemove: removeField,
             onReset: resetFields,
+            onMove: move,
           }}
         />
       </section>

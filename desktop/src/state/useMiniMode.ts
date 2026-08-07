@@ -15,6 +15,11 @@ import { useCallback, useEffect, useState } from "react";
 // returns to exactly where you left it. Window transparency itself is a CSS
 // `opacity` on the overlay over the transparent OS window configured in
 // tauri.conf.json (Tauri v2 has no setOpacity API).
+//
+// Always-on-top: the Settings.alwaysOnTop toggle and mini mode compose as
+// `mini || alwaysOnTop` — mini always pins (that's its point), and the setting
+// governs the full window. A change to the setting while not in mini applies
+// immediately; exiting mini restores to the setting.
 
 const FULL_SIZE = { width: 1180, height: 860 };
 const DEFAULT_MINI_GEOMETRY = "380x600+50+50";
@@ -46,7 +51,11 @@ function formatGeometry(g: MiniGeometry): string {
   return `${g.width}x${g.height}+${g.x}+${g.y}`;
 }
 
-async function applyWindow(mini: boolean, geometry?: string): Promise<void> {
+async function applyWindow(
+  mini: boolean,
+  geometry?: string,
+  alwaysOnTop = false,
+): Promise<void> {
   try {
     const [{ getCurrentWindow }, { PhysicalPosition, PhysicalSize }] =
       await Promise.all([
@@ -55,7 +64,7 @@ async function applyWindow(mini: boolean, geometry?: string): Promise<void> {
       ]);
     const win = getCurrentWindow();
     await win.setDecorations(!mini);
-    await win.setAlwaysOnTop(mini);
+    await win.setAlwaysOnTop(mini || alwaysOnTop);
     const sf = await win.scaleFactor();
     if (mini) {
       // Shrink to the saved mini geometry (size first, then position — the
@@ -77,6 +86,7 @@ async function applyWindow(mini: boolean, geometry?: string): Promise<void> {
 export function useMiniMode(
   overlayGeometry?: string,
   saveOverlayGeometry?: (geometry: string) => void,
+  alwaysOnTop = false,
 ) {
   const [mini, setMini] = useState(false);
 
@@ -109,14 +119,14 @@ export function useMiniMode(
         // mid-drag position survives into the next mini session.
         void (async () => {
           await saveGeometry();
-          await applyWindow(false);
+          await applyWindow(false, undefined, alwaysOnTop);
         })();
       } else {
-        void applyWindow(true, overlayGeometry);
+        void applyWindow(true, overlayGeometry, alwaysOnTop);
       }
       return next;
     });
-  }, [overlayGeometry, saveGeometry]);
+  }, [overlayGeometry, saveGeometry, alwaysOnTop]);
 
   // While mini, live-save geometry (debounced) on move/resize so dragging the
   // overlay around during a draft persists even without toggling out. The
@@ -157,6 +167,21 @@ export function useMiniMode(
       unlisten.forEach((u) => u());
     };
   }, [mini, saveGeometry]);
+
+  // A change to the "Always on top" setting applies to the full window right
+  // away. Mini mode pins independently (applyWindow carries the OR), so this
+  // only runs while not mini.
+  useEffect(() => {
+    if (mini) return;
+    void (async () => {
+      try {
+        const { getCurrentWindow } = await import("@tauri-apps/api/window");
+        await getCurrentWindow().setAlwaysOnTop(alwaysOnTop);
+      } catch {
+        // no-op outside Tauri
+      }
+    })();
+  }, [alwaysOnTop, mini]);
 
   const startDragging = useCallback(() => {
     void (async () => {

@@ -273,6 +273,9 @@ _PATCH_VALUES = {
     "arena_log_location": "/tmp/does-not-exist/Player.log",
     "database_location": "/tmp/does-not-exist/MTGA_Data",
     "column_configs": {"pack_table": ["name", "value"]},
+    "column_display_orders": {"pack_table": ["gihwr", "value"]},
+    "table_sort_states": {"pack": {"column": "gihwr", "reverse": True}},
+    "always_on_top": True,
     "overlay_geometry": "380x600+120+80",
 }
 
@@ -329,6 +332,26 @@ def test_reset_settings_restores_baseline(tmp_path, monkeypatch):
     assert vm.desktop_theme == baseline["desktop_theme"]
     assert vm.deck_filter == baseline["deck_filter"]
     assert runtime.config.settings.model_dump() == baseline
+
+
+def test_settings_vm_surfaces_column_and_window_state():
+    """settings_vm must expose the per-table view state the frontend persists
+    through Settings — column display order (header drag-to-reorder), sort
+    state, and always-on-top. The config Settings model always had these
+    (column_display_orders / table_sort_states / always_on_top); the VM is the
+    channel that makes them reach the desktop."""
+    config = Configuration()
+    config.settings.column_display_orders = {"pack_table": ["gihwr", "value"]}
+    config.settings.table_sort_states = {
+        "pack": {"column": "gihwr", "reverse": True}
+    }
+    config.settings.always_on_top = True
+
+    vm = services.settings_vm(config)
+
+    assert vm.column_display_orders == {"pack_table": ["gihwr", "value"]}
+    assert vm.table_sort_states == {"pack": {"column": "gihwr", "reverse": True}}
+    assert vm.always_on_top is True
 
 
 # --- Frontend error reporting ------------------------------------------------

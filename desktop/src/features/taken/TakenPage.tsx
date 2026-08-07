@@ -25,11 +25,12 @@ export function TakenPage({ colorTint }: { colorTint: boolean }) {
   const [taken, setTaken] = useState<TakenCards | null>(null);
   const { resultFormat, metrics } = useStatFormat();
   const format = { resultFormat, metrics };
-  const { fields, add, remove, reset } = useColumnConfig(
-    "taken_table",
-    DEFAULT_FIELDS,
-    (id) => CARD_COLUMN_FIELDS.includes(id),
-  );
+  const { fields, order, add, remove, reset, move, initialSort, setSort } =
+    useColumnConfig(
+      "taken_table",
+      DEFAULT_FIELDS,
+      (id) => CARD_COLUMN_FIELDS.includes(id),
+    );
 
   const refresh = useCallback(() => {
     getTakenCards().then(setTaken).catch(console.warn);
@@ -46,7 +47,7 @@ export function TakenPage({ colorTint }: { colorTint: boolean }) {
   const columns: Column<Card>[] = [
     nameColumn({ colorName: true }),
     manaColumn(),
-    ...fields.map((f) => cardColumn(f, format)),
+    ...order.map((f) => cardColumn(f, format)),
   ];
   const menu = useCardMenu();
 
@@ -66,6 +67,8 @@ export function TakenPage({ colorTint }: { colorTint: boolean }) {
           rowKey={(c) => c.name}
           rowClass={(c) => cardRowClass(c, colorTint)}
           defaultSort={{ id: "cost", desc: false }}
+          initialSort={initialSort}
+          onSortChange={setSort}
           emptyText="Cards you draft appear here"
           hoverImage={(c) => artUrl(c.image)}
           onContextMenu={(c, x, y) => menu.open(c.name, x, y)}
@@ -79,6 +82,7 @@ export function TakenPage({ colorTint }: { colorTint: boolean }) {
             onAdd: add,
             onRemove: remove,
             onReset: reset,
+            onMove: move,
           }}
         />
       </section>

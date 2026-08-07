@@ -84,6 +84,7 @@ export default function App() {
   const { mini, toggle: toggleMini, startDragging } = useMiniMode(
     settings?.overlayGeometry,
     (g) => patchSettings({ overlayGeometry: g }),
+    settings?.alwaysOnTop ?? false,
   );
   const logs = useDraftLogs(booted, state?.logName ?? "");
   const { switcher } = useDatasetSwitcher();

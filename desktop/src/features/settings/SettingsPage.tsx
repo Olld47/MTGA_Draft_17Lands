@@ -139,6 +139,12 @@ export function SettingsPage() {
           checked={settings.cardColorsEnabled}
           onChange={(v) => patch({ cardColorsEnabled: v })}
         />
+        <ToggleRow
+          label="Always on top"
+          hint="Keeps the window above other apps; mini mode pins regardless"
+          checked={settings.alwaysOnTop}
+          onChange={(v) => patch({ alwaysOnTop: v })}
+        />
       </section>
 
       <section className="settings-group">

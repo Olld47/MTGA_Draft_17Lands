@@ -99,6 +99,9 @@ export interface Settings {
   arenaLogLocation: string;
   databaseLocation: string;
   columnConfigs: Record<string, string[]>;
+  columnDisplayOrders: Record<string, string[]>;
+  tableSortStates: Record<string, { column: string; reverse: boolean }>;
+  alwaysOnTop: boolean;
   deckMidDistribution: number[];
   overlayGeometry: string;
 }

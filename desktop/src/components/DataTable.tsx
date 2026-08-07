@@ -11,7 +11,9 @@ export interface Column<T> {
 /** Optional column add/remove/persist wiring (the legacy per-table column
  *  config menus). When provided, the header row gains a trailing "+" cell and
  *  a right-click heading menu with Remove / Add / Reset — both persist through
- *  the caller's useColumnConfig(viewId). */
+ *  the caller's useColumnConfig(viewId). With `onMove` the configurable
+ *  headings also become draggable, mirroring the legacy header drag-to-reorder
+ *  (display_order.insert(target, pop(source))). */
 export interface ColumnMenu {
   /** Currently visible configurable fields, in display order. */
   active: string[];
@@ -24,6 +26,8 @@ export interface ColumnMenu {
   onAdd: (id: string) => void;
   onRemove: (id: string) => void;
   onReset: () => void;
+  /** Move `from` to just before `to` (both configurable field ids). */
+  onMove?: (from: string, to: string) => void;
 }
 
 interface Props<T> {
@@ -32,6 +36,11 @@ interface Props<T> {
   rowKey: (row: T) => string;
   rowClass?: (row: T) => string;
   defaultSort?: { id: string; desc: boolean };
+  /** Persisted initial sort (from Settings.tableSortStates) — takes precedence
+   *  over defaultSort on mount. Set together with onSortChange to persist. */
+  initialSort?: { id: string; desc: boolean } | null;
+  /** Called on every sort toggle so the caller can persist the choice. */
+  onSortChange?: (sort: { id: string; desc: boolean }) => void;
   emptyText?: string;
   /** Optional card-art preview shown while hovering a row (pack tables). */
   hoverImage?: (row: T) => string | null;
@@ -61,6 +70,8 @@ export function DataTable<T>({
   rowKey,
   rowClass,
   defaultSort,
+  initialSort,
+  onSortChange,
   emptyText = "No data",
   hoverImage,
   onRowDoubleClick,
@@ -68,10 +79,15 @@ export function DataTable<T>({
   columnMenu,
   showAddColumn = true,
 }: Props<T>) {
-  const [sort, setSort] = useState(defaultSort ?? null);
+  const [sort, setSort] = useState(initialSort ?? defaultSort ?? null);
   const [hoverUrl, setHoverUrl] = useState<string | null>(null);
   const [menu, setMenu] = useState<MenuState | null>(null);
   const posRef = useRef({ x: 0, y: 0 });
+  // Header drag-to-reorder: the column being dragged, and a one-tick flag so
+  // the release of a drag doesn't also toggle the sort (dragend → click in
+  // WebKit). Cleared via the dragEnd timeout, which runs after the click.
+  const dragFrom = useRef<string | null>(null);
+  const dragEnded = useRef(false);
 
   // Floating column menu: dismiss on outside-click, Escape, or window blur —
   // same dismiss contract as the card context menu.
@@ -111,9 +127,12 @@ export function DataTable<T>({
   }, [rows, sort, columns]);
 
   const toggleSort = (id: string) => {
-    setSort((prev) =>
-      prev?.id === id ? { id, desc: !prev.desc } : { id, desc: true },
-    );
+    setSort((prev) => {
+      const next =
+        prev?.id === id ? { id, desc: !prev.desc } : { id, desc: true };
+      onSortChange?.(next);
+      return next;
+    });
   };
 
   // Row delegation: moving between rows updates the preview without the
@@ -136,24 +155,74 @@ export function DataTable<T>({
       <table className="data-table" onMouseMove={handleRowOver} onMouseLeave={() => setHoverUrl(null)}>
         <thead>
           <tr>
-            {columns.map((c) => (
-              <th
-                key={c.id}
-                className={sort?.id === c.id ? "sorted" : ""}
-                onClick={() => c.sortValue && toggleSort(c.id)}
-                onContextMenu={
-                  columnMenu
-                    ? (e) => {
-                        e.preventDefault();
-                        setMenu({ x: e.clientX, y: e.clientY, field: c.id });
-                      }
-                    : undefined
-                }
-              >
-                {c.header}
-                {sort?.id === c.id ? (sort.desc ? " ↓" : " ↑") : ""}
-              </th>
-            ))}
+            {columns.map((c) => {
+              const draggable = Boolean(
+                columnMenu?.onMove && columnMenu.active.includes(c.id),
+              );
+              return (
+                <th
+                  key={c.id}
+                  className={sort?.id === c.id ? "sorted" : ""}
+                  draggable={draggable}
+                  onClick={() => {
+                    if (dragEnded.current) {
+                      dragEnded.current = false;
+                      return;
+                    }
+                    if (c.sortValue) toggleSort(c.id);
+                  }}
+                  onDragStart={
+                    draggable
+                      ? (e) => {
+                          dragFrom.current = c.id;
+                          e.dataTransfer.effectAllowed = "move";
+                        }
+                      : undefined
+                  }
+                  onDragOver={
+                    draggable
+                      ? (e) => {
+                          if (dragFrom.current && dragFrom.current !== c.id) {
+                            e.preventDefault();
+                          }
+                        }
+                      : undefined
+                  }
+                  onDrop={
+                    draggable
+                      ? (e) => {
+                          e.preventDefault();
+                          const from = dragFrom.current;
+                          dragFrom.current = null;
+                          if (from && from !== c.id) columnMenu?.onMove?.(from, c.id);
+                        }
+                      : undefined
+                  }
+                  onDragEnd={
+                    draggable
+                      ? () => {
+                          dragFrom.current = null;
+                          dragEnded.current = true;
+                          setTimeout(() => {
+                            dragEnded.current = false;
+                          }, 0);
+                        }
+                      : undefined
+                  }
+                  onContextMenu={
+                    columnMenu
+                      ? (e) => {
+                          e.preventDefault();
+                          setMenu({ x: e.clientX, y: e.clientY, field: c.id });
+                        }
+                      : undefined
+                  }
+                >
+                  {c.header}
+                  {sort?.id === c.id ? (sort.desc ? " ↓" : " ↑") : ""}
+                </th>
+              );
+            })}
             {columnMenu && showAddColumn && (
               <th
                 className="col-add"

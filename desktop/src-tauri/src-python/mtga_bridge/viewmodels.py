@@ -7,7 +7,7 @@ These modules must stay importable WITHOUT pytauri so the pure logic can be
 pytest-ed from the root poetry environment.
 """
 
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, ConfigDict
 from pydantic.alias_generators import to_camel
@@ -197,6 +197,15 @@ class SettingsVM(_VM):
     arena_log_location: str
     database_location: str
     column_configs: Dict[str, List[str]] = {}
+    # Per-table column display order (legacy `column_display_orders`): a
+    # permutation of the visible configurable fields per view, written by the
+    # header drag-to-reorder.
+    column_display_orders: Dict[str, List[str]] = {}
+    # Per-table sort state (legacy `table_sort_states`): viewId -> {"column",
+    # "reverse"}. Restored as the table's initial sort on the next mount.
+    table_sort_states: Dict[str, Dict[str, Any]] = {}
+    # Pin the main window above other apps (legacy `always_on_top`).
+    always_on_top: bool = False
     # Ideal mid-range mana curve for the MANA CURVE panel's dashed overlay.
     deck_mid_distribution: List[int] = []
     # Mini-overlay window geometry as "WxH+X+Y" (logical px), persisted from
@@ -218,6 +227,9 @@ class SettingsPatch(_VM):
     arena_log_location: Optional[str] = None
     database_location: Optional[str] = None
     column_configs: Optional[Dict[str, List[str]]] = None
+    column_display_orders: Optional[Dict[str, List[str]]] = None
+    table_sort_states: Optional[Dict[str, Dict[str, Any]]] = None
+    always_on_top: Optional[bool] = None
     overlay_geometry: Optional[str] = None
 
 
