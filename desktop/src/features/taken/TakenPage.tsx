@@ -5,6 +5,7 @@ import { EVENTS, on, type RefreshPayload } from "../../api/events";
 import type { Card, TakenCards } from "../../api/types";
 import { DataTable, type Column } from "../../components/DataTable";
 import {
+  artUrl,
   cardRowClass,
   manaColumn,
   nameColumn,
@@ -61,6 +62,7 @@ export function TakenPage({ colorTint }: { colorTint: boolean }) {
           rowClass={(c) => cardRowClass(c, colorTint)}
           defaultSort={{ id: "cost", desc: false }}
           emptyText="Cards you draft appear here"
+          hoverImage={(c) => artUrl(c.image)}
         />
       </section>
     </div>

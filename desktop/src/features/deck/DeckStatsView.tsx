@@ -1,4 +1,5 @@
 import type { DeckRow, DeckStats } from "../../api/types";
+import { artUrl } from "../../components/cardColumns";
 import { ManaCost } from "../../components/ManaCost";
 import { DataTable, type Column } from "../../components/DataTable";
 
@@ -147,6 +148,7 @@ export function DeckTable({
         rowClass={rowClass}
         defaultSort={{ id: "cost", desc: false }}
         emptyText={emptyText}
+        hoverImage={(r) => artUrl(r.image)}
       />
     </section>
   );
