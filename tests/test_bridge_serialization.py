@@ -306,6 +306,31 @@ def test_apply_settings_patch_ignores_unset_fields():
     assert runtime.config.settings.model_dump() == before
 
 
+def test_reset_settings_restores_baseline(tmp_path, monkeypatch):
+    """'Restore Defaults' writes a fresh Configuration and reloads it — the
+    legacy settings.py:245 reset_configuration + re-read cycle. A mutated
+    non-default value must read as baseline afterwards, on both the returned
+    VM and the runtime config the frontend keeps referencing."""
+    from src.configuration import write_configuration
+
+    cfg_path = tmp_path / "config.json"
+    monkeypatch.setattr("src.configuration.CONFIG_FILE", str(cfg_path))
+
+    baseline = Configuration().settings.model_dump()
+    config = Configuration()
+    config.settings.desktop_theme = constants.DESKTOP_THEME_DARK
+    config.settings.deck_filter = constants.DECK_FILTERS[-1]
+    write_configuration(config, str(cfg_path))
+    assert config.settings.model_dump() != baseline
+
+    runtime = AppRuntime(config=config)
+    vm = services.reset_settings(runtime)
+
+    assert vm.desktop_theme == baseline["desktop_theme"]
+    assert vm.deck_filter == baseline["deck_filter"]
+    assert runtime.config.settings.model_dump() == baseline
+
+
 # --- Frontend error reporting ------------------------------------------------
 
 

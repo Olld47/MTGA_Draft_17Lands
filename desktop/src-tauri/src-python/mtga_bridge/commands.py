@@ -160,6 +160,13 @@ async def set_settings(body: SettingsPatch, runtime: RuntimeState) -> SettingsVM
 
 
 @commands.command()
+async def reset_settings(runtime: RuntimeState) -> SettingsVM:
+    """Restore Defaults: write the baseline config and return it (legacy
+    settings.py "Restore Defaults" button)."""
+    return await anyio.to_thread.run_sync(services.reset_settings, runtime)
+
+
+@commands.command()
 async def get_filter_options(runtime: RuntimeState) -> FilterOptionsVM:
     _require_booted(runtime)
     return await anyio.to_thread.run_sync(services.get_filter_options, runtime)
@@ -536,6 +543,26 @@ async def sealed_move_card(
         lambda: runtime.sealed_session().move_card(
             body.card_name, body.to_sideboard, body.count
         )
+    )
+
+
+@commands.command()
+async def sealed_add_basic(
+    body: BasicLandBody, runtime: RuntimeState
+) -> SealedActionVM:
+    _require_booted(runtime)
+    return await anyio.to_thread.run_sync(
+        lambda: runtime.sealed_session().add_basic(body.color_name)
+    )
+
+
+@commands.command()
+async def sealed_remove_basic(
+    body: BasicLandBody, runtime: RuntimeState
+) -> SealedActionVM:
+    _require_booted(runtime)
+    return await anyio.to_thread.run_sync(
+        lambda: runtime.sealed_session().remove_basic(body.color_name)
     )
 
 

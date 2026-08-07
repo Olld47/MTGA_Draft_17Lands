@@ -1,3 +1,5 @@
+import { useState } from "react";
+
 import { useFileTools } from "../../state/useFileTools";
 import { useFilterOptions } from "../../state/useFilterOptions";
 import { useSettings } from "../../state/useSettings";
@@ -32,9 +34,21 @@ function ToggleRow({ label, hint, checked, onChange }: ToggleRowProps) {
 }
 
 export function SettingsPage() {
-  const { settings, patch } = useSettings();
+  const { settings, patch, reset } = useSettings();
   const { busy, message, browseLogFile, browseMtgaData } = useFileTools();
   const filters = useFilterOptions(settings?.filterFormat);
+  // Two-click confirm — Tauri's webview doesn't reliably support
+  // window.confirm, so the button arms itself on the first click.
+  const [confirmReset, setConfirmReset] = useState(false);
+
+  const restoreDefaults = () => {
+    if (!confirmReset) {
+      setConfirmReset(true);
+      return;
+    }
+    setConfirmReset(false);
+    reset();
+  };
 
   if (!settings) {
     return <div className="empty-state">Loading settings...</div>;
@@ -184,6 +198,25 @@ export function SettingsPage() {
           </button>
         </div>
         {message && <div className="setting-note">{message}</div>}
+      </section>
+
+      <section className="settings-group">
+        <h2>Reset</h2>
+        <div className="setting-row">
+          <label>
+            Restore defaults
+            <div className="hint">
+              Writes the baseline configuration (legacy "Restore Defaults")
+            </div>
+          </label>
+          <button
+            className="ghost-btn"
+            onClick={restoreDefaults}
+            onBlur={() => setConfirmReset(false)}
+          >
+            {confirmReset ? "Click again to confirm" : "Restore Defaults"}
+          </button>
+        </div>
       </section>
     </div>
   );

@@ -150,6 +150,30 @@ class SealedStudioSession:
             self._save()
         return self._action("Cleared main deck.")
 
+    # --- basic lands ---------------------------------------------------------
+
+    # Legacy sealed_studio.py binds left-click to add and right-click to remove
+    # on each basic-land button. move_to_main/move_to_sideboard special-case
+    # BASIC_LANDS (sealed_logic.py:216,222) so basics bypass the pool-inventory
+    # limit the way the legacy buttons did.
+    def add_basic(self, color_name: str) -> SealedActionVM:
+        if not self.ensure_pool():
+            return self._action("No sealed pool detected.", ok=False)
+        if not self.session.active_variant_name:
+            return self._action("No build selected.", ok=False)
+        self.session.move_to_main(color_name)
+        self._save()
+        return self._action()
+
+    def remove_basic(self, color_name: str) -> SealedActionVM:
+        if not self.ensure_pool():
+            return self._action("No sealed pool detected.", ok=False)
+        if not self.session.active_variant_name:
+            return self._action("No build selected.", ok=False)
+        self.session.move_to_sideboard(color_name)
+        self._save()
+        return self._action()
+
     # --- auto-lands (port of _apply_auto_lands) ------------------------------
 
     def apply_auto_lands(self) -> SealedActionVM:

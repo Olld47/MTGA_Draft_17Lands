@@ -229,6 +229,18 @@ def apply_settings_patch(runtime, patch: SettingsPatch) -> SettingsVM:
     return settings_vm(config)
 
 
+def reset_settings(runtime) -> SettingsVM:
+    """Restores the baseline config — the legacy settings window's "Restore
+    Defaults" (settings.py:245) wrote a fresh Configuration via
+    reset_configuration(), re-read it, and refreshed the UI."""
+    from src.configuration import read_configuration, reset_configuration
+
+    reset_configuration()
+    fresh_config, _ = read_configuration()
+    runtime.config = fresh_config
+    return settings_vm(fresh_config)
+
+
 def get_filter_options(runtime) -> FilterOptionsVM:
     config = runtime.config
     scanner = runtime.scanner

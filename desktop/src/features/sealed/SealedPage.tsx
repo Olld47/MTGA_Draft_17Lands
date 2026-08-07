@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
   getSealedState,
+  sealedAddBasic,
   sealedAutoGenerate,
   sealedAutoLands,
   sealedClearDeck,
@@ -12,6 +13,7 @@ import {
   sealedImportDeck,
   sealedMoveCard,
   sealedReloadPool,
+  sealedRemoveBasic,
   sealedRenameVariant,
   sealedSelectVariant,
 } from "../../api/client";
@@ -20,12 +22,65 @@ import type { SealedAction, SealedState } from "../../api/types";
 import { DeckStatsView, DeckTable } from "../deck/DeckStatsView";
 import { PracticeDialog } from "../practice/PracticeDialog";
 
+const BASICS = ["Plains", "Island", "Swamp", "Mountain", "Forest"];
+
+/** Type + color visibility for the pool filter bar, mirroring legacy
+ *  sealed_studio's filter_vars (creatures/spells/lands + WUBRG + C/M). */
+interface PoolFilter {
+  creatures: boolean;
+  spells: boolean;
+  lands: boolean;
+  W: boolean;
+  U: boolean;
+  B: boolean;
+  R: boolean;
+  G: boolean;
+  C: boolean;
+  M: boolean;
+}
+
+const POOL_FILTER_TYPES = ["creatures", "spells", "lands"] as const;
+const POOL_FILTER_COLORS = ["W", "U", "B", "R", "G", "C", "M"] as const;
+
 export function SealedPage({ colorTint }: { colorTint: boolean }) {
   const [state, setState] = useState<SealedState | null>(null);
   const [message, setMessage] = useState("");
   const [shareUrl, setShareUrl] = useState("");
   const [busy, setBusy] = useState(false);
   const [practiceOpen, setPracticeOpen] = useState(false);
+  const [poolFilter, setPoolFilter] = useState<PoolFilter>({
+    creatures: true,
+    spells: true,
+    lands: true,
+    W: true,
+    U: true,
+    B: true,
+    R: true,
+    G: true,
+    C: true,
+    M: true,
+  });
+
+  // The pool table's rows are the sideboard (cards not in the main deck). Apply
+  // the filter bar's type + color checkboxes the same way legacy sealed_studio
+  // filtered: a card passes the type gate (creature/spell/land), then the color
+  // gate (multicolor→M, colorless→C, otherwise its single color).
+  const filteredPool = useMemo(() => {
+    const pool = state?.sideboard ?? [];
+    const { creatures, spells, lands, ...colors } = poolFilter;
+    return pool.filter((c) => {
+      const isCreature = c.types.includes("Creature");
+      const isLand = c.types.includes("Land");
+      if (isCreature && !creatures) return false;
+      if (isLand && !lands) return false;
+      if (!isCreature && !isLand && !spells) return false;
+      if (c.colors.length > 1) return colors.M;
+      if (c.colors.length === 0) return colors.C;
+      return colors[c.colors[0] as keyof typeof colors];
+    });
+  }, [state, poolFilter]);
+
+  const filteredPoolCount = filteredPool.reduce((n, r) => n + r.count, 0);
 
   const refresh = useCallback(() => {
     getSealedState().then(setState).catch(console.warn);
@@ -184,6 +239,27 @@ export function SealedPage({ colorTint }: { colorTint: boolean }) {
               Clear
             </button>
           </div>
+          <div className="basics-row">
+            <span className="stat-label">Basics:</span>
+            {BASICS.map((b) => (
+              <span key={b} className="basic-stepper">
+                <button
+                  className="ghost-btn"
+                  onClick={() => act(() => sealedRemoveBasic(b))}
+                >
+                  −
+                </button>
+                <span>{state?.stats.basics[b] ?? 0}</span>
+                <button
+                  className="ghost-btn"
+                  onClick={() => act(() => sealedAddBasic(b))}
+                >
+                  +
+                </button>
+                <label>{b}</label>
+              </span>
+            ))}
+          </div>
           {message && <div className="sim-note">{message}</div>}
           {shareUrl && (
             <div className="sim-note">
@@ -204,10 +280,38 @@ export function SealedPage({ colorTint }: { colorTint: boolean }) {
           emptyText="Auto-generate a shell or move cards up from the pool"
           colorTint={colorTint}
         />
+        <div className="pool-filter-bar">
+          <span className="stat-label">Show:</span>
+          {POOL_FILTER_TYPES.map((k) => (
+            <label key={k}>
+              <input
+                type="checkbox"
+                checked={poolFilter[k]}
+                onChange={(e) =>
+                  setPoolFilter({ ...poolFilter, [k]: e.target.checked })
+                }
+              />
+              {k[0].toUpperCase() + k.slice(1)}
+            </label>
+          ))}
+          <span className="pool-filter-divider" />
+          {POOL_FILTER_COLORS.map((c) => (
+            <label key={c}>
+              <input
+                type="checkbox"
+                checked={poolFilter[c]}
+                onChange={(e) =>
+                  setPoolFilter({ ...poolFilter, [c]: e.target.checked })
+                }
+              />
+              <span className={`pool-color ${c.toLowerCase()}`}>{c}</span>
+            </label>
+          ))}
+        </div>
         <DeckTable
           title="Pool"
-          rows={state?.sideboard ?? []}
-          count={state?.sideboardCount ?? 0}
+          rows={filteredPool}
+          count={filteredPoolCount}
           onMove={(name) => act(() => sealedMoveCard(name, false))}
           moveLabel="↑ main"
           emptyText="Sealed pool is empty"

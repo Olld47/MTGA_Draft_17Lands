@@ -1010,6 +1010,44 @@
   text-align: center;
 }
 
+/* Sealed pool filter bar (type + color checkboxes, legacy sealed_studio's
+   filter_vars). Colored letters reuse the mana palette for WUBRG; colorless
+   and multicolor get neutral/gold accents. */
+.pool-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  font-size: var(--text-sm);
+}
+
+.pool-filter-bar label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+}
+
+.pool-filter-bar .pool-filter-divider {
+  width: 1px;
+  height: 14px;
+  background: var(--line);
+}
+
+.pool-filter-bar .pool-color {
+  font-family: var(--font-mono);
+  font-weight: 700;
+}
+
+.pool-filter-bar .pool-color.w { color: var(--mana-w); }
+.pool-filter-bar .pool-color.u { color: var(--mana-u); }
+.pool-filter-bar .pool-color.b { color: var(--mana-b); }
+.pool-filter-bar .pool-color.r { color: var(--mana-r); }
+.pool-filter-bar .pool-color.g { color: var(--mana-g); }
+.pool-filter-bar .pool-color.c { color: var(--gruff); }
+.pool-filter-bar .pool-color.m { color: var(--gold-foil); }
+
 .deck-stats {
   display: flex;
   flex-direction: column;
@@ -1113,6 +1151,27 @@
   font-family: var(--font-mono);
   text-align: right;
 }
+
+.sim-table .sim-section td {
+  padding-top: 10px;
+  font-family: var(--font-display);
+  font-weight: 700;
+  color: var(--gruff);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-size: 11px;
+}
+
+.sim-table .sim-grade {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.sim-table .sim-grade.great { color: var(--ok); }
+.sim-table .sim-grade.fair { color: var(--gold-foil); }
+.sim-table .sim-grade.poor { color: var(--err); }
 
 .sim-advice {
   margin: 8px 0 0;

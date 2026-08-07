@@ -209,6 +209,25 @@ def test_clear_deck(env):
     assert cleared.state.main_count == 0
 
 
+def test_add_and_remove_basic(env):
+    """Basics bypass the pool-inventory limit (sealed_logic.move_to_main's
+    is_basic branch), mirroring the legacy sealed_studio basic buttons."""
+    session = _session(env)
+    res = session.add_basic("Plains")
+    assert res.ok
+    assert res.state.main_count == 1
+    assert any(r.name == "Plains" for r in res.state.deck)
+
+    res2 = session.add_basic("Island")
+    assert res2.ok
+    assert res2.state.main_count == 2
+
+    back = session.remove_basic("Plains")
+    assert back.ok
+    assert back.state.main_count == 1
+    assert not any(r.name == "Plains" for r in back.state.deck)
+
+
 # --- variant management ------------------------------------------------------
 
 

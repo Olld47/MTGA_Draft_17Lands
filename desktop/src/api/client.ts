@@ -55,6 +55,8 @@ export const getSettings = () => pyInvoke<Settings>("get_settings");
 export const setSettings = (patch: SettingsPatch) =>
   pyInvoke<Settings>("set_settings", patch);
 
+export const resetSettings = () => pyInvoke<Settings>("reset_settings");
+
 export const getFilterOptions = () =>
   pyInvoke<FilterOptions>("get_filter_options");
 
@@ -180,6 +182,12 @@ export const sealedMoveCard = (
 ) => pyInvoke<SealedAction>("sealed_move_card", { cardName, toSideboard, count });
 
 export const sealedClearDeck = () => pyInvoke<SealedAction>("sealed_clear_deck");
+
+export const sealedAddBasic = (colorName: string) =>
+  pyInvoke<SealedAction>("sealed_add_basic", { colorName });
+
+export const sealedRemoveBasic = (colorName: string) =>
+  pyInvoke<SealedAction>("sealed_remove_basic", { colorName });
 
 export const sealedAutoLands = () => pyInvoke<SealedAction>("sealed_auto_lands");
 

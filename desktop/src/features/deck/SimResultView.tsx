@@ -2,8 +2,87 @@ import type { SimResult } from "../../api/types";
 
 const pct = (v: number) => `${v.toFixed(1)}%`;
 
-/** Monte-Carlo simulation results + advisor heuristics. Shared shape between
- *  the custom-deck and (future) sealed simulate actions. */
+type Grade = "Great" | "Fair" | "Poor";
+
+const GRADE_ICON: Record<Grade, string> = { Great: "🟢", Fair: "🟡", Poor: "🔴" };
+const GRADE_CLASS: Record<Grade, string> = {
+  Great: "great",
+  Fair: "fair",
+  Poor: "poor",
+};
+
+/** Port of legacy _add_stat (custom_deck.py:575 / suggest_deck.py:427): a
+ *  metric is Great above `good`, Fair above `fair`, Poor otherwise; reverse
+ *  metrics grade lower-is-better. Thresholds match the legacy calls exactly. */
+function gradeOf(
+  value: number,
+  good: number,
+  fair: number,
+  reverse = false,
+): Grade {
+  if (reverse) {
+    if (value <= good) return "Great";
+    if (value <= fair) return "Fair";
+    return "Poor";
+  }
+  if (value >= good) return "Great";
+  if (value >= fair) return "Fair";
+  return "Poor";
+}
+
+interface Metric {
+  label: string;
+  value: number;
+  /** When absent the row renders value-only (legacy has no threshold for
+   *  Flood T5, which the desktop added beyond the legacy set). */
+  thresholds?: [number, number];
+  reverse?: boolean;
+  percent?: boolean;
+}
+
+function MetricRow({ m }: { m: Metric }) {
+  const grade = m.thresholds
+    ? gradeOf(m.value, m.thresholds[0], m.thresholds[1], m.reverse)
+    : null;
+  return (
+    <tr>
+      <td>{m.label}</td>
+      <td className="num">
+        {m.percent === false ? m.value.toFixed(2) : pct(m.value)}
+      </td>
+      {grade ? (
+        <td className={`sim-grade ${GRADE_CLASS[grade]}`} title={grade}>
+          {GRADE_ICON[grade]} {grade}
+        </td>
+      ) : (
+        <td />
+      )}
+    </tr>
+  );
+}
+
+function MetricSection({
+  title,
+  metrics,
+}: {
+  title: string;
+  metrics: Metric[];
+}) {
+  return (
+    <>
+      <tr className="sim-section">
+        <td colSpan={3}>{title}</td>
+      </tr>
+      {metrics.map((m) => (
+        <MetricRow key={m.label} m={m} />
+      ))}
+    </>
+  );
+}
+
+/** Monte-Carlo simulation results + advisor heuristics, graded Great/Fair/Poor
+ *  per metric exactly as the legacy custom-deck and suggest-deck panels did.
+ *  Shared by the Custom Deck and Suggest pages. */
 export function SimResultView({ result }: { result: SimResult }) {
   if (!result.ok || !result.stats) {
     return (
@@ -14,19 +93,6 @@ export function SimResultView({ result }: { result: SimResult }) {
     );
   }
   const s = result.stats;
-  const rows: [string, string][] = [
-    ["Mulligans", pct(s.mulligans)],
-    ["Cast on curve T2", pct(s.castT2)],
-    ["Cast on curve T3", pct(s.castT3)],
-    ["Cast on curve T4", pct(s.castT4)],
-    ["Perfect curve (T2–T4)", pct(s.curveOut)],
-    ["Screw by T3", pct(s.screwT3)],
-    ["Screw by T4", pct(s.screwT4)],
-    ["Color screw T3", pct(s.colorScrewT3)],
-    ["Flood by T5", pct(s.floodT5)],
-    ["Removal by T4", pct(s.removalT4)],
-    ["Avg. hand size", s.avgHandSize.toFixed(2)],
-  ];
   return (
     <section className="panel">
       <h2>Simulation</h2>
@@ -35,12 +101,56 @@ export function SimResultView({ result }: { result: SimResult }) {
       )}
       <table className="sim-table">
         <tbody>
-          {rows.map(([label, val]) => (
-            <tr key={label}>
-              <td>{label}</td>
-              <td className="num">{val}</td>
-            </tr>
-          ))}
+          <MetricSection
+            title="Consistency metrics"
+            metrics={[
+              { label: "T2 play (2-drop)", value: s.castT2, thresholds: [65, 50] },
+              { label: "T3 play (3-drop)", value: s.castT3, thresholds: [65, 50] },
+              { label: "T4 play (4-drop)", value: s.castT4, thresholds: [55, 40] },
+              {
+                label: "Perfect curve (T2–T4)",
+                value: s.curveOut,
+                thresholds: [25, 15],
+              },
+              { label: "Removal by T4", value: s.removalT4, thresholds: [60, 45] },
+            ]}
+          />
+          <MetricSection
+            title="Risk factors"
+            metrics={[
+              {
+                label: "Mulligans",
+                value: s.mulligans,
+                thresholds: [15, 25],
+                reverse: true,
+              },
+              {
+                label: "Avg. hand size",
+                value: s.avgHandSize,
+                thresholds: [6.8, 6.5],
+                percent: false,
+              },
+              {
+                label: "Missed 3rd land drop",
+                value: s.screwT3,
+                thresholds: [15, 25],
+                reverse: true,
+              },
+              {
+                label: "Missed 4th land drop",
+                value: s.screwT4,
+                thresholds: [25, 35],
+                reverse: true,
+              },
+              {
+                label: "Color screwed (T3)",
+                value: s.colorScrewT3,
+                thresholds: [6, 12],
+                reverse: true,
+              },
+              { label: "Flood by T5", value: s.floodT5 },
+            ]}
+          />
         </tbody>
       </table>
       {result.advice.length > 0 && (

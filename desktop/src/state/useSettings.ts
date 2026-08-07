@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from "react";
 
-import { getSettings, setSettings } from "../api/client";
+import { getSettings, resetSettings, setSettings } from "../api/client";
 import type { Settings, SettingsPatch } from "../api/types";
 import { applyTheme, type ThemePreference } from "./theme";
 
@@ -64,9 +64,20 @@ async function patch(p: SettingsPatch) {
   }
 }
 
+async function reset() {
+  // "Restore Defaults" — the backend rewrites the baseline config and returns
+  // it; receive() re-applies the theme and notifies every subscriber.
+  try {
+    receive(await resetSettings());
+  } catch (e) {
+    console.warn("reset_settings failed", e);
+  }
+}
+
 export function useSettings() {
   return {
     settings: useSyncExternalStore(subscribe, snapshot),
     patch,
+    reset,
   };
 }
