@@ -50,7 +50,7 @@ export function PackTable({
     );
 
   const columns: Column<Card>[] = [
-    nameColumn(),
+    nameColumn({ colorName: true }),
     manaColumn(),
     ...order.map((f) => cardColumn(f, format)),
   ];

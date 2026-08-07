@@ -177,7 +177,11 @@ export function nameColumn(opts?: { colorName?: boolean }): Column<Card> {
         )}
         <span
           className="card-name"
-          style={opts?.colorName ? { color: cardNameColor(c.colors) } : undefined}
+          style={
+            opts?.colorName && !c.recommendation?.isElite
+              ? { color: cardNameColor(c.colors) }
+              : undefined
+          }
         >
           {c.name}
         </span>

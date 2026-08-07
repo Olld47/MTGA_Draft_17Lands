@@ -277,8 +277,9 @@ export function SealedPage({ colorTint }: { colorTint: boolean }) {
           targetCount={40}
           onMove={(name) => act(() => sealedMoveCard(name, true))}
           moveLabel="→ pool"
-          emptyText="Auto-generate a shell or move cards up from the pool"
+          emptyText="Auto-generate a shell or double-click a card to add it"
           colorTint={colorTint}
+          dblClickMove
         />
         <div className="pool-filter-bar">
           <span className="stat-label">Show:</span>
@@ -314,8 +315,9 @@ export function SealedPage({ colorTint }: { colorTint: boolean }) {
           count={filteredPoolCount}
           onMove={(name) => act(() => sealedMoveCard(name, false))}
           moveLabel="↑ main"
-          emptyText="Sealed pool is empty"
+          emptyText="Double-click a card to add it to the main deck"
           colorTint={colorTint}
+          dblClickMove
         />
       </div>
 

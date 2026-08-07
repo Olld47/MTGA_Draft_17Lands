@@ -1,5 +1,5 @@
 import type { DeckRow, DeckStats } from "../../api/types";
-import { artUrl, formatWinRate } from "../../components/cardColumns";
+import { artUrl, cardNameColor, formatWinRate } from "../../components/cardColumns";
 import { useCardMenu } from "../../components/CardContextMenu";
 import { ManaCost } from "../../components/ManaCost";
 import { DataTable, type Column } from "../../components/DataTable";
@@ -126,7 +126,11 @@ export function DeckTable({
     {
       id: "name",
       header: "Card",
-      cell: (r) => <span className="card-name">{r.name}</span>,
+      cell: (r) => (
+        <span className="card-name" style={{ color: cardNameColor(r.colors) }}>
+          {r.name}
+        </span>
+      ),
       sortValue: (r) => r.name,
     },
     {
