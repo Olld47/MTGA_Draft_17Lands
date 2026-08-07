@@ -334,6 +334,7 @@
 }
 
 .card-hover .ch-header .card-name {
+  margin-left: auto;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
