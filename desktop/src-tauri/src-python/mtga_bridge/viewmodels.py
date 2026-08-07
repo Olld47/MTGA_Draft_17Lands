@@ -199,6 +199,9 @@ class SettingsVM(_VM):
     column_configs: Dict[str, List[str]] = {}
     # Ideal mid-range mana curve for the MANA CURVE panel's dashed overlay.
     deck_mid_distribution: List[int] = []
+    # Mini-overlay window geometry as "WxH+X+Y" (logical px), persisted from
+    # the legacy CompactOverlay._save_geometry; restored on entering mini mode.
+    overlay_geometry: str = "300x600+50+50"
 
 
 class SettingsPatch(_VM):
@@ -215,6 +218,7 @@ class SettingsPatch(_VM):
     arena_log_location: Optional[str] = None
     database_location: Optional[str] = None
     column_configs: Optional[Dict[str, List[str]]] = None
+    overlay_geometry: Optional[str] = None
 
 
 class FilterOptionVM(_VM):
@@ -247,6 +251,43 @@ class DatasetInfoVM(_VM):
 class DatasetListVM(_VM):
     datasets: List[DatasetInfoVM] = []
     active_dataset: Optional[str] = None
+
+
+class ColorMetricVM(_VM):
+    mean: float = 0.0
+    std: float = 0.0
+
+
+class SetMetricsVM(_VM):
+    """Mean/std per (win-rate field, color) for the active dataset — the inputs
+    the frontend needs to convert raw win rates into Grade/Rating display values
+    (a client-side port of src.card_logic.format_win_rate). Keyed
+    metrics[field][color]."""
+
+    metrics: Dict[str, Dict[str, ColorMetricVM]] = {}
+    has_data: bool = False
+
+
+class DatasetSwitcherGroupVM(_VM):
+    name: str
+    path: str
+
+
+class DatasetSwitcherEventVM(_VM):
+    name: str
+    groups: List[DatasetSwitcherGroupVM]
+
+
+class DatasetSwitcherVM(_VM):
+    """Event-type → user-group dataset options for the currently detected set,
+    plus which (event, group) is loaded. Feeds the masthead switcher (a port of
+    top_bar.update_data_sources); selecting one loads that dataset file."""
+
+    set_code: str = ""
+    detected_event: Optional[str] = None
+    active_event: Optional[str] = None
+    active_group: Optional[str] = None
+    events: List[DatasetSwitcherEventVM] = []
 
 
 class AvailableSetVM(_VM):
@@ -321,6 +362,10 @@ class SaveFileBody(_VM):
 
 class SelectDatasetBody(_VM):
     path: str
+
+
+class OpenUrlBody(_VM):
+    url: str
 
 
 class DeleteDatasetBody(_VM):

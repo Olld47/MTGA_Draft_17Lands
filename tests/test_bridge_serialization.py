@@ -273,6 +273,7 @@ _PATCH_VALUES = {
     "arena_log_location": "/tmp/does-not-exist/Player.log",
     "database_location": "/tmp/does-not-exist/MTGA_Data",
     "column_configs": {"pack_table": ["name", "value"]},
+    "overlay_geometry": "380x600+120+80",
 }
 
 
@@ -425,7 +426,6 @@ def test_every_view_model_is_used_outside_viewmodels():
 # test_allowlisted_fields_stay_unread fails the moment one of these appears in
 # desktop/src, demanding its removal.
 _UNREAD_FIELD_EXCEPTIONS = {
-    "columnConfigs": "tkinter per-table column layout; React tables hardcode Column<T>[]",
     "uiSize": "tkinter UI scale; Tauri sizes its own window",
     "updateNotificationsEnabled": "tkinter dataset-update poller; desktop has none",
     "activeVariant": "redundant with variants[].isActive (SealedPage tab bar)",
@@ -434,7 +434,6 @@ _UNREAD_FIELD_EXCEPTIONS = {
     "rating": "already inside the rendered label ('(Power: N)')",
     "labelPrefix": "already inside the rendered label",
     "identityColors": "engine-internal; legacy never rendered it",
-    "gpwr": "opt-in legacy column; desktop's 4-stat subset is deliberate",
     "gih": "sample-size tooltip metadata; desktop has no tooltip",
     "ngp": "sample-size tooltip metadata; never displayed even in legacy",
     "rowTag": "recomputed client-side from colors + colorTint",
@@ -442,7 +441,6 @@ _UNREAD_FIELD_EXCEPTIONS = {
     "baseWinRate": "raw input to the score; never displayed in legacy either",
     "castProbability": "internal; conveyed via reasoning chips",
     "functionalCmc": "internal computation; never displayed in legacy",
-    "wheelChance": "conveyed via ⟳ marker + 'Wheels ~X%' reasoning chip",
     "startTime": "legacy silent footer metadata; desktop header deliberately lean",
     "logSource": "redundant with 'Live'/'history' switcher labels",
     "isLive": "same label distinction; desktop status dot uses heartbeat mtime",

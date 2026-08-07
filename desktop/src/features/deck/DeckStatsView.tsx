@@ -1,7 +1,9 @@
 import type { DeckRow, DeckStats } from "../../api/types";
-import { artUrl } from "../../components/cardColumns";
+import { artUrl, formatWinRate } from "../../components/cardColumns";
+import { useCardMenu } from "../../components/CardContextMenu";
 import { ManaCost } from "../../components/ManaCost";
 import { DataTable, type Column } from "../../components/DataTable";
+import { useStatFormat } from "../../state/useStatFormat";
 
 const PIP_CLASS: Record<string, string> = {
   W: "w",
@@ -93,6 +95,8 @@ export function DeckTable({
   colorTint,
   dblClickMove,
 }: DeckTableProps) {
+  const { resultFormat, metrics } = useStatFormat();
+  const menu = useCardMenu();
   const columns: Column<DeckRow>[] = [
     {
       id: "count",
@@ -117,7 +121,8 @@ export function DeckTable({
       id: "gihwr",
       header: "GIHWR",
       numeric: true,
-      cell: (r) => (r.gihwr == null ? "—" : r.gihwr.toFixed(1)),
+      cell: (r) =>
+        formatWinRate(r.gihwr, r.colors, "gihwr", resultFormat, metrics),
       sortValue: (r) => r.gihwr ?? -1,
     },
   ];
@@ -157,7 +162,9 @@ export function DeckTable({
         onRowDoubleClick={
           dblClickMove && onMove ? (r) => onMove(r.name) : undefined
         }
+        onContextMenu={(r, x, y) => menu.open(r.name, x, y)}
       />
+      {menu.element}
     </section>
   );
 }

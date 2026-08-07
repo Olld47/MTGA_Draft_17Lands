@@ -11,6 +11,7 @@ import type {
   DatasetList,
   DeckExport,
   DeckState,
+  DatasetSwitcher,
   DownloadProgress,
   DownloadResult,
   DraftLogList,
@@ -25,6 +26,7 @@ import type {
   SealedAction,
   SealedDeckTech,
   SealedState,
+  SetMetrics,
   Settings,
   SettingsPatch,
   SimResult,
@@ -58,6 +60,14 @@ export const getFilterOptions = () =>
 
 export const listDatasets = () => pyInvoke<DatasetList>("list_datasets");
 
+export const getSetMetrics = () => pyInvoke<SetMetrics>("get_set_metrics");
+
+export const getDatasetSwitcher = () =>
+  pyInvoke<DatasetSwitcher>("get_dataset_switcher");
+
+/** Open a URL in the system browser (context-menu "View on Scryfall"). */
+export const openUrl = (url: string) => pyInvoke<Ack>("open_url", { url });
+
 export const listAvailableSets = () =>
   pyInvoke<AvailableSets>("list_available_sets");
 
@@ -89,7 +99,9 @@ export const getDraftRecord = (draftId: string) =>
 
 // --- Custom deck builder ------------------------------------------------------
 
-export const getDeckState = () => pyInvoke<DeckState>("get_deck_state");
+// get_deck_state is intentionally unwrapped: the DeckPage reads its state via
+// deckRefreshPool (which returns the same DeckState and auto-appends new pool
+// cards), so a bare getDeckState wrapper would have no caller.
 
 export const deckRefreshPool = () => pyInvoke<DeckState>("deck_refresh_pool");
 

@@ -7,9 +7,10 @@ existing download pipeline runs unchanged without tkinter.
 
 import logging
 import os
+import re
 import threading
 from datetime import date
-from typing import Callable, Optional
+from typing import Callable, Dict, Optional
 
 from src import constants
 from src.configuration import write_configuration
@@ -17,9 +18,14 @@ from src.file_extractor import FileExtractor
 from src.utils import read_local_manifest, retrieve_local_set_list
 
 from mtga_bridge.viewmodels import (
+    ColorMetricVM,
     DatasetInfoVM,
     DatasetListVM,
+    DatasetSwitcherEventVM,
+    DatasetSwitcherGroupVM,
+    DatasetSwitcherVM,
     DownloadResult,
+    SetMetricsVM,
 )
 
 logger = logging.getLogger(__name__)
@@ -103,6 +109,75 @@ def list_local_datasets(config) -> DatasetListVM:
             )
         )
     return DatasetListVM(datasets=datasets, active_dataset=active)
+
+
+def build_set_metrics_vm(scanner) -> SetMetricsVM:
+    """Exposes the active dataset's per-(field, color) win-rate mean/std so the
+    frontend can render Grade/Rating display values without another round-trip
+    (client-side port of src.card_logic.format_win_rate)."""
+    from src import constants
+
+    try:
+        set_metrics = scanner.retrieve_set_metrics()
+    except Exception as e:
+        logger.error(f"retrieve_set_metrics failed: {e}", exc_info=True)
+        return SetMetricsVM(metrics={}, has_data=False)
+    if not set_metrics:
+        return SetMetricsVM(metrics={}, has_data=False)
+
+    metrics = {}
+    for field in constants.WIN_RATE_OPTIONS:
+        by_color = {}
+        for color in constants.DECK_COLORS:
+            mean, std = set_metrics.get_metrics(color, field)
+            by_color[color] = ColorMetricVM(mean=mean, std=std)
+        metrics[field] = by_color
+    return SetMetricsVM(metrics=metrics, has_data=True)
+
+
+def _normalize_set_code(code) -> str:
+    """17Lands set codes carry dashes/hyphens the local file names drop —
+    match them stripped, as top_bar.update_data_sources does."""
+    return re.sub(r"[^A-Z0-9]", "", str(code).upper())
+
+
+def build_dataset_switcher_vm(scanner, config) -> DatasetSwitcherVM:
+    """Event-type / user-group options for the currently detected set, ported
+    from top_bar.update_data_sources: local dataset files are grouped by their
+    event token, then by user group, and the currently loaded dataset's
+    (event, group) is reported as active."""
+    set_code, detected_event = scanner.retrieve_current_limited_event()
+    if not set_code:
+        return DatasetSwitcherVM(set_code="")
+
+    normalized = _normalize_set_code(set_code)
+    by_event: Dict[str, Dict[str, str]] = {}
+    active_event = active_group = None
+    for row in retrieve_local_set_list()[0] or []:
+        file_set, f_event, f_group, _, _, _, f_path, _ = row
+        if _normalize_set_code(file_set) != normalized:
+            continue
+        by_event.setdefault(f_event, {})[f_group] = f_path
+        if os.path.basename(f_path) == config.card_data.latest_dataset:
+            active_event, active_group = f_event, f_group
+
+    events = [
+        DatasetSwitcherEventVM(
+            name=event,
+            groups=[
+                DatasetSwitcherGroupVM(name=group, path=path)
+                for group, path in sorted(groups.items())
+            ],
+        )
+        for event, groups in sorted(by_event.items())
+    ]
+    return DatasetSwitcherVM(
+        set_code=set_code,
+        detected_event=detected_event,
+        active_event=active_event,
+        active_group=active_group,
+        events=events,
+    )
 
 
 def _resolve_start_date(sets_data, set_key: str) -> str:

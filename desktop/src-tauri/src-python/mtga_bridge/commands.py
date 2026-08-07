@@ -25,7 +25,9 @@ from mtga_bridge.viewmodels import (
     Ack,
     AvailableSetsVM,
     BootStatusVM,
+    ColorMetricVM,
     DatasetListVM,
+    DatasetSwitcherVM,
     DeleteDatasetBody,
     DownloadProgress,
     DownloadRequest,
@@ -47,6 +49,7 @@ from mtga_bridge.viewmodels import (
     LocateDataBody,
     LocateDataVM,
     MoveCardBody,
+    OpenUrlBody,
     PracticeSetsVM,
     PracticeStartBody,
     RecapVM,
@@ -62,6 +65,7 @@ from mtga_bridge.viewmodels import (
     SealedVariantBody,
     SelectDatasetBody,
     SetLogFileBody,
+    SetMetricsVM,
     SettingsPatch,
     SettingsVM,
     SimResultVM,
@@ -181,6 +185,16 @@ async def save_export_file(body: SaveFileBody) -> Ack:
 
 
 @commands.command()
+async def open_url(body: OpenUrlBody) -> Ack:
+    """Opens a URL in the system browser (src.utils.open_file routes to the
+    platform default app) — the context-menu 'View on Scryfall' action."""
+    from src.utils import open_file
+
+    await anyio.to_thread.run_sync(open_file, body.url)
+    return Ack(message="Opened")
+
+
+@commands.command()
 async def locate_mtga_data(
     body: LocateDataBody, runtime: RuntimeState
 ) -> LocateDataVM:
@@ -203,6 +217,22 @@ async def locate_mtga_data(
 async def list_datasets(runtime: RuntimeState) -> DatasetListVM:
     return await anyio.to_thread.run_sync(
         datasets_svc.list_local_datasets, runtime.config
+    )
+
+
+@commands.command()
+async def get_set_metrics(runtime: RuntimeState) -> SetMetricsVM:
+    _require_booted(runtime)
+    return await anyio.to_thread.run_sync(
+        datasets_svc.build_set_metrics_vm, runtime.scanner
+    )
+
+
+@commands.command()
+async def get_dataset_switcher(runtime: RuntimeState) -> DatasetSwitcherVM:
+    _require_booted(runtime)
+    return await anyio.to_thread.run_sync(
+        datasets_svc.build_dataset_switcher_vm, runtime.scanner, runtime.config
     )
 
 
@@ -323,16 +353,6 @@ async def get_draft_record(
 
 
 # --- Custom deck builder -----------------------------------------------------
-
-
-def _deck_state(runtime: AppRuntime) -> DeckStateVM:
-    return runtime.deck_session().build_state()
-
-
-@commands.command()
-async def get_deck_state(runtime: RuntimeState) -> DeckStateVM:
-    _require_booted(runtime)
-    return await anyio.to_thread.run_sync(_deck_state, runtime)
 
 
 @commands.command()

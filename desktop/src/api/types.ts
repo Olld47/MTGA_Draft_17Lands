@@ -100,6 +100,7 @@ export interface Settings {
   databaseLocation: string;
   columnConfigs: Record<string, string[]>;
   deckMidDistribution: number[];
+  overlayGeometry: string;
 }
 
 export type SettingsPatch = Partial<Settings>;
@@ -129,6 +130,38 @@ export interface DatasetInfo {
 export interface DatasetList {
   datasets: DatasetInfo[];
   activeDataset: string | null;
+}
+
+export interface ColorMetric {
+  mean: number;
+  std: number;
+}
+
+/** Mean/std per (win-rate field, color) for the active dataset — inputs the
+ *  frontend converts raw win rates into Grade/Rating display values. */
+export interface SetMetrics {
+  metrics: Record<string, Record<string, ColorMetric>>;
+  hasData: boolean;
+}
+
+export interface DatasetSwitcherGroup {
+  name: string;
+  path: string;
+}
+
+export interface DatasetSwitcherEvent {
+  name: string;
+  groups: DatasetSwitcherGroup[];
+}
+
+/** Event-type → user-group dataset options for the currently detected set
+ *  (masthead switcher; port of top_bar.update_data_sources). */
+export interface DatasetSwitcher {
+  setCode: string;
+  detectedEvent: string | null;
+  activeEvent: string | null;
+  activeGroup: string | null;
+  events: DatasetSwitcherEvent[];
 }
 
 export interface AvailableSet {

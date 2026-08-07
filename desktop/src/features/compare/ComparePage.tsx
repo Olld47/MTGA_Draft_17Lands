@@ -10,11 +10,19 @@ import { EVENTS, on, type RefreshPayload } from "../../api/events";
 import type { Card, CompareState } from "../../api/types";
 import { DataTable, type Column } from "../../components/DataTable";
 import {
+  cardColumn,
+  CARD_COLUMN_FIELDS,
+  CARD_COLUMN_LABELS,
   cardRowClass,
   manaColumn,
   nameColumn,
-  statColumns,
 } from "../../components/cardColumns";
+import { useCardMenu } from "../../components/CardContextMenu";
+import { useColumnConfig } from "../../state/useColumnConfig";
+import { useStatFormat } from "../../state/useStatFormat";
+
+/** Default visible fields — the pre-column-config hardcoded columns. */
+const DEFAULT_FIELDS = ["gihwr", "ohwr", "alsa", "ata", "iwd", "tier"];
 
 function removeColumn(onRemove: (name: string) => void): Column<Card> {
   return {
@@ -35,6 +43,14 @@ function removeColumn(onRemove: (name: string) => void): Column<Card> {
 export function ComparePage({ colorTint }: { colorTint: boolean }) {
   const [state, setState] = useState<CompareState | null>(null);
   const [query, setQuery] = useState("");
+  const { resultFormat, metrics } = useStatFormat();
+  const format = { resultFormat, metrics };
+  const { fields, add: addField, remove: removeField, reset: resetFields } =
+    useColumnConfig(
+      "compare_table",
+      DEFAULT_FIELDS,
+      (id) => CARD_COLUMN_FIELDS.includes(id),
+    );
   const listId = useRef(`compare-names-${Math.round(performance.now())}`);
 
   const refresh = useCallback(() => {
@@ -67,15 +83,10 @@ export function ComparePage({ colorTint }: { colorTint: boolean }) {
   const columns: Column<Card>[] = [
     nameColumn(),
     manaColumn(),
-    ...statColumns(),
-    {
-      id: "tier",
-      header: "Tier",
-      cell: (c) => c.tier ?? "—",
-      sortValue: (c) => c.tier ?? "",
-    },
+    ...fields.map((f) => cardColumn(f, format)),
     removeColumn(remove),
   ];
+  const menu = useCardMenu();
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "var(--gap)" }}>
@@ -121,8 +132,22 @@ export function ComparePage({ colorTint }: { colorTint: boolean }) {
           rowKey={(c) => c.name}
           rowClass={(c) => cardRowClass(c, colorTint)}
           emptyText="Add cards above to compare their 17Lands stats"
+          onContextMenu={(c, x, y) => menu.open(c.name, x, y)}
+          showAddColumn={false}
+          columnMenu={{
+            active: fields,
+            addable: CARD_COLUMN_FIELDS.filter((f) => !fields.includes(f)).map(
+              (f) => ({ id: f, label: CARD_COLUMN_LABELS[f] }),
+            ),
+            removable: (id) => fields.includes(id),
+            label: (id) => CARD_COLUMN_LABELS[id] ?? id,
+            onAdd: addField,
+            onRemove: removeField,
+            onReset: resetFields,
+          }}
         />
       </section>
+      {menu.element}
     </div>
   );
 }

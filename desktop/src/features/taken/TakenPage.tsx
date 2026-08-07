@@ -6,25 +6,30 @@ import type { Card, TakenCards } from "../../api/types";
 import { DataTable, type Column } from "../../components/DataTable";
 import {
   artUrl,
+  CARD_COLUMN_FIELDS,
+  CARD_COLUMN_LABELS,
+  cardColumn,
   cardRowClass,
   manaColumn,
   nameColumn,
-  statColumns,
 } from "../../components/cardColumns";
+import { useCardMenu } from "../../components/CardContextMenu";
+import { useColumnConfig } from "../../state/useColumnConfig";
+import { useStatFormat } from "../../state/useStatFormat";
 import { PoolSummaryStrip } from "../dashboard/PoolSummaryStrip";
 
-function countColumn(): Column<Card> {
-  return {
-    id: "count",
-    header: "#",
-    numeric: true,
-    cell: (c) => c.count,
-    sortValue: (c) => c.count,
-  };
-}
+/** Default visible fields — the pre-column-config hardcoded columns. */
+const DEFAULT_FIELDS = ["count", "gihwr", "ohwr", "alsa", "ata", "iwd"];
 
 export function TakenPage({ colorTint }: { colorTint: boolean }) {
   const [taken, setTaken] = useState<TakenCards | null>(null);
+  const { resultFormat, metrics } = useStatFormat();
+  const format = { resultFormat, metrics };
+  const { fields, add, remove, reset } = useColumnConfig(
+    "taken_table",
+    DEFAULT_FIELDS,
+    (id) => CARD_COLUMN_FIELDS.includes(id),
+  );
 
   const refresh = useCallback(() => {
     getTakenCards().then(setTaken).catch(console.warn);
@@ -39,11 +44,11 @@ export function TakenPage({ colorTint }: { colorTint: boolean }) {
   }, [refresh]);
 
   const columns: Column<Card>[] = [
-    countColumn(),
     nameColumn({ colorName: true }),
     manaColumn(),
-    ...statColumns(),
+    ...fields.map((f) => cardColumn(f, format)),
   ];
+  const menu = useCardMenu();
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "var(--gap)" }}>
@@ -63,8 +68,22 @@ export function TakenPage({ colorTint }: { colorTint: boolean }) {
           defaultSort={{ id: "cost", desc: false }}
           emptyText="Cards you draft appear here"
           hoverImage={(c) => artUrl(c.image)}
+          onContextMenu={(c, x, y) => menu.open(c.name, x, y)}
+          columnMenu={{
+            active: fields,
+            addable: CARD_COLUMN_FIELDS.filter((f) => !fields.includes(f)).map(
+              (f) => ({ id: f, label: CARD_COLUMN_LABELS[f] }),
+            ),
+            removable: (id) => fields.includes(id),
+            label: (id) => CARD_COLUMN_LABELS[id] ?? id,
+            onAdd: add,
+            onRemove: remove,
+            onReset: reset,
+          }}
         />
       </section>
+      {menu.element}
     </div>
   );
 }
+

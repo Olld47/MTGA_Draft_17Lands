@@ -78,6 +78,53 @@
   text-overflow: ellipsis;
 }
 
+.dataset-switcher {
+  display: flex;
+  gap: 6px;
+  align-self: center;
+}
+
+.dataset-switcher select {
+  font-size: var(--text-xs);
+  max-width: 140px;
+}
+
+.context-menu {
+  position: fixed;
+  z-index: 100;
+  min-width: 190px;
+  padding: 4px;
+  background: var(--felt);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.context-menu button {
+  text-align: left;
+  font-size: var(--text-sm);
+  color: var(--parchment);
+  padding: 6px 10px;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.context-menu button:hover {
+  background: var(--felt-hover);
+}
+
+.context-menu hr {
+  border: none;
+  border-top: 1px solid var(--line);
+  margin: 3px 4px;
+}
+
 .filter-pill {
   font-family: var(--font-mono);
   font-size: var(--text-xs);
@@ -205,6 +252,28 @@
 
 .data-table th.sorted {
   color: var(--parchment);
+}
+
+/* Trailing "+" add-column cell (legacy add_btn column) — slim, muted until
+   hovered so it reads as an affordance rather than a real header. */
+.data-table th.col-add {
+  width: 26px;
+  text-align: center;
+  color: var(--gruff);
+  font-size: var(--text-md);
+  font-weight: 400;
+  padding: 2px 4px;
+  opacity: 0.6;
+}
+
+.data-table th.col-add:hover {
+  color: var(--gold-foil);
+  opacity: 1;
+}
+
+.data-table td.col-add {
+  padding: 0;
+  border-bottom: none;
 }
 
 .data-table td {
@@ -1131,6 +1200,10 @@
   background: var(--felt);
   color: var(--parchment);
   overflow: hidden;
+  /* Legacy CompactOverlay transparency: attributes("-alpha", 0.92). The OS
+     window is configured transparent in tauri.conf.json, so this opacity
+     genuinely reveals the desktop behind the overlay. */
+  opacity: 0.92;
 }
 
 .mini-header {
@@ -1169,6 +1242,56 @@
 
 .mini-btn:hover {
   color: var(--gold-foil);
+}
+
+.mini-btn.active {
+  color: var(--gold-foil);
+}
+
+/* ⚙ gear popover — the desktop port of CompactOverlay._show_settings_menu
+   (Colors / Event Type / User Group / Preferences). Anchors below the button,
+   reusing the context-menu look. */
+
+.mini-gear-wrap {
+  position: relative;
+}
+
+.mini-gear {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 60;
+  min-width: 190px;
+  padding: 6px;
+  background: var(--felt);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.mini-gear-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: var(--text-xs);
+  color: var(--gruff);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.mini-gear-row select {
+  font-size: var(--text-sm);
+  width: 100%;
+}
+
+.mini-gear-prefs {
+  text-align: center;
+  border-top: 1px solid var(--line);
+  padding-top: 6px;
+  margin-top: 2px;
 }
 
 .mini-tabs {
@@ -1213,6 +1336,25 @@
 
 .mini-stats h3:first-child {
   margin-top: 0;
+}
+
+.mini-footer {
+  flex-shrink: 0;
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 6px 4px;
+}
+
+.mini-grip {
+  cursor: nwse-resize;
+  color: var(--gruff);
+  font-size: var(--text-md);
+  user-select: none;
+  padding: 0 2px;
+}
+
+.mini-grip:hover {
+  color: var(--gold-foil);
 }
 
 /* --- Practice dialog ------------------------------------------------------ */

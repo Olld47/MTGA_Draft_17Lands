@@ -11,6 +11,9 @@ import {
   type HeartbeatPayload,
 } from "./api/events";
 import { useDraftState } from "./state/useDraftState";
+import { DatasetSwitcher } from "./components/DatasetSwitcher";
+import { useDatasetSwitcher } from "./state/useDatasetSwitcher";
+import { onNavigateTab } from "./state/navigation";
 import { useDraftLogs } from "./state/useDraftLogs";
 import { useSettings } from "./state/useSettings";
 import { useMiniMode } from "./state/useMiniMode";
@@ -77,9 +80,13 @@ export default function App() {
   const [appError, setAppError] = useState("");
 
   const { state, statusText } = useDraftState(booted);
-  const { settings } = useSettings();
-  const { mini, toggle: toggleMini, startDragging } = useMiniMode();
+  const { settings, patch: patchSettings } = useSettings();
+  const { mini, toggle: toggleMini, startDragging } = useMiniMode(
+    settings?.overlayGeometry,
+    (g) => patchSettings({ overlayGeometry: g }),
+  );
   const logs = useDraftLogs(booted, state?.logName ?? "");
+  const { switcher } = useDatasetSwitcher();
 
   // Boot lifecycle
   useEffect(() => {
@@ -121,6 +128,9 @@ export default function App() {
     };
   }, []);
 
+  // Context-menu "Compare" navigates here from deep inside the table tree.
+  useEffect(() => onNavigateTab((tab) => setTab(tab as Tab)), []);
+
   if (!booted) {
     return <BootScreen message={bootMessage} error={bootError} />;
   }
@@ -135,6 +145,7 @@ export default function App() {
         state={state}
         colorTint={colorTint}
         live={live}
+        idealCurve={settings?.deckMidDistribution ?? []}
         onRestore={toggleMini}
         onDragStart={startDragging}
       />
@@ -152,6 +163,7 @@ export default function App() {
             P{state.pack} · P{state.pick}
           </span>
         )}
+        <DatasetSwitcher switcher={switcher} />
         <span className="spacer" />
         {logs.logs.length > 0 && (
           <select
@@ -205,7 +217,11 @@ export default function App() {
       <main className="tab-body">
         <ErrorBoundary resetKey={tab}>
           {tab === "draft" &&
-            (state ? (
+            (state && state.takenCount > 0 && state.pack === 0 ? (
+              // Draft finished: the legacy dashboard swaps to the recap screen
+              // (dashboard.py) instead of showing an empty pack — mirror that.
+              <RecapPage />
+            ) : state ? (
               <DashboardPage
                 state={state}
                 colorTint={colorTint}

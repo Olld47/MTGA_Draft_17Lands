@@ -173,6 +173,7 @@ def settings_vm(config) -> SettingsVM:
         deck_mid_distribution=list(
             (config.card_logic.deck_mid.distribution if config.card_logic else []) or []
         ),
+        overlay_geometry=s.overlay_geometry,
     )
 
 

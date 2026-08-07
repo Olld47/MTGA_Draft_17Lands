@@ -450,3 +450,123 @@ def test_deleting_drops_the_file_from_the_set_list_cache(config, sets_folder):
         datasets.delete_dataset(config, str(path))
 
     drop.assert_called_once_with(os.path.abspath(str(path)))
+
+
+# --- build_set_metrics_vm -----------------------------------------------------
+
+
+class _FakeMetrics:
+    """Duck-types SetMetrics.get_metrics: mean varies by color so the VM rows
+    are distinguishable, std is constant."""
+
+    def get_metrics(self, color, field):
+        return (55.0 + len(color), 3.0)
+
+
+class _FakeScanner:
+    def __init__(self, metrics):
+        self._metrics = metrics
+
+    def retrieve_set_metrics(self):
+        return self._metrics
+
+
+def test_build_set_metrics_vm_covers_every_field_and_color():
+    """The frontend formats Grade/Rating from this table, so it must expose
+    every WIN_RATE_OPTIONS field across every DECK_COLORS bucket."""
+    vm = datasets.build_set_metrics_vm(_FakeScanner(_FakeMetrics()))
+
+    assert vm.has_data is True
+    assert set(vm.metrics.keys()) == set(constants.WIN_RATE_OPTIONS)
+    for field in constants.WIN_RATE_OPTIONS:
+        assert set(vm.metrics[field].keys()) == set(constants.DECK_COLORS)
+        for color in constants.DECK_COLORS:
+            entry = vm.metrics[field][color]
+            assert entry.mean == 55.0 + len(color)
+            assert entry.std == 3.0
+
+
+def test_build_set_metrics_vm_reports_no_data_without_a_dataset():
+    vm = datasets.build_set_metrics_vm(_FakeScanner(None))
+
+    assert vm.has_data is False
+    assert vm.metrics == {}
+
+
+def test_build_set_metrics_vm_survives_a_failing_scanner():
+    class _Broken:
+        def retrieve_set_metrics(self):
+            raise RuntimeError("no dataset loaded")
+
+    vm = datasets.build_set_metrics_vm(_Broken())
+
+    assert vm.has_data is False
+    assert vm.metrics == {}
+
+
+# --- build_dataset_switcher_vm -------------------------------------------------
+
+
+class _SwitcherScanner:
+    def __init__(self, set_code, draft_label=""):
+        self._set = set_code
+        self._label = draft_label
+
+    def retrieve_current_limited_event(self):
+        return self._set, self._label
+
+
+def _switcher_rows(sets_folder):
+    """TEST PremierDraft (All + Gold) and TEST QuickDraft (All), plus a foreign
+    set that must be filtered out."""
+    return [
+        _row(str(sets_folder / "TEST_PremierDraft_All_Data.json")),
+        _row(
+            str(sets_folder / "TEST_PremierDraft_Gold_Data.json"),
+            event="PremierDraft",
+            group="Gold",
+        ),
+        _row(str(sets_folder / "TEST_QuickDraft_All_Data.json"), event="QuickDraft"),
+        _row(str(sets_folder / "OTHER_PremierDraft_All_Data.json"), display="OTHER"),
+    ]
+
+
+def test_switcher_is_empty_without_a_detected_set(config, sets_folder):
+    with _stub_set_list(_switcher_rows(sets_folder)):
+        vm = datasets.build_dataset_switcher_vm(_SwitcherScanner(""), config)
+
+    assert vm.set_code == ""
+    assert vm.events == []
+
+
+def test_switcher_groups_local_datasets_by_event_and_group(config, sets_folder):
+    with _stub_set_list(_switcher_rows(sets_folder)):
+        vm = datasets.build_dataset_switcher_vm(_SwitcherScanner("TEST"), config)
+
+    assert vm.set_code == "TEST"
+    assert [e.name for e in vm.events] == ["PremierDraft", "QuickDraft"]
+    premier = vm.events[0]
+    assert [g.name for g in premier.groups] == ["All", "Gold"]
+    assert premier.groups[0].path.endswith("TEST_PremierDraft_All_Data.json")
+    assert premier.groups[1].path.endswith("TEST_PremierDraft_Gold_Data.json")
+    # The OTHER set's row never leaks in.
+    assert all("OTHER" not in g.path for e in vm.events for g in e.groups)
+
+
+def test_switcher_reports_the_loaded_dataset_as_active(config, sets_folder):
+    config.card_data.latest_dataset = "TEST_PremierDraft_Gold_Data.json"
+    with _stub_set_list(_switcher_rows(sets_folder)):
+        vm = datasets.build_dataset_switcher_vm(_SwitcherScanner("TEST"), config)
+
+    assert vm.active_event == "PremierDraft"
+    assert vm.active_group == "Gold"
+
+
+def test_switcher_normalizes_hyphenated_set_codes(config, sets_folder):
+    """17Lands set codes can arrive with a dash; they must still line up with
+    the dash-stripped file names (top_bar.update_data_sources behavior)."""
+    with _stub_set_list(_switcher_rows(sets_folder)):
+        vm = datasets.build_dataset_switcher_vm(_SwitcherScanner("TE-ST"), config)
+
+    assert vm.set_code == "TE-ST"
+    assert [e.name for e in vm.events] == ["PremierDraft", "QuickDraft"]
