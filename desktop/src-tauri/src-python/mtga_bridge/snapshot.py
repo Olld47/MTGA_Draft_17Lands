@@ -16,6 +16,7 @@ from src import constants
 from src.advisor.engine import DraftAdvisor
 from src.advisor.schema import Recommendation
 from src.card_logic import (
+    deck_filter_stats,
     filter_display_name,
     filter_options,
     filter_win_rate,
@@ -72,7 +73,7 @@ def _stat(stats: dict, field: str) -> Optional[float]:
 
 
 def card_stats_vm(card: dict, active_filter: str) -> CardStatsVM:
-    stats = card.get(constants.DATA_FIELD_DECK_COLORS, {}).get(active_filter, {})
+    stats = deck_filter_stats(card, active_filter)
     gih = _stat(stats, constants.DATA_FIELD_GIH)
     ngp = _stat(stats, constants.DATA_FIELD_NGP)
     return CardStatsVM(

@@ -157,6 +157,23 @@ def test_row_vm_uses_active_filter_gihwr():
     assert row_vm(card, "WU").gihwr is None
 
 
+def test_row_vm_falls_back_to_all_decks_when_active_filter_has_no_games():
+    """A card with zero games in the active archetype (samples 0) must not
+    render its placeholder 0.0 GIH WR when 17Lands has the number under
+    All Decks — the "data exists but the tool shows 0" bug."""
+    card = {
+        "name": "Blue Flyer", "cmc": 3, "types": ["Creature"], "colors": ["U"],
+        "mana_cost": "{2}{U}", "count": 2,
+        "deck_colors": {
+            "All Decks": {"gihwr": 61.2, "samples": 5000},
+            "WU": {"gihwr": 0.0, "samples": 0},  # never played in WU decks
+        },
+    }
+    vm = row_vm(card, "WU")
+
+    assert vm.gihwr == 61.2
+
+
 def test_row_vm_surfaces_rarity():
     """The Rarity group-by needs rarity on every deck/pool row. The raw card
     dicts already carry it (stamped by file_extractor); row_vm must surface it

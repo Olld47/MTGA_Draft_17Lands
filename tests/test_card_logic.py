@@ -303,3 +303,48 @@ def test_format_filter_label_appends_the_rate_only_when_present():
     assert (
         format_filter_label("UB", constants.DECK_FILTER_FORMAT_COLORS, ratings) == "UB"
     )
+
+
+def test_deck_filter_stats_falls_back_to_all_decks_when_archetype_has_no_games():
+    """A card with zero games in the active archetype (samples 0) must not
+    render its placeholder 0.0 rates when 17Lands has real numbers under
+    All Decks — the "data exists but the tool shows 0" bug."""
+    from src.card_logic import deck_filter_stats
+
+    card = {
+        constants.DATA_FIELD_DECK_COLORS: {
+            "All Decks": {"gihwr": 61.0, "samples": 4000},
+            "WU": {"gihwr": 0.0, "samples": 0},  # never played in WU decks
+        }
+    }
+    assert deck_filter_stats(card, "WU")["gihwr"] == 61.0
+
+
+def test_deck_filter_stats_keeps_the_active_filter_once_it_has_games():
+    """samples > 0 means the rate is real — a genuine 0% must stay 0%, and a
+    populated lane must not be masked by the broad All Decks aggregate."""
+    from src.card_logic import deck_filter_stats
+
+    card = {
+        constants.DATA_FIELD_DECK_COLORS: {
+            "All Decks": {"gihwr": 55.0, "samples": 4000},
+            "WU": {"gihwr": 0.0, "samples": 300},  # a real 0% from actual games
+        }
+    }
+    assert deck_filter_stats(card, "WU")["gihwr"] == 0.0
+    assert deck_filter_stats(card, "All Decks")["gihwr"] == 55.0
+
+
+def test_deck_filter_stats_does_not_invent_data():
+    """When neither lane has games the placeholder lane is returned untouched —
+    the caller decides how to render a card with no data anywhere."""
+    from src.card_logic import deck_filter_stats
+
+    card = {
+        constants.DATA_FIELD_DECK_COLORS: {
+            "All Decks": {"gihwr": 0.0, "samples": 0},
+            "WU": {"gihwr": 0.0, "samples": 0},
+        }
+    }
+    assert deck_filter_stats(card, "WU")["gihwr"] == 0.0
+    assert deck_filter_stats(card, "BG") == {}

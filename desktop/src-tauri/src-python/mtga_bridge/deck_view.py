@@ -13,6 +13,7 @@ from typing import Dict, List, Optional
 
 from src import constants
 from src.card_logic import (
+    deck_filter_stats,
     get_functional_cmc,
     get_strict_colors,
     is_castable,
@@ -90,7 +91,7 @@ def hover_share_vm(card: dict) -> List[DeckColorVM]:
 
 
 def row_vm(card: dict, active_filter: str) -> DeckRowVM:
-    raw = card.get("deck_colors", {}).get(active_filter, {}).get("gihwr")
+    raw = deck_filter_stats(card, active_filter).get("gihwr")
     gihwr = None
     if raw not in (None, ""):
         try:

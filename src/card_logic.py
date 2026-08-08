@@ -171,6 +171,27 @@ def filter_options(deck, option_selection, metrics, configuration):
     return [constants.FILTER_OPTION_ALL_DECKS]
 
 
+def deck_filter_stats(card: dict, active_filter: str) -> dict:
+    """The per-archetype stats to render for a card under the active filter.
+
+    17Lands records per-card rates per deck archetype. A card that never
+    appeared in this exact color combination ships `samples: 0` with every
+    rate at 0.0 — the dataset's no-data placeholder. Rendering that as a real
+    0% win rate is the "17Lands has the number but the tool shows 0" bug. When
+    the active archetype has no games but the set-wide "All Decks" lane does,
+    fall back to it: the same card's real rate, aggregated over every deck."""
+    deck_colors = card.get(constants.DATA_FIELD_DECK_COLORS, {}) or {}
+    stats = deck_colors.get(active_filter, {})
+    if (
+        active_filter != constants.FILTER_OPTION_ALL_DECKS
+        and not stats.get("samples")
+    ):
+        all_decks = deck_colors.get(constants.FILTER_OPTION_ALL_DECKS, {})
+        if all_decks.get("samples"):
+            return all_decks
+    return stats
+
+
 def filter_display_name(filter_key, filter_format):
     """A deck filter as the user asked to see it: "Azorius" under the Names
     format, "WU" under Colors. Falls back to the key for anything absent from

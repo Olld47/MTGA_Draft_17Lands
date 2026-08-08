@@ -844,6 +844,50 @@ def test_card_stats_handle_a_card_with_no_deck_colors():
     assert card_stats_vm({}, "All Decks").gihwr is None
 
 
+def test_card_stats_fall_back_to_all_decks_when_active_filter_has_no_games():
+    """A card with zero games in the active archetype (samples 0) must not
+    render its placeholder 0.0 rates when 17Lands has real numbers under
+    All Decks — and the fallback covers every rate, not just GIH WR."""
+    card = {
+        constants.DATA_FIELD_DECK_COLORS: {
+            "All Decks": {
+                "gihwr": 62.5, "ohwr": 60.1, "gpwr": 58.2, "alsa": 2.3,
+                "ata": 2.8, "iwd": 3.1, "gih": 5000.0, "ngp": 800.0,
+                "samples": 5000,
+            },
+            "WU": {
+                "gihwr": 0.0, "ohwr": 0.0, "gpwr": 0.0, "alsa": 0.0,
+                "ata": 0.0, "iwd": 0.0, "gih": 0, "ngp": 0, "samples": 0,
+            },
+        }
+    }
+    stats = card_stats_vm(card, "WU")
+
+    assert stats.gihwr == 62.5
+    assert stats.ohwr == 60.1
+    assert stats.gpwr == 58.2
+    assert stats.alsa == 2.3
+    assert stats.ata == 2.8
+    assert stats.iwd == 3.1
+    assert stats.gih == 5000
+    assert stats.ngp == 800
+
+
+def test_card_stats_keep_the_active_filter_once_it_has_games():
+    """A populated archetype lane wins over All Decks even when its own value
+    is 0.0 — a genuine 0% from real games is data, not a placeholder."""
+    card = {
+        constants.DATA_FIELD_DECK_COLORS: {
+            "All Decks": {"gihwr": 55.0, "gih": 5000.0, "samples": 5000},
+            "WU": {"gihwr": 0.0, "gih": 100.0, "samples": 100},
+        }
+    }
+    stats = card_stats_vm(card, "WU")
+
+    assert stats.gihwr == 0.0
+    assert stats.gih == 100
+
+
 # --- recommendation_vm -------------------------------------------------------
 
 
