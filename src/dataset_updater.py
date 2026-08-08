@@ -9,6 +9,28 @@ from src.configuration import write_configuration
 logger = logging.getLogger(__name__)
 
 
+def _dataset_set_format(key: str):
+    """Split a manifest key (SET_FORMAT_GROUP) into (set, format).
+
+    Returns (None, None) for anything that does not follow the shape."""
+    parts = key.rsplit("_", 2)
+    if len(parts) != 3:
+        return None, None
+    return parts[0], parts[1]
+
+
+def _is_live_dataset(key: str, live_formats_by_expansion: dict) -> bool:
+    """True when the manifest dataset matches a currently live draft format.
+
+    Matches expansion names and format strings exactly — a rotated set's cube
+    (e.g. "Cube - Powered") must never be served for a live one ("Cube -
+    Planar"), and a live set's Sealed/ArenaDirect datasets stay excluded."""
+    set_part, fmt_part = _dataset_set_format(key)
+    if not set_part:
+        return False
+    return fmt_part in live_formats_by_expansion.get(set_part, [])
+
+
 class DatasetUpdater:
     def __init__(self, config):
         self.config = config
@@ -29,8 +51,24 @@ class DatasetUpdater:
         with open(self.local_manifest_path, "w") as f:
             json.dump(manifest_data, f)
 
+    def _fetch_live_formats(self) -> dict:
+        """live_formats_by_expansion from 17Lands, or {} when unreachable."""
+        try:
+            resp = requests.get(constants.SEVENTEENLANDS_DATA_FILTERS_URL, timeout=5)
+            resp.raise_for_status()
+            live = resp.json().get("live_formats_by_expansion") or {}
+            return live if isinstance(live, dict) else {}
+        except Exception as e:
+            logger.warning(f"Failed to fetch live formats: {e}")
+            return {}
+
     def sync_datasets(self, progress_callback):
-        """Fetches remote manifest and downloads missing/updated sets."""
+        """Fetches remote manifest and downloads missing/updated sets.
+
+        A fresh install only needs the sets that are live right now, so the
+        manifest is filtered to the draft formats 17Lands reports as currently
+        playable (live_formats_by_expansion). If that endpoint is unreachable
+        we fall back to the manifest's own active_sets, then to everything."""
         try:
             # Check pipeline health first to notify user if there are backend issues
             try:
@@ -56,9 +94,28 @@ class DatasetUpdater:
                 local_manifest["active_sets"] = remote_manifest["active_sets"]
 
             remote_datasets = remote_manifest.get("datasets", {})
+
+            live = self._fetch_live_formats()
+            if live:
+                scoped = {
+                    key: info
+                    for key, info in remote_datasets.items()
+                    if _is_live_dataset(key, live)
+                }
+            else:
+                active_sets = remote_manifest.get("active_sets") or []
+                if active_sets:
+                    scoped = {
+                        key: info
+                        for key, info in remote_datasets.items()
+                        if (_dataset_set_format(key)[0] or "") in active_sets
+                    }
+                else:
+                    scoped = remote_datasets  # no live info at all → download all
+
             updates_made = False
 
-            for key, file_info in remote_datasets.items():
+            for key, file_info in scoped.items():
                 remote_hash = file_info.get("hash")
                 remote_filename = file_info.get("filename")
 
