@@ -224,6 +224,17 @@ class ArenaScanner:
                 self.draft_history = state.get("draft_history", [])
                 self.draft_start_time = state.get("draft_start_time", "")
 
+                # Scan pointers resume where the app left off so a reopened
+                # mid-draft never re-scans old EventJoins and wipes the
+                # restored pool. file_size makes the truncation check in
+                # draft_start_search work across restarts (a recreated log is
+                # smaller than the saved size → full clear_draft(True)).
+                self.search_offset = state.get("search_offset", 0)
+                self.pick_offset = state.get("pick_offset", 0)
+                self.pack_offset = state.get("pack_offset", 0)
+                self.pool_offset = state.get("pool_offset", 0)
+                self.file_size = state.get("file_size", 0)
+
                 if self.draft_type != constants.LIMITED_TYPE_UNKNOWN:
                     logger.info(
                         f"Restored previous draft state: {self.event_string} (Pack {self.current_pack}, Pick {self.current_pick})"
@@ -256,6 +267,11 @@ class ArenaScanner:
                 "current_picked_pick": self.current_picked_pick,
                 "draft_history": self.draft_history,
                 "draft_start_time": self.draft_start_time,
+                "search_offset": self.search_offset,
+                "pick_offset": self.pick_offset,
+                "pack_offset": self.pack_offset,
+                "pool_offset": self.pool_offset,
+                "file_size": self.file_size,
             }
             with open(self.state_file, "w", encoding="utf-8") as f:
                 json.dump(state, f)
@@ -302,12 +318,17 @@ class ArenaScanner:
                 self._save_state()
 
     def _mark_draft_complete(self):
-        """Zeroes the live pack/pick when a draft's terminal DeckSelect is seen.
+        """Retires the live pack/pick when a draft's terminal DeckSelect is seen.
 
         Unlike clear_draft, the drafted pool (taken_cards) and draft history are
         kept so the recap of the finished draft still works; only the live
         "currently drafting" state is retired. The draft_type is reset to
         UNKNOWN so the next EventJoin is treated as a fresh draft.
+
+        The event identity (event_string/draft_label/draft_sets) is preserved —
+        the recap gate (compute_draft_complete) keys off draft_label, so wiping
+        it here would permanently block the recap. A later EventJoin with a new
+        transaction id still wipes and re-registers via __check_event.
         """
         with self.lock:
             was_active = self.draft_type != constants.LIMITED_TYPE_UNKNOWN
@@ -320,10 +341,6 @@ class ArenaScanner:
             self.picked_cards = [[] for _ in range(self.number_of_players)]
             self.pack_cards = [[] for _ in range(self.number_of_players)]
             self.initial_pack = [[] for _ in range(self.number_of_players)]
-            self.event_string = ""
-            self.draft_label = ""
-            self.draft_sets = None
-            self.draft_start_time = ""
             self._save_state()
         if was_active:
             logger.info("Draft completed; cleared active state")
@@ -859,18 +876,23 @@ class ArenaScanner:
         explicit_update = False
 
         # RECOVERY MODE: If the app restarts mid-draft and misses EventJoin,
-        # infer the draft type from the active log events.
+        # infer the draft type from the active log events. The label is set so
+        # the recap gate (compute_draft_complete) still recognizes the type when
+        # the pool is finished; a later EventJoin overwrites it via __check_event.
         if self.draft_type == constants.LIMITED_TYPE_UNKNOWN:
             if self._search_pack_notify() or self._search_pick_human():
                 self.draft_type = constants.LIMITED_TYPE_DRAFT_PREMIER_V2
+                self.draft_label = constants.LIMITED_TYPE_STRING_DRAFT_PREMIER
                 self.number_of_players = 8
                 explicit_update = True
             elif self._search_pack_bot() or self._search_pick_bot():
                 self.draft_type = constants.LIMITED_TYPE_DRAFT_QUICK
+                self.draft_label = constants.LIMITED_TYPE_STRING_DRAFT_QUICK
                 self.number_of_players = 8
                 explicit_update = True
             elif self._search_card_pool():
                 self.draft_type = constants.LIMITED_TYPE_SEALED
+                self.draft_label = constants.LIMITED_TYPE_STRING_SEALED
                 explicit_update = True
 
         if self.draft_type == constants.LIMITED_TYPE_DRAFT_PREMIER_V1:
@@ -1140,12 +1162,23 @@ class ArenaScanner:
                 if pool:
                     pool_strs = [str(x) for x in pool]
                     with self.lock:
-                        if not self.taken_cards or sorted(self.taken_cards) != sorted(
-                            pool_strs
+                        # A recovered CardPool dump is only the taken pool when
+                        # it IS the whole pool (Sealed) or when no event is
+                        # registered yet (cold recovery, registered above). For
+                        # an actively-tracked draft the dump lists every card
+                        # offered across the packs, NOT the cards picked so far
+                        # — adopting it would mark a mid-draft reopen as
+                        # complete. Keep the accurate taken_cards instead.
+                        if not current_event_string or self.draft_type in (
+                            constants.LIMITED_TYPE_SEALED,
+                            constants.LIMITED_TYPE_SEALED_TRADITIONAL,
                         ):
-                            self.taken_cards = pool_strs
-                            self._save_state()
-                            update = True
+                            if not self.taken_cards or sorted(
+                                self.taken_cards
+                            ) != sorted(pool_strs):
+                                self.taken_cards = pool_strs
+                                self._save_state()
+                                update = True
             except Exception as e:
                 logger.error(f"Card Pool Search Error: {e}")
         return update

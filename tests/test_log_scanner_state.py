@@ -2,6 +2,7 @@ import pytest
 from unittest.mock import MagicMock
 from src.log_scanner import ArenaScanner, _dataset_event_type_rank
 from src.constants import LIMITED_TYPE_DRAFT_PREMIER_V2
+from src.limited_sets import SetDictionary, SetInfo
 
 
 @pytest.fixture
@@ -180,6 +181,10 @@ def test_select_best_dataset_no_source_for_set_returns_empty(sources_scanner):
 # pack/pick state but keep the drafted pool so the recap still works.
 
 def test_mark_draft_complete_retires_live_state_keeps_pool(scanner):
+    """The recap identity (event_string/draft_label/draft_sets) must survive
+    completion — the desktop recap gate keys off draft_label, so zeroing it here
+    would permanently block the recap. Only the live pack/pick retires; a later
+    EventJoin with a new transaction id still wipes via __check_event."""
     scanner.draft_type = LIMITED_TYPE_DRAFT_PREMIER_V2
     scanner.taken_cards = ["1", "2", "3"]
     scanner.draft_history = [{"Pack": 1, "Pick": 1, "Cards": ["1"]}]
@@ -193,6 +198,7 @@ def test_mark_draft_complete_retires_live_state_keeps_pool(scanner):
     scanner.initial_pack = [["9", "8"]]
     scanner.event_string = "PremierDraft_MSH_20260731"
     scanner.draft_label = "PremierDraft"
+    scanner.draft_sets = ["MSH"]
     scanner.draft_start_time = "2026-07-31T12:00:00"
     scanner._save_state = MagicMock()
 
@@ -201,9 +207,11 @@ def test_mark_draft_complete_retires_live_state_keeps_pool(scanner):
     assert scanner.draft_type == 0  # LIMITED_TYPE_UNKNOWN → next EventJoin is fresh
     assert scanner.current_pack == 0
     assert scanner.current_pick == 0
-    assert scanner.event_string == ""
-    assert scanner.draft_label == ""
-    assert scanner.draft_start_time == ""
+    # Recap identity preserved so compute_draft_complete still recognizes it.
+    assert scanner.event_string == "PremierDraft_MSH_20260731"
+    assert scanner.draft_label == "PremierDraft"
+    assert scanner.draft_sets == ["MSH"]
+    assert scanner.draft_start_time == "2026-07-31T12:00:00"
     assert scanner.picked_cards == [[] for _ in range(8)]
     assert scanner.pack_cards == [[] for _ in range(8)]
     # The drafted pool and history survive — recap of the finished draft needs them.
@@ -221,3 +229,230 @@ def test_mark_draft_complete_treats_no_active_draft_as_noop(scanner):
 
     assert scanner.taken_cards == ["1", "2"]
     scanner._save_state.assert_called_once()
+
+
+# --- CardPool recovery vs. reopened drafts -----------------------------------
+# On reopen the pool_offset is 0 (not persisted), so _search_card_pool rescans
+# the whole log and hits MTGA's deck-recovery "CardPool" dump. For a draft that
+# dump lists every card offered across all packs, NOT the cards picked — it must
+# never replace the accurate taken_cards of a restored mid-draft.
+
+def _recovery_scanner(tmp_path, line):
+    """A scanner pointed at a real log file containing one CardPool dump line."""
+    log = tmp_path / "Player.log"
+    log.write_text(line + "\n")
+    s = ArenaScanner(
+        str(log),
+        SetDictionary(
+            data={"MSH": SetInfo(seventeenlands=["MSH"], set_code="MSH"),
+                  "DSK": SetInfo(seventeenlands=["DSK"], set_code="DSK")}
+        ),
+        retrieve_unknown=False,
+    )
+    s.state_file = str(tmp_path / "active_draft_state.json")
+    s.log_enable(False)
+    return s
+
+
+MSH_RECOVERY_DUMP = (
+    '{"InternalEventName":"QuickDraft_MSH_20260731","CurrentModule":"CreateMatch",'
+    '"CardPool":[' + ",".join(str(1000 + i) for i in range(42)) + "]}"
+)
+DSK_SEALED_DUMP = (
+    '{"InternalEventName":"Sealed_DSK_20240924","CurrentModule":"DeckSelect",'
+    '"CardPool":[' + ",".join(str(2000 + i) for i in range(20)) + "]}"
+)
+
+
+def test_card_pool_recovery_does_not_clobber_reopened_draft(tmp_path):
+    """A reopened mid-draft keeps its accurate taken_cards: the 42-card deck
+    recovery dump (all cards offered) must not replace the 16 picks."""
+    s = _recovery_scanner(tmp_path, MSH_RECOVERY_DUMP)
+    from src import constants
+    s.draft_type = constants.LIMITED_TYPE_DRAFT_QUICK
+    s.event_string = "QuickDraft_MSH_20260731"
+    s.current_transaction_id = "b2b24af9-d1b3-4034-be5b-a36f93bc696e"
+    s.taken_cards = [str(1000 + i) for i in range(16)]  # 16 accurate picks
+
+    s._search_card_pool()
+
+    assert s.taken_cards == [str(1000 + i) for i in range(16)]
+
+
+def test_card_pool_recovery_still_adopts_sealed_pool(tmp_path):
+    """Sealed's CardPool dump IS the whole pool, so a tracked sealed event may
+    still adopt it."""
+    s = _recovery_scanner(tmp_path, DSK_SEALED_DUMP)
+    from src import constants
+    s.draft_type = constants.LIMITED_TYPE_SEALED
+    s.event_string = "Sealed_DSK_20240924"
+
+    s._search_card_pool()
+
+    assert s.taken_cards == [str(2000 + i) for i in range(20)]
+
+
+def test_card_pool_recovery_cold_start_adopts_sealed_pool(tmp_path):
+    """No event registered yet (cold boot): the recovery pool registers the
+    sealed event and seeds taken_cards from the dump."""
+    s = _recovery_scanner(tmp_path, DSK_SEALED_DUMP)
+    from src import constants
+    s.draft_type = constants.LIMITED_TYPE_UNKNOWN
+
+    s._search_card_pool()
+
+    assert s.event_string == "Sealed_DSK_20240924"
+    assert s.taken_cards == [str(2000 + i) for i in range(20)]
+
+
+# --- Scan-offset persistence --------------------------------------------------
+# The scan pointers are persisted so a reopened mid-draft resumes where the app
+# left off instead of re-scanning the append-only Player.log from 0 — which
+# hits the OLD draft's EventJoin (different transaction id), wipes the restored
+# pool, and resets the signals. file_size makes the truncation check survive a
+# restart (a recreated, shorter log → full clear).
+
+
+def test_state_persists_scan_offsets(tmp_path):
+    """All five scan pointers survive a save/load round-trip."""
+    from src import constants
+
+    s = _recovery_scanner(tmp_path, "MTGA Log Start\n")
+    s.search_offset = 1111
+    s.pick_offset = 2222
+    s.pack_offset = 3333
+    s.pool_offset = 4444
+    s.file_size = 5555
+    s.draft_type = constants.LIMITED_TYPE_DRAFT_PREMIER_V2
+    s.taken_cards = ["1"]
+    s._save_state()
+
+    fresh = _recovery_scanner(tmp_path, "MTGA Log Start\n")
+    assert fresh._load_state() is True
+    assert fresh.search_offset == 1111
+    assert fresh.pick_offset == 2222
+    assert fresh.pack_offset == 3333
+    assert fresh.pool_offset == 4444
+    assert fresh.file_size == 5555
+
+
+def test_reopen_does_not_wipe_restored_state_when_log_has_old_events(tmp_path):
+    """The #1/#3 regression: a reopened mid-draft resumes from its saved search
+    offset, so the OLD draft's EventJoin earlier in the log is never re-seen and
+    the restored pool (which the signals are recomputed from) is preserved."""
+    from src import constants
+
+    old_event_join = (
+        "[UnityCrossThreadLogger]==> Event_Join "
+        '{"id":"txn_old","request":"{\\"EventName\\":\\"PremierDraft_MSH_20260731\\",'
+        '\\"EntryCurrencyType\\":\\"Gem\\"}"}'
+    )
+    s = _recovery_scanner(tmp_path, old_event_join)
+    log = tmp_path / "Player.log"
+    log_size = log.stat().st_size
+
+    # Restore a mid-draft state as if the app saved it before disconnecting.
+    s.draft_type = constants.LIMITED_TYPE_DRAFT_PREMIER_V2
+    s.draft_sets = ["MSH"]
+    s.draft_label = "PremierDraft"
+    s.event_string = "PremierDraft_MSH_20260731"
+    s.current_draft_id = "draft_B"
+    s.current_transaction_id = "txn_B"
+    s.taken_cards = [str(1000 + i) for i in range(17)]
+    s.draft_history = [{"Pack": 1, "Pick": 1, "Cards": ["1000"]}] * 17
+    s.current_pack = 2
+    s.current_pick = 3
+    s.search_offset = log_size
+    s.pick_offset = log_size
+    s.pack_offset = log_size
+    s.pool_offset = log_size
+    s.file_size = log_size
+    s._save_state()
+
+    fresh = _recovery_scanner(tmp_path, old_event_join)
+    assert fresh._load_state() is True
+
+    # Nothing new after the saved position → no re-registration, no wipe.
+    assert fresh.draft_start_search() is False
+    assert fresh.taken_cards == [str(1000 + i) for i in range(17)]
+    assert len(fresh.draft_history) == 17
+    assert fresh.event_string == "PremierDraft_MSH_20260731"
+    assert fresh.draft_label == "PremierDraft"
+    assert fresh.draft_sets == ["MSH"]
+
+
+def test_reopened_scanner_detects_truncated_log_and_resets(tmp_path):
+    """file_size is persisted so the truncation check in draft_start_search
+    survives a restart: a recreated (shorter) Player.log must fully clear the
+    stale restored state instead of resuming at an offset past the end."""
+    from src import constants
+
+    s = _recovery_scanner(tmp_path, "MTGA Log Start\n")
+    # Pretend the previous session had scanned a much longer log.
+    s.draft_type = constants.LIMITED_TYPE_DRAFT_QUICK
+    s.taken_cards = [str(1000 + i) for i in range(17)]
+    s.search_offset = 5000
+    s.pick_offset = 5000
+    s.pack_offset = 5000
+    s.pool_offset = 5000
+    s.file_size = 5000
+    s._save_state()
+
+    fresh = _recovery_scanner(tmp_path, "MTGA Log Start\n")
+    assert fresh._load_state() is True
+    assert fresh.taken_cards == [str(1000 + i) for i in range(17)]
+
+    # The log shrank since the saved file_size → full clear + rescan from 0.
+    fresh.draft_start_search()
+    assert fresh.taken_cards == []
+    assert fresh.search_offset < 5000  # stale offset past the end is gone
+    assert fresh.draft_type == constants.LIMITED_TYPE_UNKNOWN
+
+
+def test_new_event_after_completion_starts_fresh(scanner):
+    """Keeping the recap identity after completion must not break next-draft
+    detection: a new EventJoin for the same event with a different transaction
+    id still wipes the finished pool and registers the new draft."""
+    from src import constants
+
+    scanner.draft_type = constants.LIMITED_TYPE_DRAFT_PREMIER_V2
+    scanner.event_string = "PremierDraft_MSH_20260731"
+    scanner.current_transaction_id = "txn_finished"
+    scanner.taken_cards = [str(1000 + i) for i in range(42)]
+    scanner._save_state = MagicMock()
+
+    scanner._mark_draft_complete()
+
+    # __check_event receives the parsed payload (draft_start_search runs it
+    # through process_json before dispatch).
+    new_join = {
+        "id": "txn_new",
+        "request": {
+            "EventName": "PremierDraft_MSH_20260731",
+            "EntryCurrencyType": "Gem",
+        },
+    }
+    update, _, _ = scanner._ArenaScanner__check_event(new_join)
+
+    assert update is True
+    assert scanner.current_transaction_id == "txn_new"
+    assert scanner.event_string == "PremierDraft_MSH_20260731"
+    assert scanner.draft_type == constants.LIMITED_TYPE_DRAFT_PREMIER_V2
+    assert scanner.taken_cards == []  # finished pool wiped, fresh draft begins
+
+
+def test_recovery_mode_sets_draft_label(scanner):
+    """Recovery (no EventJoin registered) still stamps the inferred draft type
+    so the recap gate recognizes the event once the pool is finished."""
+    from src import constants
+
+    scanner.draft_type = constants.LIMITED_TYPE_UNKNOWN
+    scanner._search_pack_notify = MagicMock(return_value=True)
+    scanner._search_pick_human = MagicMock(return_value=False)
+    scanner._search_pack_bot = MagicMock(return_value=False)
+    scanner._search_pick_bot = MagicMock(return_value=False)
+    scanner._search_card_pool = MagicMock(return_value=False)
+
+    scanner._ArenaScanner__perform_search_logic()
+
+    assert scanner.draft_label == constants.LIMITED_TYPE_STRING_DRAFT_PREMIER

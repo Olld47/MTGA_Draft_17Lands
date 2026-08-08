@@ -319,6 +319,32 @@ def test_draft_complete_survives_an_unknown_event_type(env):
     assert build_draft_state(scanner, env["config"]).draft_complete is False
 
 
+def test_recap_fires_after_completion_end_to_end(env):
+    """The recap gate is keyed off draft_label, which _mark_draft_complete now
+    preserves — a finished quick draft (live pack retired, pool kept) must still
+    swap the Draft tab to the recap."""
+    scanner = env["scanner"]
+    scanner.draft_label = constants.LIMITED_TYPE_STRING_DRAFT_QUICK
+    scanner.draft_sets = ["TEST"]
+    scanner.taken_cards = ["101"] * 42
+    scanner.draft_history = [{"Pack": 1, "Pick": 1, "Cards": ["101"]}]
+
+    scanner._mark_draft_complete()
+
+    state = build_draft_state(scanner, env["config"])
+    assert state.draft_complete is True
+    assert state.taken_count == 42
+
+
+def test_draft_complete_recognizes_bot_draft(env):
+    """The legacy is_bot arm includes BotDraft — a quick draft whose label is
+    the raw event string must still reach the recap."""
+    scanner = env["scanner"]
+    scanner.draft_label = constants.LIMITED_TYPE_STRING_DRAFT_BOT
+    scanner.taken_cards = ["101"] * 42
+    assert build_draft_state(scanner, env["config"]).draft_complete is True
+
+
 def test_draft_state_filter_label_carries_the_name_and_rate(env):
     """The masthead's `filterLabel`. Before this it read "Auto (WU)" where the
     tkinter top bar read "(Auto: Azorius 56.3%)"."""
