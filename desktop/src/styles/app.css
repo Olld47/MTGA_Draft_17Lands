@@ -576,7 +576,7 @@
 
 .signal-lane {
   display: grid;
-  grid-template-columns: 16px 1fr 38px;
+  grid-template-columns: 16px auto 38px;
   align-items: center;
   gap: 8px;
 }
@@ -588,24 +588,24 @@
   text-align: center;
 }
 
-.signal-lane .lane-track {
-  height: 10px;
-  background: color-mix(in srgb, var(--line) 40%, transparent);
-  border-radius: 2px;
-  overflow: hidden;
+.signal-lane .lane-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--line) 45%, transparent);
+  border: 1px solid var(--line);
+  transition: background 250ms ease, border-color 250ms ease;
 }
 
-.signal-lane .lane-fill {
-  height: 100%;
-  border-radius: 2px;
-  transition: width 250ms ease;
+.signal-lane .lane-dot.open {
+  background: var(--ok);
+  border-color: var(--ok);
 }
 
-.signal-lane.w .lane-fill { background: var(--mana-w); }
-.signal-lane.u .lane-fill { background: var(--mana-u); }
-.signal-lane.b .lane-fill { background: var(--mana-b); }
-.signal-lane.r .lane-fill { background: var(--mana-r); }
-.signal-lane.g .lane-fill { background: var(--mana-g); }
+.signal-lane .lane-dot.cut {
+  background: var(--err);
+  border-color: var(--err);
+}
 
 .signal-lane .lane-word {
   font-family: var(--font-mono);
@@ -615,7 +615,11 @@
 }
 
 .signal-lane .lane-word.open {
-  color: var(--parchment);
+  color: var(--ok);
+}
+
+.signal-lane .lane-word.cut {
+  color: var(--err);
 }
 
 /* --- Pool summary strip --- */

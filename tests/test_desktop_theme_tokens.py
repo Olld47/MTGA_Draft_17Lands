@@ -11,6 +11,7 @@ in the other.
 
 import os
 import re
+import colorsys
 
 import pytest
 
@@ -150,3 +151,31 @@ def test_contrast(palette, fg, bg, minimum):
 def test_scrim_is_translucent_in_both_palettes():
     for palette in PALETTES.values():
         assert palette["scrim"].startswith("rgb(")
+
+
+def _hsl(hex_color: str) -> tuple:
+    hex_color = hex_color.lstrip("#")
+    r, g, b = (int(hex_color[i : i + 2], 16) / 255 for i in (0, 2, 4))
+    return colorsys.rgb_to_hls(r, g, b)
+
+
+@pytest.mark.parametrize("palette", sorted(PALETTES))
+def test_white_mana_is_vivid_yellow_distinct_from_gold(palette):
+    """White card names and {W} pips must read as WHITE MANA, not multicolor.
+
+    Both W and multicolor gold live in the yellow hue band — the thing that
+    tells them apart is saturation: white is a vivid lemon yellow, gold is a
+    muted brown-gold. A regression to the old cream/ochre white (whose
+    saturation nearly matched gold) made the two indistinguishable, which is
+    exactly the bug this guards against."""
+    colors = PALETTES[palette]
+    w_hue, _, w_sat = _hsl(colors["mana-w"])  # rgb_to_hls → (hue, lightness, saturation)
+    _, _, g_sat = _hsl(colors["gold-foil"])
+
+    # White sits clearly in the yellow band...
+    assert 35 <= w_hue * 360 <= 75, f"{palette}: --mana-w hue {w_hue*360:.0f}"
+
+    # ...and is far more saturated than the gold it must not resemble.
+    assert w_sat - g_sat >= 0.15, (
+        f"{palette}: white sat {w_sat:.2f} vs gold sat {g_sat:.2f} — too close"
+    )

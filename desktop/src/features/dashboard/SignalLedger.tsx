@@ -1,5 +1,6 @@
-// The Signal Ledger — five WUBRG lanes filling like a mana pool over the
-// draft. The strongest lane reads "open", the weakest "cut" — table slang.
+// The Signal Ledger — five WUBRG lanes, each a dot that goes green when the
+// lane is open and red when it is cut. The strongest lane reads "open", the
+// weakest "cut" — table slang. A plain dot means no signal either way.
 
 import { useLanguage } from "../../i18n/useLanguage";
 
@@ -12,7 +13,6 @@ interface Props {
 export function SignalLedger({ scores }: Props) {
   const { t } = useLanguage();
   const values = ORDER.map((c) => scores[c] ?? 0);
-  const max = Math.max(...values, 0.001);
   const maxColor = ORDER[values.indexOf(Math.max(...values))];
   const minColor = ORDER[values.indexOf(Math.min(...values))];
   const anySignal = values.some((v) => v > 0);
@@ -20,8 +20,6 @@ export function SignalLedger({ scores }: Props) {
   return (
     <div className="signal-ledger">
       {ORDER.map((color) => {
-        const value = scores[color] ?? 0;
-        const pct = Math.max(2, (value / max) * 100);
         const word =
           anySignal && color === maxColor
             ? "open"
@@ -31,13 +29,13 @@ export function SignalLedger({ scores }: Props) {
         return (
           <div key={color} className={`signal-lane ${color.toLowerCase()}`}>
             <span className="lane-symbol">{color}</span>
-            <span className="lane-track">
-              <span
-                className="lane-fill"
-                style={{ width: anySignal ? `${pct}%` : "0%" }}
-              />
-            </span>
-            <span className={`lane-word${word === "open" ? " open" : ""}`}>
+            <span
+              className={`lane-dot${word ? ` ${word}` : ""}`}
+              aria-label={`${color} ${word}`.trim()}
+            />
+            <span
+              className={`lane-word${word === "open" ? " open" : ""}${word === "cut" ? " cut" : ""}`}
+            >
               {word === "open"
                 ? t("dash.open")
                 : word === "cut"

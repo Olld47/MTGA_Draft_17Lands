@@ -37,8 +37,9 @@
 
   /* WUBRG — functional only. U/B/R sit a few percent lighter than the original
      hand-picked values so they clear 4.5:1 as text on --felt-hover, where
-     .pip-count and .pool-strip render them over a hovered row. */
-  --mana-w: #f5efd8;
+     .pip-count and .pool-strip render them over a hovered row. W is a bright
+     lemon yellow — its own identity, distinct from multicolor's gold foil. */
+  --mana-w: #e8c927;
   --mana-u: #5194c6;
   --mana-b: #a182b9; /* violet-shifted so "black" reads on dark */
   --mana-r: #db705e;
@@ -79,9 +80,10 @@
   --err: #a8321f;
 
   /* WUBRG — every hue darkens to clear 4.5:1 as text on --felt-hover.
-     W becomes a gold-ochre: cream has nowhere to go against off-white.
+     W becomes a deep lemon yellow — pure hue (no red/blue channels) so it
+     reads as white mana, not the brownish gold that multicolor uses.
      B returns to a true dark violet, away from the dark theme's shift. */
-  --mana-w: #756217;
+  --mana-w: #7a6400;
   --mana-u: #175a89;
   --mana-b: #4f3f66;
   --mana-r: #a8321f;
