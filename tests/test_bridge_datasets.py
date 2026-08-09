@@ -32,6 +32,7 @@ if BRIDGE_PATH not in sys.path:
 from src import constants
 from src.configuration import Configuration
 from src.limited_sets import SetDictionary, SetInfo
+from src.utils import LocalSetInfo
 
 from mtga_bridge import datasets
 
@@ -59,10 +60,12 @@ def sets_folder(tmp_path, monkeypatch):
 
 
 def _row(path, display="TEST", event="PremierDraft", group="All"):
-    """One row of retrieve_local_set_list's file_list: an 8-tuple of
-    (display, event, group, start, end, count, path, collected). datasets.py
-    reads indices 0, 1, 2 and 6."""
-    return (display, event, group, "2024-01-01", "2024-02-01", 1000, path, "2024-02-02")
+    """One row of retrieve_local_set_list's file_list: a LocalSetInfo of
+    (set_name, event_type, user_group, start, end, count, path, collected).
+    datasets.py reads its named fields set_name/event_type/user_group/file_location."""
+    return LocalSetInfo(
+        display, event, group, "2024-01-01", "2024-02-01", 1000, path, "2024-02-02"
+    )
 
 
 def _stub_set_list(rows):

@@ -13,8 +13,10 @@ import threading
 import time
 from enum import Enum
 from datetime import datetime
+from typing import Optional
 
 import src.constants as constants
+from src.card_logic import format_filter_label
 from src.logger import create_logger
 from src.set_metrics import SetMetrics
 from src.dataset import Dataset
@@ -40,7 +42,9 @@ class Source(Enum):
     UPDATE = 2
 
 
-def _dataset_event_type_rank(label_event_type: str, event_name: str) -> int:
+def _dataset_event_type_rank(
+    label_event_type: str, event_name: str
+) -> Optional[int]:
     """0 = exact event-name section match, 1 = containment match, None = no match.
 
     Dataset labels carry an event type like "QuickDraft" or "PickTwoQuickDraft".
@@ -58,6 +62,29 @@ def _dataset_event_type_rank(label_event_type: str, event_name: str) -> int:
     if label_event_type.lower() in lowered:
         return 1
     return None
+
+
+def _best_dataset_by_rank(sources, set_tag: str, type_rank_for):
+    """The best (score, path) among one set's dataset sources, or None.
+
+    Scores each label by (type_rank, group_rank, label) — lower wins, so an
+    exact event-type match beats a containment match, and the broad "All"
+    sample beats "Top" within a rank. type_rank_for(label) returns the event-type
+    rank or None to skip that source; the label must carry the set's [TAG] to be
+    considered at all.
+    """
+    best = None
+    for label, path in sources.items():
+        if set_tag not in label.upper():
+            continue
+        type_rank = type_rank_for(label)
+        if type_rank is None:
+            continue
+        group_rank = 0 if label.rstrip().endswith("(All)") else 1
+        score = (type_rank, group_rank, label)
+        if best is None or score < best[0]:
+            best = (score, path)
+    return best
 
 
 class ArenaScanner:
@@ -1200,18 +1227,18 @@ class ArenaScanner:
                 if file_list:
                     file_list.sort(
                         key=lambda x: (
-                            0 if x[1] in found_types else 1,
-                            datetime.strptime(x[4], "%Y-%m-%d"),
+                            0 if x.event_type in found_types else 1,
+                            datetime.strptime(x.end_date, "%Y-%m-%d"),
                         ),
                         reverse=True,
                     )
-                    file_list.sort(key=lambda x: x[7], reverse=True)
+                    file_list.sort(key=lambda x: x.collection_date, reverse=True)
             for file in file_list:
                 set_code, event_type, user_group, location = (
-                    file[0],
-                    file[1],
-                    file[2],
-                    file[6],
+                    file.set_name,
+                    file.event_type,
+                    file.user_group,
+                    file.file_location,
                 )
                 prefix = (
                     f"[{set_code[0:6]}]"
@@ -1234,28 +1261,16 @@ class ArenaScanner:
         one (e.g. a PickTwo draft for a QuickDraft) yields all-zero stats.
         """
         set_tag = f"[{s_code.upper()}]"
-        best = None  # (type_rank, group_rank, label) -> path
         sources = self.retrieve_data_sources()
-        for label, path in sources.items():
-            if set_tag not in label.upper():
-                continue
+
+        def rank_by_event(label: str) -> Optional[int]:
             label_type = label.split("]", 1)[1].split("(", 1)[0].strip()
-            type_rank = _dataset_event_type_rank(label_type, event_name)
-            if type_rank is None:
-                continue
-            group_rank = 0 if label.rstrip().endswith("(All)") else 1
-            score = (type_rank, group_rank, label)
-            if best is None or score < best[0]:
-                best = (score, path)
+            return _dataset_event_type_rank(label_type, event_name)
+
+        best = _best_dataset_by_rank(sources, set_tag, rank_by_event)
         if best is None:
-            # Unparseable event name: fall back to any dataset for the set.
-            for label, path in sources.items():
-                if set_tag not in label.upper():
-                    continue
-                group_rank = 0 if label.rstrip().endswith("(All)") else 1
-                score = (1, group_rank, label)
-                if best is None or score < best[0]:
-                    best = (score, path)
+            # No dataset matched the event name: fall back to any source for the set.
+            best = _best_dataset_by_rank(sources, set_tag, lambda _label: 1)
         return best[1] if best else ""
 
     def retrieve_set_data(self, file):
@@ -1284,22 +1299,18 @@ class ArenaScanner:
                 ratings = self.set_data.get_color_ratings()
                 for filter_key in constants.DECK_FILTERS:
                     std_key = normalize_color_string(filter_key)
-                    display_label = std_key
-                    if (label_type == constants.DECK_FILTER_FORMAT_NAMES) and (
-                        std_key in constants.COLOR_NAMES_DICT
-                    ):
-                        display_label = constants.COLOR_NAMES_DICT[std_key]
-                    if filter_key in [
-                        constants.FILTER_OPTION_AUTO,
-                        constants.FILTER_OPTION_ALL_DECKS,
-                    ]:
-                        if std_key in ratings:
-                            display_label = f"{display_label} ({ratings[std_key]}%)"
-                        deck_colors[filter_key] = display_label
-                    elif std_key in ratings:
-                        deck_colors[filter_key] = (
-                            f"{display_label} ({ratings[std_key]}%)"
+                    if (
+                        std_key
+                        not in (
+                            constants.FILTER_OPTION_AUTO,
+                            constants.FILTER_OPTION_ALL_DECKS,
                         )
+                        and std_key not in ratings
+                    ):
+                        continue
+                    deck_colors[filter_key] = format_filter_label(
+                        std_key, label_type, ratings
+                    )
             except Exception as error:
                 logger.error(error)
             return {v: k for k, v in deck_colors.items()}

@@ -1,5 +1,6 @@
 import pytest
 from unittest.mock import MagicMock
+import src.constants as constants
 from src.log_scanner import ArenaScanner, _dataset_event_type_rank
 from src.constants import LIMITED_TYPE_DRAFT_PREMIER_V2
 from src.limited_sets import SetDictionary, SetInfo
@@ -174,6 +175,25 @@ def test_select_best_dataset_no_source_for_set_returns_empty(sources_scanner):
         }
     )
     assert s.select_best_dataset("MSH", "QuickDraft_MSH_20260806") == ""
+
+
+def test_retrieve_color_win_rate_builds_label_to_key_map(scanner):
+    """The legacy OptionMenu label->key map: rated archetypes carry the rate,
+    Auto / All Decks are always present (bare when unrated), unrated guilds are
+    omitted rather than rendered as a fake 0%. Shared with card_logic's
+    format_filter_label, so the two cannot drift."""
+    scanner.set_data.get_color_ratings = lambda: {"WU": 56.3, "All Decks": 58.0}
+
+    names = scanner.retrieve_color_win_rate(constants.DECK_FILTER_FORMAT_NAMES)
+    assert names["Auto"] == constants.FILTER_OPTION_AUTO
+    assert names["All Decks (58.0%)"] == constants.FILTER_OPTION_ALL_DECKS
+    assert names["Azorius (56.3%)"] == "WU"
+    assert "Azorius" not in names  # bare name only when unrated → omitted
+    assert "UB (0.0%)" not in names  # absent rate is not rendered as 0.0
+
+    colors = scanner.retrieve_color_win_rate(constants.DECK_FILTER_FORMAT_COLORS)
+    assert colors["WU (56.3%)"] == "WU"
+    assert colors["Auto"] == constants.FILTER_OPTION_AUTO
 
 
 # --- Draft completion ---------------------------------------------------------

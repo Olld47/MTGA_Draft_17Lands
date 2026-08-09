@@ -35,6 +35,7 @@ describe("localizeReason", () => {
     expect(localizeReason("Premium Removal Splash", "zh")).toBe("优质解场混色");
     expect(localizeReason("Greedy Bomb Splash", "zh")).toBe("贪心炸弹混色");
     expect(localizeReason("Splashable", "zh")).toBe("可混色");
+    expect(localizeReason("Off-Color Gold", "zh")).toBe("异色金牌");
     expect(localizeReason("Off-Color", "zh")).toBe("异色");
     expect(localizeReason("Curve Too Heavy", "zh")).toBe("曲线过重");
     expect(localizeReason("Critical: Needs Creatures", "zh")).toBe("关键：需要生物");

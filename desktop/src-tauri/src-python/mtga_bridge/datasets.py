@@ -91,7 +91,12 @@ def list_local_datasets(config) -> DatasetListVM:
     active = config.card_data.latest_dataset or None
     datasets = []
     for row in file_list or []:
-        set_code, event_type, user_group, path = row[0], row[1], row[2], row[6]
+        set_code, event_type, user_group, path = (
+            row.set_name,
+            row.event_type,
+            row.user_group,
+            row.file_location,
+        )
         file_name = os.path.basename(path)
         try:
             stat = os.stat(path)

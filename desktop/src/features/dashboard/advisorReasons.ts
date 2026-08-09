@@ -46,6 +46,7 @@ const REASON_RULES: Rule[] = [
   [/^Premium Removal Splash$/, () => "优质解场混色"],
   [/^Greedy Bomb Splash$/, () => "贪心炸弹混色"],
   [/^Splashable$/, () => "可混色"],
+  [/^Off-Color Gold$/, () => "异色金牌"],
   [/^Off-Color$/, () => "异色"],
   [/^Curve Too Heavy$/, () => "曲线过重"],
   [/^Critical: Needs Creatures$/, () => "关键：需要生物"],
