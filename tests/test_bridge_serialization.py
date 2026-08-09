@@ -491,7 +491,6 @@ _UNREAD_FIELD_EXCEPTIONS = {
     "functionalCmc": "internal computation; never displayed in legacy",
     "startTime": "legacy silent footer metadata; desktop header deliberately lean",
     "logSource": "redundant with 'Live'/'history' switcher labels",
-    "isLive": "same label distinction; desktop status dot uses heartbeat mtime",
     "activeDataset": "redundant with DatasetInfo.isActive",
     "seq": "draft://refresh event sequence; handlers re-fetch and ignore the counter",
 }

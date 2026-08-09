@@ -1,6 +1,7 @@
 import type { Recommendation } from "../../api/types";
 import { TAG_ICONS } from "../../components/cardColumns";
 import { useLanguage } from "../../i18n/useLanguage";
+import { localizeReason } from "./advisorReasons";
 
 interface Props {
   recommendations: Recommendation[];
@@ -11,7 +12,7 @@ interface Props {
 
 /** Top-`limit` advisor picks with reasoning chips and card-role tags. */
 export function AdvisorPanel({ recommendations, limit = 3 }: Props) {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const top = [...recommendations]
     .sort((a, b) => b.contextualScore - a.contextualScore)
     .slice(0, limit);
@@ -38,7 +39,7 @@ export function AdvisorPanel({ recommendations, limit = 3 }: Props) {
           {rec.reasoning.length > 0 && (
             <div className="reason-chips">
               {rec.reasoning.map((r) => (
-                <span key={r}>{r}</span>
+                <span key={r}>{localizeReason(r, lang)}</span>
               ))}
             </div>
           )}

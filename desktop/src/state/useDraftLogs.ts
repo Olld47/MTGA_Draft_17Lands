@@ -42,6 +42,15 @@ export function useDraftLogs(booted: boolean, currentName: string) {
     [],
   );
 
-  const selected = logs.find((l) => l.fileName === currentName)?.path ?? "";
+  const selected =
+    logs.find((l) => l.fileName === currentName)?.path ??
+    // Reconnect fallback (legacy update_history_dropdown's options[0] default):
+    // before the scanner's logName resolves — or when it matches no listed log —
+    // default to the newest saved draft record by timestamp instead of leaving
+    // the dropdown empty. The live log is skipped: a "轮抓记录" is a DraftLog_*
+    // file, and when the scanner is on live it already matches by fileName.
+    logs.find((l) => !l.isLive)?.path ??
+    logs[0]?.path ??
+    "";
   return { logs, selected, swapping, select };
 }
