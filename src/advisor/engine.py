@@ -16,6 +16,11 @@ from src.card_logic import count_fixing, get_functional_cmc
 
 logger = logging.getLogger(__name__)
 
+# Exceptions that indicate dirty / missing data in a card dict — caught and
+# skipped in all scoring loops. Structural errors (AttributeError, etc.) are
+# deliberately left uncaught so they surface as visible failures.
+_DIRTY_DATA_EXC = (TypeError, ValueError, KeyError)
+
 
 class DraftAdvisor:
     TOTAL_PICKS = 45
@@ -79,7 +84,7 @@ class DraftAdvisor:
                 )
                 if wr > 0:
                     pack_wrs.append(wr)
-            except (TypeError, ValueError, KeyError):
+            except _DIRTY_DATA_EXC:
                 continue
 
         pack_mean = statistics.mean(pack_wrs) if pack_wrs else self.global_mean
@@ -87,7 +92,7 @@ class DraftAdvisor:
         if pack_std <= 0:
             pack_std = self.global_std
 
-        pack_cards_sorted = sorted(pack_cards, key=self._safe_pack_wr, reverse=True)
+        pack_cards_sorted = sorted(pack_cards, key=self._pack_win_rate_sort_key, reverse=True)
         pack_ranks = {
             str(c.get("name", "Unknown")).strip(): i
             for i, c in enumerate(pack_cards_sorted)
@@ -283,7 +288,7 @@ class DraftAdvisor:
 
         return sorted(recommendations, key=lambda x: x.contextual_score, reverse=True)
 
-    def _safe_pack_wr(self, card: Dict) -> float:
+    def _pack_win_rate_sort_key(self, card: Dict) -> float:
         """Sort key for pack cards: dirty values fall to 0.0; a structurally
         broken card (e.g. None) still propagates instead of being masked."""
         try:
@@ -291,7 +296,7 @@ class DraftAdvisor:
                 card.get("deck_colors", {}).get("All Decks", {}).get("gihwr", 0.0)
                 or 0.0
             )
-        except (TypeError, ValueError, KeyError):
+        except _DIRTY_DATA_EXC:
             return 0.0
 
     def _identify_main_colors(self) -> Tuple[List[str], Dict[str, float]]:
@@ -321,7 +326,7 @@ class DraftAdvisor:
                 for color in colors:
                     if color in color_weights:
                         color_weights[color] += base_points * recency_mult
-            except (TypeError, ValueError, KeyError):
+            except _DIRTY_DATA_EXC:
                 continue
         sorted_w = sorted(color_weights.items(), key=lambda x: x[1], reverse=True)
         main_colors = []
@@ -399,7 +404,7 @@ class DraftAdvisor:
                     for col in colors:
                         if self.main_colors and col not in self.main_colors:
                             splash_targets.add(col)
-            except (TypeError, ValueError, KeyError):
+            except _DIRTY_DATA_EXC:
                 continue
         return {
             "early_plays": early_plays,
@@ -589,7 +594,7 @@ class DraftAdvisor:
                 if final_prob >= 75.0 and rank_in_pack >= 4
                 else (1.0, "", final_prob)
             )
-        except (TypeError, ValueError, KeyError):
+        except _DIRTY_DATA_EXC:
             return 1.0, "", 0.0
 
     def _calculate_weighted_score(self, card: Dict, pick_number: int) -> float:
@@ -625,7 +630,7 @@ class DraftAdvisor:
                     base_score *= 1.05
 
             return base_score
-        except (TypeError, ValueError, KeyError):
+        except _DIRTY_DATA_EXC:
             return 0.0
 
     def _get_fast_best_deck_score(
