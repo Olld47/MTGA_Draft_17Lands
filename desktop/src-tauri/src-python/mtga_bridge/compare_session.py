@@ -15,6 +15,7 @@ import logging
 from typing import Dict, List, Optional
 
 from src import constants
+from src.card_data import CardData
 from src.card_logic import filter_options
 
 from mtga_bridge.snapshot import card_to_vm
@@ -30,7 +31,7 @@ class CompareSession:
     def __init__(self, scanner, config):
         self.scanner = scanner
         self.config = config
-        self.compare_list: List[Dict] = []
+        self.compare_list: List[CardData] = []
 
     # --- card database -------------------------------------------------------
 

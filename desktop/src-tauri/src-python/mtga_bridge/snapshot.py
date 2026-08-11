@@ -13,6 +13,7 @@ import os
 from typing import Dict, List, Optional
 
 from src import constants
+from src.card_data import CardData
 from src.advisor.engine import DraftAdvisor
 from src.advisor.schema import Recommendation
 from src.card_logic import (
@@ -72,7 +73,7 @@ def _stat(stats: dict, field: str) -> Optional[float]:
     return round(value, digits) if digits is not None else value
 
 
-def card_stats_vm(card: dict, active_filter: str) -> CardStatsVM:
+def card_stats_vm(card: CardData, active_filter: str) -> CardStatsVM:
     stats = deck_filter_stats(card, active_filter)
     gih = _stat(stats, constants.DATA_FIELD_GIH)
     ngp = _stat(stats, constants.DATA_FIELD_NGP)
@@ -104,7 +105,7 @@ def _first_tier_rating(card_name: str, tier_data: dict) -> Optional[str]:
 
 
 def card_to_vm(
-    card: dict,
+    card: CardData,
     active_filter: str,
     rec_map: Optional[Dict[str, Recommendation]] = None,
     picked_names: Optional[set] = None,
@@ -140,7 +141,7 @@ def card_to_vm(
     )
 
 
-def pool_summary_vm(taken_cards: List[dict]) -> PoolSummaryVM:
+def pool_summary_vm(taken_cards: List[CardData]) -> PoolSummaryVM:
     metrics = get_deck_metrics(taken_cards)
     pips: Dict[str, int] = {c: 0 for c in constants.CARD_COLORS}
     type_counts: Dict[str, int] = {t: 0 for t in _TYPE_COUNT_ORDER}
@@ -176,7 +177,7 @@ def compute_signals(scanner) -> Dict[str, float]:
     for entry in history:
         if entry["Pack"] == 2:
             continue
-        h_pack = scanner.set_data.get_data_by_id(entry["Cards"])
+        h_pack: List[CardData] = scanner.set_data.get_data_by_id(entry["Cards"])
         for color, value in sig_calc.calculate_pack_signals(
             h_pack, entry["Pick"]
         ).items():
@@ -232,10 +233,10 @@ def build_draft_state(scanner, config, include_pool_summary: bool = True) -> Dra
         pack, pick = scanner.retrieve_current_pack_and_pick()
         metrics = scanner.retrieve_set_metrics()
         tier_data = scanner.retrieve_tier_data()
-        taken_cards = scanner.retrieve_taken_cards()
-        pack_cards = scanner.retrieve_current_pack_cards()
-        missing_cards = scanner.retrieve_current_missing_cards()
-        picked_cards = scanner.retrieve_current_picked_cards()
+        taken_cards: List[CardData] = scanner.retrieve_taken_cards()
+        pack_cards: List[CardData] = scanner.retrieve_current_pack_cards()
+        missing_cards: List[CardData] = scanner.retrieve_current_missing_cards()
+        picked_cards: List[CardData] = scanner.retrieve_current_picked_cards()
         draft_id = scanner.current_draft_id
         start_time = scanner.draft_start_time
         event_string = scanner.event_string
@@ -305,7 +306,7 @@ def snapshot_recap_inputs(scanner):
     with scanner.lock:
         _, event_type = scanner.retrieve_current_limited_event()
         metrics = scanner.retrieve_set_metrics()
-        taken_cards = scanner.retrieve_taken_cards()
+        taken_cards: List[CardData] = scanner.retrieve_taken_cards()
         draft_id = scanner.current_draft_id
     return taken_cards, metrics, draft_id, event_type
 
@@ -314,7 +315,7 @@ def build_taken_cards(scanner, config) -> TakenCardsVM:
     """Snapshot of the drafted pool with per-filter stats, name-deduped with counts."""
     with scanner.lock:
         metrics = scanner.retrieve_set_metrics()
-        taken_cards = scanner.retrieve_taken_cards()
+        taken_cards: List[CardData] = scanner.retrieve_taken_cards()
 
     colors = filter_options(
         taken_cards, config.settings.deck_filter, metrics, config
@@ -322,7 +323,7 @@ def build_taken_cards(scanner, config) -> TakenCardsVM:
     active_filter = colors[0] if colors else constants.FILTER_OPTION_ALL_DECKS
 
     # Dedup by name, accumulating counts
-    merged: Dict[str, dict] = {}
+    merged: Dict[str, CardData] = {}
     counts: Dict[str, int] = {}
     for card in taken_cards or []:
         name = card.get(constants.DATA_FIELD_NAME, "Unknown")

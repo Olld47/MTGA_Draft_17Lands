@@ -13,9 +13,10 @@ import threading
 import time
 from enum import Enum
 from datetime import datetime
-from typing import Optional
+from typing import List, Optional
 
 import src.constants as constants
+from src.card_data import CardData
 from src.card_logic import format_filter_label
 from src.logger import create_logger
 from src.set_metrics import SetMetrics
@@ -1315,7 +1316,7 @@ class ArenaScanner:
                 logger.error(error)
             return {v: k for k, v in deck_colors.items()}
 
-    def retrieve_current_picked_cards(self):
+    def retrieve_current_picked_cards(self) -> List[CardData]:
         with self.lock:
             if self.current_pick == 0:
                 return []
@@ -1336,7 +1337,7 @@ class ArenaScanner:
                 return self.set_data.get_data_by_id(self.picked_cards[pack_index])
             return []
 
-    def retrieve_current_missing_cards(self):
+    def retrieve_current_missing_cards(self) -> List[CardData]:
         with self.lock:
             try:
                 expected_players = (
@@ -1364,7 +1365,7 @@ class ArenaScanner:
                 logger.error(error)
             return []
 
-    def retrieve_current_pack_cards(self):
+    def retrieve_current_pack_cards(self) -> List[CardData]:
         with self.lock:
             if self.current_pick == 0:
                 return []
@@ -1384,7 +1385,7 @@ class ArenaScanner:
             if pack_index < len(self.pack_cards):
                 # We return copies of the card dicts so the UI can mutate them (e.g. for display names)
                 raw_cards = self.set_data.get_data_by_id(self.pack_cards[pack_index])
-                pack_cards = []
+                pack_cards: List[CardData] = []
 
                 # WHEEL PREDICTION: Cross-reference initial_pack slots to see which cards might come back.
                 rotation_size = expected_players
@@ -1408,7 +1409,7 @@ class ArenaScanner:
                             )
 
                 for card in raw_cards:
-                    card_copy = dict(card)
+                    card_copy: CardData = {**card}
                     name = card.get(constants.DATA_FIELD_NAME, "")
                     card_copy["returnable_at"] = sorted(
                         returnable_picks_by_name.get(name, [])
@@ -1429,7 +1430,7 @@ class ArenaScanner:
             return 2
         return 1
 
-    def retrieve_taken_cards(self):
+    def retrieve_taken_cards(self) -> List[CardData]:
         with self.lock:
             return self.set_data.get_data_by_id(self.taken_cards)
 

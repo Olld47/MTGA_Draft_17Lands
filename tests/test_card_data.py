@@ -1,7 +1,9 @@
 """
 tests/test_card_data.py
 Guards for the CardData TypedDict: field names must mirror the DATA_FIELD_*
-constants in src/constants.py so the documented card shape can't drift.
+constants in src/constants.py so the documented card shape can't drift. The
+single exception is returnable_at, a computed pack-card field with no
+constants.py equivalent — whitelisted below by name.
 """
 
 from src.card_data import CardData
@@ -42,6 +44,14 @@ STAT_FIELD_CONSTANTS = (
 )
 
 KNOWN_CARD_FIELDS = set(CARD_FIELD_CONSTANTS + STAT_FIELD_CONSTANTS)
+
+# The one documented magic-string exception: returnable_at is a computed
+# pack-card enrichment set by ArenaScanner.retrieve_current_pack_cards (the
+# picks at which a card may wheel back), not a dataset field, so it has no
+# DATA_FIELD_* constant. Anything ELSE in CardData must map to a constant.
+PACK_CARD_FIELD_RETURNABLE_AT = "returnable_at"
+
+KNOWN_CARD_FIELDS.add(PACK_CARD_FIELD_RETURNABLE_AT)
 
 # Fields initialize_card_data() guarantees on every card it touches.
 GUARANTEED_CORE = {

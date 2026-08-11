@@ -9,9 +9,10 @@ import queue
 import os
 import sys
 import threading
-from typing import Dict
+from typing import Dict, List
 
 from src import constants
+from src.card_data import CardData
 from src.configuration import write_configuration
 from src.advisor.engine import DraftAdvisor
 from src.signals import SignalCalculator
@@ -198,10 +199,16 @@ class AppController:
             pk, pi = self.orchestrator.scanner.retrieve_current_pack_and_pick()
             metrics = self.orchestrator.scanner.retrieve_set_metrics()
             tier_data = self.orchestrator.scanner.retrieve_tier_data()
-            taken_cards = self.orchestrator.scanner.retrieve_taken_cards()
-            pack_cards = self.orchestrator.scanner.retrieve_current_pack_cards()
-            missing_cards = self.orchestrator.scanner.retrieve_current_missing_cards()
-            current_picked_cards = (
+            taken_cards: List[CardData] = (
+                self.orchestrator.scanner.retrieve_taken_cards()
+            )
+            pack_cards: List[CardData] = (
+                self.orchestrator.scanner.retrieve_current_pack_cards()
+            )
+            missing_cards: List[CardData] = (
+                self.orchestrator.scanner.retrieve_current_missing_cards()
+            )
+            current_picked_cards: List[CardData] = (
                 self.orchestrator.scanner.retrieve_current_picked_cards()
             )
             history = self.orchestrator.scanner.retrieve_draft_history()
@@ -217,7 +224,9 @@ class AppController:
         for entry in history:
             if entry["Pack"] == 2:
                 continue
-            h_pack = self.orchestrator.scanner.set_data.get_data_by_id(entry["Cards"])
+            h_pack: List[CardData] = self.orchestrator.scanner.set_data.get_data_by_id(
+                entry["Cards"]
+            )
             for c, v in sig_calc.calculate_pack_signals(h_pack, entry["Pick"]).items():
                 scores[c] += v
 

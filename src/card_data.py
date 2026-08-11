@@ -22,6 +22,10 @@ class CardData(TypedDict, total=False):
     name: str
     mana_cost: str
     colors: List[str]
+    # Computed pack-card enrichment (only on ArenaScanner.retrieve_current_pack_cards
+    # output): the picks at which this card may wheel back. Not a dataset field —
+    # no DATA_FIELD_* constant exists; the guard test whitelists it by name.
+    returnable_at: List[int]
     types: List[str]
     cmc: int
     deck_colors: Dict[str, Dict[str, float]]
