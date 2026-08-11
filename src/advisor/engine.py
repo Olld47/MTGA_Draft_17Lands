@@ -12,6 +12,7 @@ import re
 from typing import List, Dict, Any, Tuple
 from src.advisor.schema import Recommendation
 from src import constants
+from src.card_data import CardData
 from src.card_logic import count_fixing, get_functional_cmc
 
 logger = logging.getLogger(__name__)
@@ -33,7 +34,7 @@ class DraftAdvisor:
     IWD_PREMIUM_THRESHOLD = 4.5
 
     def __init__(
-        self, set_metrics, taken_cards: List[Dict], signals: Dict[str, float] = None
+        self, set_metrics, taken_cards: List[CardData], signals: Dict[str, float] = None
     ):
         self.metrics = set_metrics
         self.pool = taken_cards or []
@@ -62,7 +63,7 @@ class DraftAdvisor:
         self.pool_metrics = self._analyze_pool()
 
     def evaluate_pack(
-        self, pack_cards: List[Dict], current_pick: int, current_pack: int = 1
+        self, pack_cards: List[CardData], current_pick: int, current_pack: int = 1
     ) -> List[Recommendation]:
         if not pack_cards:
             return []
@@ -288,7 +289,7 @@ class DraftAdvisor:
 
         return sorted(recommendations, key=lambda x: x.contextual_score, reverse=True)
 
-    def _pack_win_rate_sort_key(self, card: Dict) -> float:
+    def _pack_win_rate_sort_key(self, card: CardData) -> float:
         """Sort key for pack cards: dirty values fall to 0.0; a structurally
         broken card (e.g. None) still propagates instead of being masked."""
         try:
@@ -419,7 +420,7 @@ class DraftAdvisor:
             "counters_enablers": counters_enablers,
         }
 
-    def _calculate_composition_bonus(self, card: Dict, pack: int) -> Tuple[float, str]:
+    def _calculate_composition_bonus(self, card: CardData, pack: int) -> Tuple[float, str]:
         tags, cmc = card.get("tags", []), get_functional_cmc(card)
         types = card.get("types", [])
 
@@ -493,7 +494,7 @@ class DraftAdvisor:
         return 1.0, ""
 
     def _calculate_castability_v5(
-        self, card: Dict, pack: int, pick: int, z_score: float
+        self, card: CardData, pack: int, pick: int, z_score: float
     ) -> Tuple[float, str]:
         mana_cost = card.get("mana_cost", "")
         card_colors = card.get("colors", [])
@@ -572,7 +573,7 @@ class DraftAdvisor:
         return 1.0, ""
 
     def _check_relative_wheel(
-        self, card: Dict, pick: int, rank_in_pack: int
+        self, card: CardData, pick: int, rank_in_pack: int
     ) -> Tuple[float, str, float]:
         if pick >= 9:
             return 1.0, "", 0.0
@@ -597,7 +598,7 @@ class DraftAdvisor:
         except _DIRTY_DATA_EXC:
             return 1.0, "", 0.0
 
-    def _calculate_weighted_score(self, card: Dict, pick_number: int) -> float:
+    def _calculate_weighted_score(self, card: CardData, pick_number: int) -> float:
         try:
             stats = card.get("deck_colors", {})
             global_wr = float(stats.get("All Decks", {}).get("gihwr", 0.0))
@@ -634,7 +635,7 @@ class DraftAdvisor:
             return 0.0
 
     def _get_fast_best_deck_score(
-        self, pool: List[Dict], color_options: List[List[str]]
+        self, pool: List[CardData], color_options: List[List[str]]
     ) -> float:
         from src.card_logic import (
             build_variant_consistency,

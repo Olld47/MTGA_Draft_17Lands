@@ -10,6 +10,7 @@ from src.utils import (
     sanitize_card_name,
 )
 from typing import List, Dict, Tuple
+from src.card_data import CardData
 from src.constants import (
     DATA_FIELD_NAME,
     DATA_FIELD_COLORS,
@@ -189,7 +190,7 @@ class Dataset:
         self._dataset = json_data
         return result
 
-    def get_data_by_id(self, id_list: List[str]) -> List[Dict]:
+    def get_data_by_id(self, id_list: List[str]) -> List[CardData]:
         if not isinstance(id_list, list):
             return []
         card_data = []
@@ -392,7 +393,7 @@ class Dataset:
 
         return card_data
 
-    def get_data_by_name(self, name_list: List[str]) -> List[Dict]:
+    def get_data_by_name(self, name_list: List[str]) -> List[CardData]:
         if not isinstance(name_list, list) or not self._dataset:
             return []
         return [self._name_index[n] for n in name_list if n in self._name_index]
