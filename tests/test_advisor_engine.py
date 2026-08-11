@@ -448,3 +448,83 @@ def test_calculate_weighted_score_signal_tie_breaker(mock_metrics):
     base = no_signal._calculate_weighted_score(card, pick_number=10)
     boosted = with_signal._calculate_weighted_score(card, pick_number=10)
     assert boosted == pytest.approx(base * 1.05)
+
+
+# ---------------------------------------------------------------------------
+# Narrowed exception handling (candidate A): dirty values are skipped
+# gracefully, but structurally broken cards propagate instead of being masked.
+# ---------------------------------------------------------------------------
+
+
+def test_evaluate_pack_bad_wr_skipped_gracefully(mock_metrics):
+    # A card whose gihwr is not a number must be skipped in the pack-WR stats
+    # (and in scoring) without crashing the whole pack evaluation.
+    advisor = DraftAdvisor(mock_metrics, [])
+    pack = [
+        {
+            "name": "Good",
+            "colors": ["W"],
+            "types": ["Creature"],
+            "cmc": 2,
+            "deck_colors": {"All Decks": {"gihwr": 60.0}},
+        },
+        {
+            "name": "Bad",
+            "colors": ["W"],
+            "deck_colors": {"All Decks": {"gihwr": "abc"}},
+        },
+    ]
+    recs = advisor.evaluate_pack(pack, current_pick=1)
+    assert len(recs) == 1
+    assert recs[0].card_name == "Good"
+    assert recs[0].contextual_score > 0.0
+
+
+def test_calculate_weighted_score_bad_stats_returns_zero(mock_metrics):
+    advisor = DraftAdvisor(mock_metrics, [])
+    score = advisor._calculate_weighted_score(
+        {"deck_colors": {"All Decks": {"gihwr": "abc"}}}, pick_number=10
+    )
+    assert score == 0.0
+
+
+def test_calculate_weighted_score_non_dict_propagates(mock_metrics):
+    # A structurally broken card (None instead of a dict) is NOT silently
+    # turned into a 0.0 score — it must surface as a visible failure.
+    advisor = DraftAdvisor(mock_metrics, [])
+    with pytest.raises(AttributeError):
+        advisor._calculate_weighted_score(None, pick_number=10)
+
+
+def test_check_relative_wheel_bad_alsa_returns_default(mock_metrics):
+    advisor = DraftAdvisor(mock_metrics, [])
+    mult, reason, pct = advisor._check_relative_wheel(
+        {"deck_colors": {"All Decks": {"alsa": "abc"}}}, pick=5, rank_in_pack=0
+    )
+    assert (mult, reason, pct) == (1.0, "", 0.0)
+
+
+def test_analyze_pool_bad_card_skipped(mock_metrics):
+    # A card whose data can't be parsed is skipped by the pool analysis.
+    good = {
+        "colors": ["W"],
+        "types": ["Creature"],
+        "cmc": 2,
+        "deck_colors": {"All Decks": {"gihwr": 60.0}},
+    }
+    bad = {"colors": ["W"], "deck_colors": {"All Decks": {"gihwr": "abc"}}}
+    advisor = DraftAdvisor(mock_metrics, [good, bad])
+    assert advisor.pool_metrics["creature_count"] == 1
+    assert advisor.pool_metrics["early_plays"] == 1
+
+
+def test_identify_main_colors_bad_card_skipped(mock_metrics):
+    good = {
+        "colors": ["W"],
+        "types": ["Creature"],
+        "cmc": 2,
+        "deck_colors": {"All Decks": {"gihwr": 60.0}},
+    }
+    bad = {"colors": ["W"], "deck_colors": {"All Decks": {"gihwr": "abc"}}}
+    advisor = DraftAdvisor(mock_metrics, [good, bad])
+    assert "W" in advisor.main_colors
