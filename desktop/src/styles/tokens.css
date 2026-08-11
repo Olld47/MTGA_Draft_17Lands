@@ -110,12 +110,20 @@
   --text-lg: 17px;
   --text-xl: 26px;
 
+  /* Global zoom — set from the persisted uiSize setting (state/scale.ts).
+     Fixed/sticky chrome scales uniformly under `html { zoom }`. */
+  --ui-scale: 1;
+
   --radius: 6px;
   --gap: 12px;
 }
 
 * {
   box-sizing: border-box;
+}
+
+html {
+  zoom: var(--ui-scale);
 }
 
 html,

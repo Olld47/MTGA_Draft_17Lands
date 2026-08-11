@@ -937,7 +937,8 @@
   word-break: break-word;
 }
 
-.error-toast {
+.error-toast,
+.dataset-toast {
   position: fixed;
   bottom: 16px;
   right: 16px;
@@ -948,6 +949,12 @@
   padding: 10px 14px;
   font-size: var(--text-sm);
   z-index: 10;
+}
+
+/* The dataset toast is a success/neutral notice, not an error — green border
+   distinguishes it from the error path while sharing the fixed-toast chrome. */
+.dataset-toast {
+  border-color: var(--ok);
 }
 
 /* --- Shared helpers (recap / deck / sealed / compare / tiers) ------------- */

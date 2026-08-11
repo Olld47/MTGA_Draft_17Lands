@@ -14,8 +14,9 @@ not an attribute of mtga_bridge.boot.
 
 import os
 import sys
+import threading
 from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
+from unittest.mock import ANY, MagicMock, patch
 
 import anyio
 import pytest
@@ -90,6 +91,11 @@ def booted(runtime, monkeypatch):
     # holds test paths. parse_known_args tolerates them, but pin it anyway.
     monkeypatch.setattr(sys, "argv", ["mtga-draft-desktop"])
 
+    # _boot_blocking now spawns a real daemon thread for the post-boot dataset
+    # notifier — stub it so no test leaks a thread that later hits the network.
+    thread_cls = MagicMock()
+    monkeypatch.setattr(threading, "Thread", thread_cls)
+
     with patch("src.bootstrap.cleanup_old_draft_logs") as cleanup, patch(
         "src.bootstrap.load_data", return_value={"scanner": scanner}
     ) as load_data, patch(
@@ -108,6 +114,7 @@ def booted(runtime, monkeypatch):
             orchestrator_cls=orchestrator_cls,
             adapter_cls=adapter_cls,
             build_state=build_state,
+            thread_cls=thread_cls,
         )
 
 
@@ -339,3 +346,20 @@ def test_run_boot_survives_a_failing_emitter(runtime):
         anyio.run(boot.run_boot, runtime, broken_emit)
 
     assert runtime.boot_error == "boom"
+
+
+# --- Post-boot dataset notifier thread ----------------------------------------
+
+
+def test_boot_spawns_the_dataset_notifier_thread(booted):
+    """_boot_blocking hands the post-boot dataset refresh to a daemon thread
+    (the legacy Notifications.check_dataset() mirror). It must be daemon so
+    boot never blocks on it and shutdown never joins it."""
+    boot._boot_blocking(booted.runtime, booted.emit)
+
+    booted.thread_cls.assert_called_once_with(
+        target=ANY, args=(booted.runtime, booted.emit), daemon=True
+    )
+    target = booted.thread_cls.call_args.kwargs["target"]
+    assert target.__name__ == "check_dataset_updates"
+    assert booted.thread_cls.return_value.start.call_count == 1

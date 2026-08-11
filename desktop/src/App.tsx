@@ -12,6 +12,7 @@ import {
 } from "./api/events";
 import { useDraftState } from "./state/useDraftState";
 import { DatasetSwitcher } from "./components/DatasetSwitcher";
+import { DatasetUpdateToast } from "./components/DatasetUpdateToast";
 import { useDatasetSwitcher } from "./state/useDatasetSwitcher";
 import { onNavigateTab } from "./state/navigation";
 import { draftPhase } from "./state/draftPhase";
@@ -256,6 +257,7 @@ export default function App() {
       </main>
 
       {appError && <div className="error-toast">{appError}</div>}
+      <DatasetUpdateToast />
     </div>
   );
 }

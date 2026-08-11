@@ -5,6 +5,7 @@ import type { Settings, SettingsPatch } from "../api/types";
 import type { Lang } from "../i18n/locales";
 import { setLanguage } from "../i18n/useLanguage";
 import { applyTheme, type ThemePreference } from "./theme";
+import { applyUiScale } from "./scale";
 
 // Module-level shared store: every useSettings() call subscribes to the SAME
 // state, so a patch made in SettingsPage re-renders every consumer (App's
@@ -23,6 +24,7 @@ function receive(next: Settings) {
   settings = next;
   applyTheme(next.desktopTheme as ThemePreference);
   setLanguage(next.language as Lang);
+  applyUiScale(next.uiSize);
   emit();
 }
 
@@ -54,6 +56,7 @@ async function patch(p: SettingsPatch) {
     settings = { ...settings, ...p };
     if (p.desktopTheme) applyTheme(p.desktopTheme as ThemePreference);
     if (p.language) setLanguage(p.language as Lang);
+    if (p.uiSize) applyUiScale(p.uiSize);
     emit();
   }
   try {

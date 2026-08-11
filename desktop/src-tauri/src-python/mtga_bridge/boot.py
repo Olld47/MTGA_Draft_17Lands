@@ -8,6 +8,7 @@ event adapter.
 import argparse
 import logging
 import sys
+import threading
 
 import anyio.to_thread
 
@@ -80,6 +81,15 @@ def _boot_blocking(runtime, emit):
             has_dataset=bool(runtime.config.card_data.latest_dataset),
         ),
     )
+
+    # Legacy Notifications.check_dataset() ran a silent 17Lands refresh ~1.5s
+    # after launch, gated by update_notifications_enabled. Mirror it on a daemon
+    # thread so boot never blocks on it and shutdown never joins it.
+    from mtga_bridge.dataset_notifier import check_dataset_updates
+
+    threading.Thread(
+        target=check_dataset_updates, args=(runtime, emit), daemon=True
+    ).start()
 
 
 async def run_boot(runtime, emit):

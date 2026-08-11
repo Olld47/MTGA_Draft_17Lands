@@ -56,6 +56,14 @@ class AppError(_VM):
     message: str
 
 
+class DatasetsUpdatedVM(_VM):
+    """Payload for datasets://updated — how many datasets the background check
+    actually downloaded. The localized message is built on the frontend
+    (i18n owns user-facing text), so this carries only the count."""
+
+    updated_count: int
+
+
 class StatusEvent(_VM):
     text: str
 

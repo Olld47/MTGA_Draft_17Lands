@@ -68,7 +68,11 @@ class DatasetUpdater:
         A fresh install only needs the sets that are live right now, so the
         manifest is filtered to the draft formats 17Lands reports as currently
         playable (live_formats_by_expansion). If that endpoint is unreachable
-        we fall back to the manifest's own active_sets, then to everything."""
+        we fall back to the manifest's own active_sets, then to everything.
+
+        Returns the number of datasets actually downloaded (0 when nothing
+        changed or the sync failed). Existing callers ignore the return; the
+        count powers the desktop background update-notifier."""
         try:
             # Check pipeline health first to notify user if there are backend issues
             try:
@@ -113,7 +117,7 @@ class DatasetUpdater:
                 else:
                     scoped = remote_datasets  # no live info at all → download all
 
-            updates_made = False
+            updates_made = 0
 
             for key, file_info in scoped.items():
                 remote_hash = file_info.get("hash")
@@ -144,13 +148,16 @@ class DatasetUpdater:
                     if "datasets" not in local_manifest:
                         local_manifest["datasets"] = {}
                     local_manifest["datasets"][key] = file_info
-                    updates_made = True
+                    updates_made += 1
 
             self.save_local_manifest(local_manifest)
 
             if updates_made:
                 progress_callback("Datasets updated successfully.")
 
+            return updates_made
+
         except Exception as e:
             logger.error(f"Failed to sync datasets: {e}")
             progress_callback("Skipped dataset sync (Network Error).")
+            return 0

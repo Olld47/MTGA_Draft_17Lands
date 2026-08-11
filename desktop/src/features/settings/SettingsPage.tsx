@@ -31,6 +31,14 @@ const LANGUAGES = [
   { value: "zh", label: "简体中文" },
 ];
 
+// The legacy uiSize setting is a percentage string (UI_SIZE_DICT, 40%..250%),
+// and the <select> label IS the persisted value — no i18n key needed.
+const UI_SCALES = [
+  "40%", "50%", "60%", "70%", "80%", "90%", "100%",
+  "110%", "120%", "130%", "140%", "150%", "160%", "170%",
+  "180%", "190%", "200%", "210%", "220%", "230%", "240%", "250%",
+];
+
 interface ToggleRowProps {
   labelKey: string;
   hintKey?: string;
@@ -105,6 +113,22 @@ export function SettingsPage() {
             {THEMES.map((o) => (
               <option key={o.value} value={o.value}>
                 {t(o.labelKey)}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="setting-row">
+          <label>
+            {t("settings.uiSize")}
+            <div className="hint">{t("settings.uiSizeHint")}</div>
+          </label>
+          <select
+            value={settings.uiSize}
+            onChange={(e) => patch({ uiSize: e.target.value })}
+          >
+            {UI_SCALES.map((s) => (
+              <option key={s} value={s}>
+                {s}
               </option>
             ))}
           </select>
@@ -195,6 +219,12 @@ export function SettingsPage() {
           hintKey="settings.autoSyncHint"
           checked={settings.autoSyncDatasets}
           onChange={(v) => patch({ autoSyncDatasets: v })}
+        />
+        <ToggleRow
+          labelKey="settings.updateNotifications"
+          hintKey="settings.updateNotificationsHint"
+          checked={settings.updateNotificationsEnabled}
+          onChange={(v) => patch({ updateNotificationsEnabled: v })}
         />
         <ToggleRow
           labelKey="settings.saveDraftLogs"

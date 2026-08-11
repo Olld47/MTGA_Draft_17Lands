@@ -13,6 +13,12 @@
           localStorage.getItem("mtga.theme") || "dark";
         document.documentElement.lang =
           localStorage.getItem("mtga.lang") || "en";
+        // state/scale.ts owns this key and overwrites it once the real setting
+        // loads; painting it first avoids a zoom flash on launch.
+        document.documentElement.style.setProperty(
+          "--ui-scale",
+          localStorage.getItem("mtga.uiScale") || "1",
+        );
       } catch (e) {
         document.documentElement.dataset.theme = "dark";
       }

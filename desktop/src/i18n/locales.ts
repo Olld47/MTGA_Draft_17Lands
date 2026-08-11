@@ -255,6 +255,7 @@ export const messages: Record<Lang, Record<string, string>> = {
     "datasets.use": "Use",
     "datasets.delete": "Delete",
     "datasets.empty": "No datasets downloaded yet",
+    "datasets.updatedToast": "{n} datasets updated",
 
     // Recap
     "recap.empty": "Finish a draft to see your pool recap and grade.",
@@ -318,6 +319,8 @@ export const messages: Record<Lang, Record<string, string>> = {
     "settings.display": "Display",
     "settings.appearance": "Appearance",
     "settings.appearanceHint": "System follows your OS light/dark setting",
+    "settings.uiSize": "UI scale",
+    "settings.uiSizeHint": "Resizes the whole interface",
     "settings.language": "Language",
     "settings.languageHint": "Switch the interface language",
     "settings.theme.system": "System",
@@ -343,6 +346,9 @@ export const messages: Record<Lang, Record<string, string>> = {
     "settings.data": "Data",
     "settings.autoSync": "Auto-sync cloud datasets",
     "settings.autoSyncHint": "Downloads pre-compiled 17Lands datasets at startup",
+    "settings.updateNotifications": "Notify about dataset updates",
+    "settings.updateNotificationsHint":
+      "Checks 17Lands shortly after launch and notifies when new data is downloaded",
     "settings.saveDraftLogs": "Save draft logs",
     "settings.saveDraftLogsHint": "Keeps per-draft logs in the Logs folder for 30 days",
     "settings.missingDatasetNotifs": "Missing dataset notifications",
@@ -601,6 +607,7 @@ export const messages: Record<Lang, Record<string, string>> = {
     "datasets.use": "使用",
     "datasets.delete": "删除",
     "datasets.empty": "尚未下载数据集",
+    "datasets.updatedToast": "已更新 {n} 个数据集",
 
     // Recap
     "recap.empty": "完成一次轮抓后即可查看卡池回顾与评分。",
@@ -664,6 +671,8 @@ export const messages: Record<Lang, Record<string, string>> = {
     "settings.display": "显示",
     "settings.appearance": "外观",
     "settings.appearanceHint": "跟随系统可自动适配深色/浅色",
+    "settings.uiSize": "界面缩放",
+    "settings.uiSizeHint": "缩放整个界面",
     "settings.language": "语言",
     "settings.languageHint": "切换界面语言",
     "settings.theme.system": "跟随系统",
@@ -688,6 +697,8 @@ export const messages: Record<Lang, Record<string, string>> = {
     "settings.data": "数据",
     "settings.autoSync": "自动同步云端数据集",
     "settings.autoSyncHint": "启动时下载预编译的 17Lands 数据集",
+    "settings.updateNotifications": "数据集更新通知",
+    "settings.updateNotificationsHint": "启动后自动检查 17Lands 新数据",
     "settings.saveDraftLogs": "保存轮抓日志",
     "settings.saveDraftLogsHint": "在 Logs 文件夹中保留每次轮抓日志 30 天",
     "settings.missingDatasetNotifs": "缺少数据集时通知",

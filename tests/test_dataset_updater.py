@@ -53,7 +53,7 @@ def test_sync_datasets_downloads_new_files(mock_get, updater, tmp_path):
     progress_mock = MagicMock()
 
     # Act
-    updater.sync_datasets(progress_mock)
+    result = updater.sync_datasets(progress_mock)
 
     # Assert
     # Verify the GZ file was extracted and saved correctly as a standard JSON
@@ -68,6 +68,9 @@ def test_sync_datasets_downloads_new_files(mock_get, updater, tmp_path):
     local_manifest = updater.get_local_manifest()
     assert "MH3_PremierDraft_All" in local_manifest["datasets"]
     assert local_manifest["datasets"]["MH3_PremierDraft_All"]["hash"] == "fake_hash_123"
+
+    # One dataset was downloaded → the sync reports a count of 1
+    assert result == 1
 
 
 @patch("src.dataset_updater.requests.get")
@@ -109,11 +112,13 @@ def test_sync_datasets_skips_existing_hashes(mock_get, updater, tmp_path):
     progress_mock = MagicMock()
 
     # Act
-    updater.sync_datasets(progress_mock)
+    result = updater.sync_datasets(progress_mock)
 
     # Assert: Network was only hit three times (Health + Filters + Manifest),
     # meaning the file download was skipped
     assert mock_get.call_count == 3
+    # Nothing changed → the sync reports a count of 0
+    assert result == 0
 
 
 def test_dataset_key_splitting():
@@ -282,5 +287,55 @@ def test_sync_datasets_downloads_everything_when_no_live_info(mock_get, updater,
 
     updater.sync_datasets(MagicMock())
 
+    assert (tmp_path / "MSH_PremierDraft_All_Data.json").exists()
+    assert (tmp_path / "TMT_PremierDraft_All_Data.json").exists()
+
+
+@patch("src.dataset_updater.requests.get")
+def test_sync_datasets_counts_each_downloaded_set(mock_get, updater, tmp_path):
+    """The return value is the number of datasets actually downloaded — a
+    boolean would collapse this into True. Guards the counter upgrade on
+    sync_datasets, which the desktop background notifier turns into
+    "N datasets updated"."""
+    manifest_datasets = {
+        "MSH_PremierDraft_All": {
+            "hash": "h_msh", "filename": "MSH_PremierDraft_All_Data.json.gz"
+        },
+        "TMT_PremierDraft_All": {
+            "hash": "h_tmt", "filename": "TMT_PremierDraft_All_Data.json.gz"
+        },
+    }
+    mock_manifest_response = MagicMock()
+    mock_manifest_response.status_code = 200
+    mock_manifest_response.json.return_value = {
+        "active_sets": ["MSH", "TMT"],
+        "datasets": manifest_datasets,
+    }
+    mock_filters_response = MagicMock()
+    mock_filters_response.status_code = 200
+    mock_filters_response.json.return_value = {
+        "live_formats_by_expansion": {
+            "MSH": ["PremierDraft"],
+            "TMT": ["PremierDraft"],
+        }
+    }
+
+    def gz_response():
+        r = MagicMock()
+        r.status_code = 200
+        r.content = gzip.compress(b'{"card": "data"}')
+        return r
+
+    mock_get.side_effect = [
+        MagicMock(status_code=200, json=lambda: {"pipeline_run": {"status": "SUCCESS"}}),
+        mock_manifest_response,
+        mock_filters_response,
+        gz_response(),
+        gz_response(),
+    ]
+
+    result = updater.sync_datasets(MagicMock())
+
+    assert result == 2
     assert (tmp_path / "MSH_PremierDraft_All_Data.json").exists()
     assert (tmp_path / "TMT_PremierDraft_All_Data.json").exists()

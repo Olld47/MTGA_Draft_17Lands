@@ -13,6 +13,7 @@ export const EVENTS = {
   draftRefresh: "draft://refresh",
   draftHeartbeat: "draft://heartbeat",
   appError: "app://error",
+  datasetsUpdated: "datasets://updated",
 } as const;
 
 export interface BootProgressPayload {
@@ -47,6 +48,10 @@ export interface HeartbeatPayload {
 
 export interface AppErrorPayload {
   message: string;
+}
+
+export interface DatasetsUpdatedPayload {
+  updatedCount: number;
 }
 
 export function on<T>(

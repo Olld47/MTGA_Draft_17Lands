@@ -208,7 +208,7 @@ def test_every_command_returns_a_vm_model():
 
 EMIT_SOURCES = [
     os.path.join(BRIDGE_PATH, "mtga_bridge", name)
-    for name in ("boot.py", "orchestrator_adapter.py", "__init__.py")
+    for name in ("boot.py", "orchestrator_adapter.py", "__init__.py", "dataset_notifier.py")
 ]
 
 _EMIT_NAMES = {"emit", "_emit_safe"}
@@ -475,8 +475,6 @@ def test_every_view_model_is_used_outside_viewmodels():
 # test_allowlisted_fields_stay_unread fails the moment one of these appears in
 # desktop/src, demanding its removal.
 _UNREAD_FIELD_EXCEPTIONS = {
-    "uiSize": "tkinter UI scale; Tauri sizes its own window",
-    "updateNotificationsEnabled": "tkinter dataset-update poller; desktop has none",
     "activeVariant": "redundant with variants[].isActive (SealedPage tab bar)",
     "sessionId": "sealed-save persistence key; never displayed",
     "isBuilding": "mirrored locally by SuggestPage around the awaited command",

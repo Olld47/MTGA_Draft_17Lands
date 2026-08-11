@@ -43,7 +43,7 @@ const settings = (over: Partial<Settings> = {}): Settings => ({
   deckFilter: "Auto",
   filterFormat: "Names",
   resultFormat: "Percentage",
-  uiSize: "100",
+  uiSize: "100%",
   desktopTheme: "System",
   language: "en",
   cardColorsEnabled: false,
@@ -94,6 +94,61 @@ describe("SettingsPage", () => {
     expect(
       screen.getByRole("heading", { name: "Display" }),
     ).toBeInTheDocument();
+    // receive() applies the persisted uiSize (100% here) to the global zoom.
+    // If that line is removed (mutation), --ui-scale is never set and fails.
+    expect(
+      document.documentElement.style.getPropertyValue("--ui-scale"),
+    ).toBe("1");
+  });
+
+  it("renders the UI scale select and patches the backend live", async () => {
+    render(<SettingsPage />);
+    const row = await waitFor(() =>
+      screen
+        .getByText(/^UI scale/, { selector: "label" })
+        .closest(".setting-row")! as HTMLElement,
+    );
+    const select = within(row).getByRole("combobox") as HTMLSelectElement;
+
+    // The value IS the persisted uiSize string — a legacy 22-option scale.
+    expect(select).toHaveValue("100%");
+    expect(within(select).getAllByRole("option")).toHaveLength(22);
+    expect(
+      within(select).getByRole("option", { name: "150%" }),
+    ).toBeInTheDocument();
+
+    // Keep the backend response in flight so the only path to zoom 150% is the
+    // optimistic applyUiScale in useSettings.patch — if that line is removed
+    // (mutation), the CSS var stays "1" and this test fails.
+    vi.mocked(setSettings).mockReturnValue(new Promise<Settings>(() => {}));
+
+    fireEvent.change(select, { target: { value: "150%" } });
+
+    await waitFor(() =>
+      expect(setSettings).toHaveBeenCalledWith({ uiSize: "150%" }),
+    );
+    expect(
+      document.documentElement.style.getPropertyValue("--ui-scale"),
+    ).toBe("1.5");
+  });
+
+  it("renders the update-notifications toggle and patches it", async () => {
+    render(<SettingsPage />);
+    const row = await waitFor(() =>
+      screen
+        .getByText(/^Notify about dataset updates/, { selector: "label" })
+        .closest(".setting-row")! as HTMLElement,
+    );
+    const checkbox = within(row).getByRole("checkbox") as HTMLInputElement;
+    expect(checkbox).toBeChecked();
+
+    fireEvent.click(checkbox);
+
+    await waitFor(() =>
+      expect(setSettings).toHaveBeenCalledWith({
+        updateNotificationsEnabled: false,
+      }),
+    );
   });
 
   it("switching the language patches the backend and flips the UI", async () => {
