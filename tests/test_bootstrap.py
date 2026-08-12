@@ -26,8 +26,11 @@ def test_sync_cloud_datasets_returns_the_download_count(monkeypatch):
     assert _sync_cloud_datasets(config, lambda msg: None) == 3
 
 
-def test_sync_cloud_datasets_reports_zero_when_disabled(monkeypatch):
-    """Auto-sync off and not an upgrade → nothing downloads → count 0.
+def test_sync_cloud_datasets_returns_none_when_disabled(monkeypatch):
+    """Auto-sync off and not an upgrade → boot never attempts a sync, so the
+    result must be None (not 0). The desktop notifier reads None as 'boot did
+    not sync → run a fresh silent sync'; a 0 would be misread as 'boot synced,
+    nothing to report' and skip the notification entirely.
     assert_not_called guards the gate: a removed gate would fall through to a
     network sync, which the mock's AssertionError side_effect makes explode."""
     config = Configuration()
@@ -36,5 +39,22 @@ def test_sync_cloud_datasets_reports_zero_when_disabled(monkeypatch):
     sync = MagicMock(side_effect=AssertionError("must not sync when disabled"))
     monkeypatch.setattr("src.dataset_updater.DatasetUpdater.sync_datasets", sync)
 
-    assert _sync_cloud_datasets(config, lambda msg: None) == 0
+    assert _sync_cloud_datasets(config, lambda msg: None) is None
     sync.assert_not_called()
+
+
+def test_sync_cloud_datasets_returns_zero_when_sync_ran_but_nothing_changed(
+    monkeypatch,
+):
+    """Auto-sync on and the sync ran but downloaded nothing → 0, NOT None.
+    The notifier distinguishes the two: None means 'boot didn't sync → run a
+    fresh sync', 0 means 'boot synced, nothing to report → stay silent'. A
+    careless None here would re-sync 1.5s after a successful no-op boot sync."""
+    config = Configuration()
+    config.settings.auto_sync_datasets = True
+    config.settings.last_run_version = constants.APPLICATION_VERSION
+    monkeypatch.setattr(
+        "src.dataset_updater.DatasetUpdater.sync_datasets", MagicMock(return_value=0)
+    )
+
+    assert _sync_cloud_datasets(config, lambda msg: None) == 0

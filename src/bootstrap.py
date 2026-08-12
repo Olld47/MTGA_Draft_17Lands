@@ -8,6 +8,7 @@ live in main.py, with progress reported through a plain callback.
 import logging
 import os
 import time
+from typing import Optional
 
 from src import constants
 from src.configuration import write_configuration
@@ -36,11 +37,13 @@ def cleanup_old_draft_logs(max_age_seconds: int = 2592000):
         logger.error(f"Failed cleaning old draft logs: {e}")
 
 
-def _sync_cloud_datasets(config, progress_callback) -> int:
+def _sync_cloud_datasets(config, progress_callback) -> Optional[int]:
     """Sync pre-compiled 17Lands datasets at boot. Returns how many datasets
-    were actually downloaded this run (0 when unchanged, disabled, or failed);
-    the desktop background notifier (mtga_bridge/dataset_notifier) turns that
-    into "N datasets updated"."""
+    were actually downloaded this run (0 when unchanged or the sync failed), or
+    None when no sync was attempted (auto-sync off and not an upgrade). The
+    desktop background notifier (mtga_bridge/dataset_notifier) reads None as
+    "boot did not sync — run a fresh silent sync" and any int as "boot synced —
+    report the count, do not re-sync"."""
     upgraded = config.settings.last_run_version != constants.APPLICATION_VERSION
     if upgraded:
         # One-time migration after an update. v4.18 corrects 17Lands stats
@@ -67,7 +70,7 @@ def _sync_cloud_datasets(config, progress_callback) -> int:
         downloaded = DatasetUpdater(config).sync_datasets(progress_callback)
         return downloaded or 0
     progress_callback("Cloud sync disabled by user...")
-    return 0
+    return None
 
 
 def load_data(args, config, progress_callback):

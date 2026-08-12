@@ -360,7 +360,7 @@ def test_boot_spawns_the_dataset_notifier_thread(booted):
     booted.thread_cls.assert_called_once_with(
         target=ANY,
         args=(booted.runtime, booted.emit),
-        kwargs={"boot_updated": 0},
+        kwargs={"boot_updated": None},
         daemon=True,
     )
     target = booted.thread_cls.call_args.kwargs["target"]

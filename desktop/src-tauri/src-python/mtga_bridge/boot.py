@@ -85,14 +85,17 @@ def _boot_blocking(runtime, emit):
     # Legacy Notifications.check_dataset() ran a silent 17Lands refresh ~1.5s
     # after launch, gated by update_notifications_enabled. Mirror it on a daemon
     # thread so boot never blocks on it and shutdown never joins it. Hand it the
-    # boot-time sync count so the toast reports what bootstrap.load_data already
-    # downloaded instead of re-syncing (which would find nothing).
+    # boot-time sync signal so the toast reports what bootstrap.load_data
+    # already downloaded instead of re-syncing (which would find nothing). The
+    # signal is tri-state: an int (0 or more) means boot synced and downloaded
+    # that many; None (auto-sync off) means boot never attempted, so the
+    # notifier runs its own sync.
     from mtga_bridge.dataset_notifier import check_dataset_updates
 
     threading.Thread(
         target=check_dataset_updates,
         args=(runtime, emit),
-        kwargs={"boot_updated": data.get("datasets_updated", 0)},
+        kwargs={"boot_updated": data.get("datasets_updated")},
         daemon=True,
     ).start()
 
