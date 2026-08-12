@@ -7,7 +7,9 @@ import copy
 import logging
 import re
 import itertools
+from typing import List
 from src import constants
+from src.card_data import CardData
 from src.card_logic import get_functional_cmc, stack_cards
 from src.advisor.mana_base import (
     is_castable,
@@ -396,7 +398,7 @@ def optimize_deck(base_deck, base_sb, archetype_key, colors):
 
 
 def suggest_deck(
-    taken_cards,
+    taken_cards: List[CardData],
     metrics,
     configuration,
     event_type="PremierDraft",
@@ -729,7 +731,7 @@ def suggest_deck(
     return sorted_decks
 
 
-def build_variant_consistency(pool, colors, metrics, tier_data=None):
+def build_variant_consistency(pool: List[CardData], colors, metrics, tier_data=None):
     candidates = [
         c
         for c in pool
@@ -758,7 +760,7 @@ def build_variant_consistency(pool, colors, metrics, tier_data=None):
     return stack_cards(spells + non_basic_lands + basics)
 
 
-def build_variant_greedy(pool, colors, metrics, tier_data=None):
+def build_variant_greedy(pool: List[CardData], colors, metrics, tier_data=None):
     global_mean, global_std = metrics.get_metrics("All Decks", "gihwr")
     if global_mean == 0.0:
         global_mean = 54.0
@@ -847,7 +849,7 @@ def build_variant_greedy(pool, colors, metrics, tier_data=None):
     return stack_cards(deck_spells + non_basic_lands + basics), best_splash_col
 
 
-def build_variant_curve(pool, colors, metrics, tier_data=None):
+def build_variant_curve(pool: List[CardData], colors, metrics, tier_data=None):
     candidates = [
         c
         for c in pool
@@ -885,7 +887,7 @@ def build_variant_curve(pool, colors, metrics, tier_data=None):
     return stack_cards(spells + non_basic_lands + basics)
 
 
-def build_variant_soup(pool, metrics, tier_data=None):
+def build_variant_soup(pool: List[CardData], metrics, tier_data=None):
     candidates = [c for c in pool if "Land" not in c.get("types", [])]
 
     def soup_rating(card):
@@ -894,7 +896,7 @@ def build_variant_soup(pool, metrics, tier_data=None):
             card.get("tags", []),
         )
         text, name = (
-            str(card.get("oracle_text", card.get("text", ""))).lower(),
+            str(card.get("oracle_text", "")).lower(),
             str(card.get("name", "")).lower(),
         )
 

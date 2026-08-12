@@ -62,7 +62,7 @@ def sample_pool():
                 "name": f"Evolving Wilds {i}",
                 "types": ["Land"],
                 "colors": [],
-                "text": "search your library for a basic land",
+                "oracle_text": "search your library for a basic land",
                 "deck_colors": {"All Decks": {"gihwr": 55.0}},
             }
         )
@@ -154,7 +154,7 @@ def test_mana_source_analyzer():
         {
             "name": "Unknown Shores",
             "types": ["Land"],
-            "text": "add one mana of any color",
+            "oracle_text": "add one mana of any color",
         },  # Any
     ]
 

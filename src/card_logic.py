@@ -14,6 +14,7 @@ import io
 import csv
 import json
 from src import constants
+from src.card_data import CardData
 from src.logger import create_logger
 
 logger = create_logger()
@@ -21,7 +22,7 @@ logger = create_logger()
 # --- HELPER CLASSES ---
 
 
-def get_functional_cmc(card: dict) -> int:
+def get_functional_cmc(card: CardData) -> int:
     """
     Determines the practical mana cost of a card by checking for cost-reduction
     mechanics, alternate casting costs (Disguise/Morph/Evoke), and channel abilities.
@@ -29,7 +30,7 @@ def get_functional_cmc(card: dict) -> int:
     """
     try:
         raw_cmc = int(card.get("cmc", 0))
-        text = str(card.get("oracle_text", card.get("text", ""))).lower()
+        text = str(card.get("oracle_text", "")).lower()
 
         if not text:
             return raw_cmc
@@ -171,7 +172,7 @@ def filter_options(deck, option_selection, metrics, configuration):
     return [constants.FILTER_OPTION_ALL_DECKS]
 
 
-def deck_filter_stats(card: dict, active_filter: str) -> dict:
+def deck_filter_stats(card: CardData, active_filter: str) -> dict:
     """The per-archetype stats to render for a card under the active filter.
 
     17Lands records per-card rates per deck archetype. A card that never

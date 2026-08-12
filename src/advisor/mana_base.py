@@ -248,7 +248,7 @@ class ManaSourceAnalyzer:
             card.get("tags", []),
         )
         text, name = (
-            str(card.get("oracle_text", card.get("text", ""))).lower(),
+            str(card.get("oracle_text", "")).lower(),
             card.get("name", "").lower(),
         )
         card_colors, is_land = card.get("colors", []), "Land" in types
@@ -369,7 +369,7 @@ def select_useful_lands(pool, target_colors, metrics=None):
             continue
 
         text, card_colors = (
-            str(card.get("oracle_text", card.get("text", ""))).lower(),
+            str(card.get("oracle_text", "")).lower(),
             card.get("colors", []),
         )
         is_universal = any(

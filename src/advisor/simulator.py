@@ -1,13 +1,15 @@
 import numpy as np
 from numba import njit
 import re
+from typing import List
+from src.card_data import CardData
 from src.card_logic import get_functional_cmc
 
 # Mana Bitmask Mapping
 COLOR_BITS = {"W": 1, "U": 2, "B": 4, "R": 8, "G": 16}
 
 
-def _parse_deck_to_arrays(deck_list):
+def _parse_deck_to_arrays(deck_list: List[CardData]):
     """Converts the deck from slow Python dicts to fast NumPy arrays."""
     flat_deck = []
     for c in deck_list:
@@ -26,7 +28,7 @@ def _parse_deck_to_arrays(deck_list):
     for i, c in enumerate(flat_deck[:40]):
         types = c.get("types", [])
         tags = c.get("tags", [])
-        text = str(c.get("oracle_text", c.get("text", ""))).lower()
+        text = str(c.get("oracle_text", "")).lower()
 
         is_land[i] = "Land" in types
         is_ramp[i] = (
@@ -179,7 +181,7 @@ def _run_fast_monte_carlo(
     )
 
 
-def simulate_deck(deck_list, iterations=10000):
+def simulate_deck(deck_list: List[CardData], iterations=10000):
     arrays = _parse_deck_to_arrays(deck_list)
     if not arrays:
         return None

@@ -17,6 +17,7 @@ CARD_FIELD_CONSTANTS = (
     constants.DATA_FIELD_MANA_COST,
     constants.DATA_FIELD_COLORS,
     constants.DATA_FIELD_TYPES,
+    constants.DATA_FIELD_SUBTYPES,
     constants.DATA_FIELD_CMC,
     constants.DATA_FIELD_DECK_COLORS,
     constants.DATA_FIELD_TAGS,
@@ -25,6 +26,7 @@ CARD_FIELD_CONSTANTS = (
     constants.DATA_FIELD_DISABLED,
     constants.DATA_FIELD_WHEEL,
     constants.DATA_SECTION_IMAGES,
+    constants.DATA_FIELD_ORACLE_TEXT,
 )
 
 STAT_FIELD_CONSTANTS = (
@@ -66,6 +68,13 @@ GUARANTEED_CORE = {
 def test_card_data_fields_all_map_to_constants():
     # No undocumented magic-string field names in the documented card shape.
     assert set(CardData.__annotations__) <= KNOWN_CARD_FIELDS
+
+
+def test_card_data_documents_all_known_card_fields():
+    # Every documented card-field constant appears in the documented shape.
+    # Guards the reverse drift: removing a field from CardData must fail here,
+    # not silently detach the shape from the constants it mirrors.
+    assert KNOWN_CARD_FIELDS <= set(CardData.__annotations__)
 
 
 def test_card_data_documents_guaranteed_core_fields():

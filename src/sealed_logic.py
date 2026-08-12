@@ -9,6 +9,7 @@ import os
 import logging
 from typing import List, Dict, Optional, Tuple
 from src import constants
+from src.card_data import CardData
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +28,7 @@ class HeuristicEvaluator:
     }
 
     @classmethod
-    def evaluate(cls, card: Dict) -> float:
+    def evaluate(cls, card: CardData) -> float:
         from src.card_logic import get_functional_cmc
 
         rarity = str(card.get("rarity", "common")).lower()
@@ -79,7 +80,7 @@ class HeuristicEvaluator:
                         "mana_sink",
                     ]
                 )
-                text = str(card.get("oracle_text", card.get("text", ""))).lower()
+                text = str(card.get("oracle_text", "")).lower()
                 good_keywords = any(
                     kw in text
                     for kw in [
@@ -141,12 +142,12 @@ class SealedSession:
 
     def __init__(self, session_id: str):
         self.session_id = session_id
-        self.master_pool: List[Dict] = []
+        self.master_pool: List[CardData] = []
         self.variants: Dict[str, SealedVariant] = {}
         self.active_variant_name: str = ""
         self._pool_inventory: Dict[str, int] = {}
 
-    def load_pool(self, raw_pool: List[Dict]):
+    def load_pool(self, raw_pool: List[CardData]):
         self.master_pool = raw_pool
         self._pool_inventory.clear()
 
@@ -243,7 +244,7 @@ class SealedSession:
 
             self.variants[self.active_variant_name].remove_card(actual_name, count)
 
-    def get_active_deck_lists(self) -> Tuple[List[Dict], List[Dict]]:
+    def get_active_deck_lists(self) -> Tuple[List[CardData], List[CardData]]:
         if not self.active_variant_name:
             return [], []
 
@@ -303,7 +304,7 @@ class SealedSession:
 
     @classmethod
     def load_session(
-        cls, session_id: str, raw_pool: List[Dict]
+        cls, session_id: str, raw_pool: List[CardData]
     ) -> Optional["SealedSession"]:
         filepath = os.path.join(constants.TEMP_FOLDER, f"sealed_{session_id}.json")
         if not os.path.exists(filepath):

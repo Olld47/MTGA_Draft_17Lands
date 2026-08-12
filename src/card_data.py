@@ -27,6 +27,7 @@ class CardData(TypedDict, total=False):
     # no DATA_FIELD_* constant exists; the guard test whitelists it by name.
     returnable_at: List[int]
     types: List[str]
+    subtypes: List[str]
     cmc: int
     deck_colors: Dict[str, Dict[str, float]]
     tags: List[str]
@@ -35,6 +36,9 @@ class CardData(TypedDict, total=False):
     disabled: bool
     image: List[str]
     wheel: float
+    # Scryfall oracle text — present for cards in downloaded datasets; absent on
+    # synthetic basic-land stubs and locally-resolved zero-day cards.
+    oracle_text: str
     # 17Lands win-rate stats (short keys; see DATA_FIELD_17LANDS_DICT in constants)
     gihwr: float
     ohwr: float

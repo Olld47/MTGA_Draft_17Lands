@@ -13,11 +13,11 @@ import json
 import io
 import os
 import hashlib
-from typing import List, Dict
+from typing import List
 from PIL import Image, ImageTk
 from concurrent.futures import ThreadPoolExecutor
-
 from src import constants
+from src.card_data import CardData
 from src.configuration import Configuration
 from src.ui.styles import Theme
 from src.ui.components import (
@@ -38,7 +38,7 @@ class SealedStudioWindow(tb.Toplevel):
         parent,
         app_context,
         configuration: Configuration,
-        raw_pool: List[Dict],
+        raw_pool: List[CardData],
         metrics,
         draft_id: str = None,
     ):
