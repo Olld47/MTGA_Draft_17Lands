@@ -10,7 +10,7 @@ import itertools
 from typing import List
 from src import constants
 from src.card_data import CardData
-from src.card_logic import get_functional_cmc, stack_cards
+from src.card_logic import get_functional_cmc, get_oracle_text, stack_cards
 from src.advisor.mana_base import (
     is_castable,
     select_useful_lands,
@@ -896,7 +896,7 @@ def build_variant_soup(pool: List[CardData], metrics, tier_data=None):
             card.get("tags", []),
         )
         text, name = (
-            str(card.get("oracle_text", "")).lower(),
+            get_oracle_text(card),
             str(card.get("name", "")).lower(),
         )
 

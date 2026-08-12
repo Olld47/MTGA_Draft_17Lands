@@ -19,6 +19,18 @@ from src.logger import create_logger
 
 logger = create_logger()
 
+# --- CARD-TEXT HELPER ---
+
+
+def get_oracle_text(card: CardData) -> str:
+    """Returns the lower-cased oracle text of a card, safe for substring
+    matching. The single normalization point for card text: falls back to ""
+    — without raising — for cards with no usable text (missing / None / empty /
+    non-string ``oracle_text``). Never stringify ``None`` into ``"none"``."""
+    text = card.get("oracle_text", "")
+    return text.lower() if isinstance(text, str) else ""
+
+
 # --- HELPER CLASSES ---
 
 
@@ -30,7 +42,7 @@ def get_functional_cmc(card: CardData) -> int:
     """
     try:
         raw_cmc = int(card.get("cmc", 0))
-        text = str(card.get("oracle_text", "")).lower()
+        text = get_oracle_text(card)
 
         if not text:
             return raw_cmc

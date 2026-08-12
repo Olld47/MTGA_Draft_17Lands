@@ -29,7 +29,7 @@ class HeuristicEvaluator:
 
     @classmethod
     def evaluate(cls, card: CardData) -> float:
-        from src.card_logic import get_functional_cmc
+        from src.card_logic import get_functional_cmc, get_oracle_text
 
         rarity = str(card.get("rarity", "common")).lower()
         score = cls.BASE_SCORES.get(rarity, 52.0)
@@ -80,7 +80,7 @@ class HeuristicEvaluator:
                         "mana_sink",
                     ]
                 )
-                text = str(card.get("oracle_text", "")).lower()
+                text = get_oracle_text(card)
                 good_keywords = any(
                     kw in text
                     for kw in [

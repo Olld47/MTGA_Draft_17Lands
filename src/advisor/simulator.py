@@ -3,7 +3,7 @@ from numba import njit
 import re
 from typing import List
 from src.card_data import CardData
-from src.card_logic import get_functional_cmc
+from src.card_logic import get_functional_cmc, get_oracle_text
 
 # Mana Bitmask Mapping
 COLOR_BITS = {"W": 1, "U": 2, "B": 4, "R": 8, "G": 16}
@@ -28,7 +28,7 @@ def _parse_deck_to_arrays(deck_list: List[CardData]):
     for i, c in enumerate(flat_deck[:40]):
         types = c.get("types", [])
         tags = c.get("tags", [])
-        text = str(c.get("oracle_text", "")).lower()
+        text = get_oracle_text(c)
 
         is_land[i] = "Land" in types
         is_ramp[i] = (

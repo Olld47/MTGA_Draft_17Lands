@@ -6,6 +6,7 @@ Frank Karsten mathematically-optimized mana base generation and source analysis.
 import itertools
 import re
 from src import constants
+from src.card_logic import get_oracle_text
 
 
 def calculate_dynamic_mana_base(spells, non_basic_lands, colors, forced_count=17):
@@ -248,7 +249,7 @@ class ManaSourceAnalyzer:
             card.get("tags", []),
         )
         text, name = (
-            str(card.get("oracle_text", "")).lower(),
+            get_oracle_text(card),
             card.get("name", "").lower(),
         )
         card_colors, is_land = card.get("colors", []), "Land" in types
@@ -369,7 +370,7 @@ def select_useful_lands(pool, target_colors, metrics=None):
             continue
 
         text, card_colors = (
-            str(card.get("oracle_text", "")).lower(),
+            get_oracle_text(card),
             card.get("colors", []),
         )
         is_universal = any(

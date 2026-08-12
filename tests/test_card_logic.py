@@ -256,6 +256,27 @@ def test_get_functional_cmc_mechanics():
     assert get_functional_cmc({"cmc": 2, "oracle_text": None}) == 2
 
 
+# --- card text normalization --------------------------------------------------
+
+def test_get_oracle_text_normalizes_card_text():
+    """get_oracle_text is the single normalized card-text accessor. It lower-cases
+    string oracle text and falls back to \"\" — without raising — for cards with
+    no usable text (missing, None, empty, or non-string)."""
+    from src.card_logic import get_oracle_text
+
+    # String text -> lower-cased, otherwise untouched
+    assert (
+        get_oracle_text({"oracle_text": "Lightning Bolt deals 3 damage."})
+        == "lightning bolt deals 3 damage."
+    )
+    assert get_oracle_text({"oracle_text": "  Mixed CASE  "}) == "  mixed case  "
+    # Missing key, None, empty, and non-string values -> "" (never raise)
+    assert get_oracle_text({}) == ""
+    assert get_oracle_text({"oracle_text": None}) == ""
+    assert get_oracle_text({"oracle_text": ""}) == ""
+    assert get_oracle_text({"oracle_text": 123}) == ""
+
+
 # --- deck filter labels ------------------------------------------------------
 
 
@@ -485,3 +506,28 @@ def test_card_logic_does_not_transitively_import_advisor_layer():
     )
     ok, stderr = _fresh_interpreter_ok(statement)
     assert ok, stderr
+
+
+def test_card_text_access_uses_shared_helper():
+    """No advisor / card-logic module may inline the lowercased-oracle_text
+    access. Everyone calls get_oracle_text() so normalization has a single
+    definition and one place to adjust when the card shape changes."""
+    import re
+    from pathlib import Path
+
+    repo_root = Path(__file__).resolve().parents[1]
+    targets = [
+        repo_root / "src" / "card_logic.py",
+        repo_root / "src" / "sealed_logic.py",
+        *sorted((repo_root / "src" / "advisor").glob("*.py")),
+    ]
+    pattern = re.compile(r'get\("oracle_text",\s*""\)+\.lower\(\)')
+    offenders = {}
+    for path in targets:
+        for lineno, line in enumerate(path.read_text().splitlines(), 1):
+            if pattern.search(line):
+                offenders.setdefault(str(path), []).append(lineno)
+    assert not offenders, (
+        "inline lowercased-oracle_text access still present; use "
+        f"src.card_logic.get_oracle_text instead: {offenders}"
+    )
