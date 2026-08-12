@@ -409,6 +409,185 @@
             ],
             "start_date": "2026-08-04",
             "end_date": "2026-08-09"
+        },
+        {
+            "set_code": "HOB",
+            "formats": [
+                "PremierDraft",
+                "TradDraft",
+                "PickTwoDraft"
+            ],
+            "start_date": "2026-08-11",
+            "end_date": "2026-09-29"
+        },
+        {
+            "set_code": "HOB",
+            "formats": [
+                "Sealed"
+            ],
+            "start_date": "2026-08-11",
+            "end_date": "2026-09-08"
+        },
+        {
+            "set_code": "HOB",
+            "formats": [
+                "TradSealed"
+            ],
+            "start_date": "2026-08-11",
+            "end_date": "2026-08-25"
+        },
+        {
+            "set_code": "HOB + LTR",
+            "formats": [
+                "Sealed"
+            ],
+            "start_date": "2026-08-28",
+            "end_date": "2026-09-03"
+        },
+        {
+            "set_code": "DSK",
+            "formats": [
+                "QuickDraft"
+            ],
+            "start_date": "2026-08-11",
+            "end_date": "2026-08-19"
+        },
+        {
+            "set_code": "HOB",
+            "formats": [
+                "QuickDraft"
+            ],
+            "start_date": "2026-08-20",
+            "end_date": "2026-08-30"
+        },
+        {
+            "set_code": "SOS",
+            "formats": [
+                "QuickDraft"
+            ],
+            "start_date": "2026-08-31",
+            "end_date": "2026-09-07"
+        },
+        {
+            "set_code": "LTR",
+            "formats": [
+                "PremierDraft"
+            ],
+            "start_date": "2026-08-25",
+            "end_date": "2026-09-07"
+        },
+        {
+            "set_code": "MH3",
+            "formats": [
+                "PremierDraft"
+            ],
+            "start_date": "2026-09-08",
+            "end_date": "2026-09-15"
+        },
+        {
+            "set_code": "DMU",
+            "formats": [
+                "PremierDraft"
+            ],
+            "start_date": "2026-09-16",
+            "end_date": "2026-09-21"
+        },
+        {
+            "set_code": "OTJ",
+            "formats": [
+                "PremierDraft"
+            ],
+            "start_date": "2026-09-22",
+            "end_date": "2026-09-28"
+        },
+        {
+            "set_code": "Mixed-Up",
+            "formats": [
+                "PremierDraft"
+            ],
+            "start_date": "2026-09-04",
+            "end_date": "2026-09-18"
+        },
+        {
+            "set_code": "Cube - Powered",
+            "formats": [
+                "PremierDraft",
+                "TradDraft"
+            ],
+            "start_date": "2026-09-08",
+            "end_date": "2026-09-28"
+        },
+        {
+            "set_code": "HOB",
+            "formats": [
+                "ContenderDraft"
+            ],
+            "start_date": "2026-08-24",
+            "end_date": "2026-09-29"
+        },
+        {
+            "set_code": "HOB",
+            "formats": [
+                "ArenaDirect"
+            ],
+            "start_date": "2026-08-14",
+            "end_date": "2026-08-23"
+        },
+        {
+            "set_code": "HOB",
+            "formats": [
+                "ArenaDirect"
+            ],
+            "start_date": "2026-08-28",
+            "end_date": "2026-09-06"
+        },
+        {
+            "set_code": "DFT",
+            "formats": [
+                "ArenaDirect"
+            ],
+            "start_date": "2026-09-15",
+            "end_date": "2026-09-20"
+        },
+        {
+            "set_code": "MOM",
+            "formats": [
+                "ArenaDirect"
+            ],
+            "start_date": "2026-09-25",
+            "end_date": "2026-09-27"
+        },
+        {
+            "set_code": "HOB",
+            "formats": [
+                "LimitedOpen"
+            ],
+            "start_date": "2026-09-11",
+            "end_date": "2026-09-13"
+        },
+        {
+            "set_code": "HOB",
+            "formats": [
+                "QualifierPlayIn"
+            ],
+            "start_date": "2026-09-12",
+            "end_date": "2026-09-12"
+        },
+        {
+            "set_code": "HOB",
+            "formats": [
+                "TradQualifierPlayIn"
+            ],
+            "start_date": "2026-09-18",
+            "end_date": "2026-09-18"
+        },
+        {
+            "set_code": "HOB",
+            "formats": [
+                "QualifierWeekend"
+            ],
+            "start_date": "2026-09-19",
+            "end_date": "2026-09-20"
         }
     ]
 }
