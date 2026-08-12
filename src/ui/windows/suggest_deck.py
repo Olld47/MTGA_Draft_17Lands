@@ -19,7 +19,8 @@ from concurrent.futures import ThreadPoolExecutor
 from PIL import Image, ImageTk
 
 from src import constants
-from src.card_logic import copy_deck, get_strict_colors, is_castable, get_functional_cmc
+from src.advisor.mana_base import get_strict_colors, is_castable
+from src.card_logic import copy_deck, get_functional_cmc
 from src.ui.styles import Theme
 from src.ui.components import DynamicTreeviewManager, CardToolTip, AutoScrollbar
 from src.utils import bind_scroll
@@ -362,7 +363,7 @@ class SuggestDeckPanel(ttk.Frame):
     def _run_monte_carlo_task(self, deck_list):
         self.after(0, lambda: self._show_sim_loading())
         try:
-            from src.card_logic import simulate_deck
+            from src.advisor.simulator import simulate_deck
 
             stats = simulate_deck(deck_list, iterations=10000)
             self.after(0, lambda: self._show_sim_results(stats))

@@ -16,7 +16,8 @@ import re
 from typing import List, Optional
 
 from src import constants
-from src.card_logic import copy_deck, get_strict_colors
+from src.advisor.mana_base import get_strict_colors
+from src.card_logic import copy_deck
 from src.sealed_logic import SealedSession, generate_sealed_shells
 from src.utils import sanitize_card_name
 
@@ -177,7 +178,8 @@ class SealedStudioSession:
     # --- auto-lands (port of _apply_auto_lands) ------------------------------
 
     def apply_auto_lands(self) -> SealedActionVM:
-        from src.card_logic import calculate_dynamic_mana_base, count_copies
+        from src.advisor.mana_base import calculate_dynamic_mana_base
+        from src.card_logic import count_copies
 
         if not self.ensure_pool():
             return self._action("No sealed pool detected.", ok=False)

@@ -1487,11 +1487,11 @@ class SealedStudioWindow(tb.Toplevel):
         self._refresh_data()
 
     def _apply_auto_lands(self):
-        from src.card_logic import (
+        from src.advisor.mana_base import (
             calculate_dynamic_mana_base,
-            count_copies,
             get_strict_colors,
         )
+        from src.card_logic import count_copies
 
         main_deck, _ = self.session.get_active_deck_lists()
 

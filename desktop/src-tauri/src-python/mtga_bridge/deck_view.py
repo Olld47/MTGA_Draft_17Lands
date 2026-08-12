@@ -12,11 +12,10 @@ import random
 from typing import Dict, List, Optional
 
 from src import constants
+from src.advisor.mana_base import get_strict_colors, is_castable
 from src.card_logic import (
     deck_filter_stats,
     get_functional_cmc,
-    get_strict_colors,
-    is_castable,
     row_color_tag,
 )
 

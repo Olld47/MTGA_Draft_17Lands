@@ -335,7 +335,7 @@ def generate_sealed_shells(session: SealedSession, metrics, tier_data=None) -> N
         build_variant_greedy,
         build_variant_curve,
     )
-    from src.card_logic import (
+    from src.advisor.deck_scorer import (
         identify_top_pairs,
         calculate_holistic_score,
     )

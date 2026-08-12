@@ -10,7 +10,8 @@ import logging
 from typing import List, Optional
 
 from src import constants
-from src.card_logic import get_deck_metrics, identify_top_pairs
+from src.advisor.deck_scorer import identify_top_pairs
+from src.card_logic import get_deck_metrics
 from src.utils import normalize_color_string
 
 from mtga_bridge.viewmodels import (

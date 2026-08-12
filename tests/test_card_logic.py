@@ -393,3 +393,95 @@ def test_card_logic_no_longer_re_exports_deck_builder_symbols():
             f"src.card_logic re-exports {name}; import it from "
             "src.advisor.deck_builder instead"
         )
+
+
+# --- card_logic ↔ advisor-layer circular import ------------------------------
+
+# Every advisor symbol card_logic used to re-export at module scope (simulator /
+# deck_scorer / mana_base), and their true homes. The standalone-import tests
+# below are run in a fresh interpreter because pytest already holds both
+# card_logic and the advisor modules in sys.modules, which would mask the cycle.
+_ADVISOR_RE_EXPORTED = (
+    # src.advisor.simulator
+    "simulate_deck",
+    # src.advisor.mana_base
+    "calculate_dynamic_mana_base",
+    "create_basic_lands",
+    "is_castable",
+    "ManaSourceAnalyzer",
+    "count_fixing",
+    "get_strict_colors",
+    "select_useful_lands",
+    # src.advisor.deck_scorer
+    "TIER_TO_GIHWR",
+    "get_card_rating",
+    "identify_top_pairs",
+    "calculate_holistic_score",
+    "estimate_record",
+)
+
+
+def _fresh_interpreter_ok(statement):
+    """Runs `statement` in a fresh interpreter at the repo root. Returns False
+    when the interpreter exits non-zero (the statement raised)."""
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    repo_root = Path(__file__).resolve().parents[1]
+    result = subprocess.run(
+        [sys.executable, "-c", statement],
+        cwd=str(repo_root),
+        capture_output=True,
+        text=True,
+    )
+    return result.returncode == 0, result.stderr
+
+
+def test_simulator_imports_standalone_without_card_logic():
+    """Importing simulator first (before card_logic) used to raise ImportError:
+    card_logic eagerly re-imported simulate_deck at module scope while simulator
+    was still initializing, mid-way through its own import of card_logic."""
+    ok, stderr = _fresh_interpreter_ok("import src.advisor.simulator")
+    assert ok, stderr
+
+
+def test_deck_scorer_imports_standalone_without_card_logic():
+    """Same import-order fragility for deck_scorer: importing it first used to
+    raise ImportError on the re-exported TIER_TO_GIHWR block."""
+    ok, stderr = _fresh_interpreter_ok("import src.advisor.deck_scorer")
+    assert ok, stderr
+
+
+def test_mana_base_imports_standalone_without_card_logic():
+    """mana_base has no card_logic dependency of its own, but its symbols were
+    re-exported by card_logic all the same — importing it first must work and
+    never pull card_logic's re-export hub back in."""
+    ok, stderr = _fresh_interpreter_ok("import src.advisor.mana_base")
+    assert ok, stderr
+
+
+def test_card_logic_no_longer_re_exports_advisor_symbols():
+    """card_logic must not carry any simulator / deck_scorer / mana_base symbol.
+    Re-adding one here both reintroduces the import-order cycle and hides the
+    symbol's true home. Import them from src.advisor.<module> directly."""
+    import src.card_logic as card_logic
+
+    for name in _ADVISOR_RE_EXPORTED:
+        assert not hasattr(card_logic, name), (
+            f"src.card_logic re-exports {name}; import it from its real "
+            "advisor module instead"
+        )
+
+
+def test_card_logic_does_not_transitively_import_advisor_layer():
+    """Importing card_logic alone must not drag the advisor layer (numba, deck
+    scoring, simulation) into the interpreter. card_logic's own one use of this
+    block (identify_top_pairs in filter_options) must be function-local."""
+    statement = (
+        "import src.card_logic, sys\n"
+        "leaked = sorted(m for m in sys.modules if m.startswith('src.advisor'))\n"
+        "assert not leaked, leaked"
+    )
+    ok, stderr = _fresh_interpreter_ok(statement)
+    assert ok, stderr

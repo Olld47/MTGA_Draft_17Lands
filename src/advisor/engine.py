@@ -13,7 +13,8 @@ from typing import List, Dict, Any, Tuple
 from src.advisor.schema import Recommendation
 from src import constants
 from src.card_data import CardData
-from src.card_logic import count_fixing, get_functional_cmc
+from src.advisor.mana_base import count_fixing
+from src.card_logic import get_functional_cmc
 
 logger = logging.getLogger(__name__)
 
@@ -103,7 +104,7 @@ class DraftAdvisor:
         self.color_options = []
         if pack_number >= 3 and len(self.pool) >= 23:
             try:
-                from src.card_logic import identify_top_pairs
+                from src.advisor.deck_scorer import identify_top_pairs
 
                 self.color_options = identify_top_pairs(self.pool, self.metrics)
                 self.base_deck_score = self._get_fast_best_deck_score(
@@ -643,7 +644,7 @@ class DraftAdvisor:
             build_variant_curve,
             build_variant_soup,
         )
-        from src.card_logic import calculate_holistic_score
+        from src.advisor.deck_scorer import calculate_holistic_score
 
         best_score = 0.0
         for main_colors in color_options:

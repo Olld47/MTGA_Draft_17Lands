@@ -153,6 +153,8 @@ def filter_options(deck, option_selection, metrics, configuration):
         if len(deck) < 5:
             return [constants.FILTER_OPTION_ALL_DECKS]
 
+        from src.advisor.deck_scorer import identify_top_pairs
+
         top_pair = identify_top_pairs(deck, metrics)
         if top_pair and top_pair[0]:
             from src.utils import normalize_color_string
@@ -568,28 +570,13 @@ class CardResult:
         return val
 
 
-# === EXTRACTED LOGIC IMPORTS ===
-from src.advisor.simulator import simulate_deck
-from src.advisor.mana_base import (
-    calculate_dynamic_mana_base,
-    create_basic_lands,
-    is_castable,
-    ManaSourceAnalyzer,
-    count_fixing,
-    get_strict_colors,
-    select_useful_lands,
-)
-from src.advisor.deck_scorer import (
-    TIER_TO_GIHWR,
-    get_card_rating,
-    identify_top_pairs,
-    calculate_holistic_score,
-    estimate_record,
-)
-
-# NOTE: the deck_builder symbols (suggest_deck / optimize_deck /
-# clear_deck_cache / build_variant_* / GLOBAL_DECK_CACHE / get_sideboard) are
-# deliberately NOT re-exported here. deck_builder imports back from this module,
-# so re-exporting it at module scope formed a circular import that only resolved
-# by import order (importing deck_builder first raised ImportError). Consumers
-# must import those names from src.advisor.deck_builder directly.
+# NOTE: no advisor-layer symbols are re-exported from this module. The simulator
+# / deck_scorer / mana_base / deck_builder names that once lived here at module
+# scope formed circular imports that only resolved by import order (importing
+# any of those modules first raised ImportError), and dragged the whole advisor
+# stack in whenever this low-level module was imported. Consumers must import
+# those names from their real modules — src.advisor.simulator, src.advisor.deck_scorer,
+# src.advisor.mana_base, src.advisor.deck_builder — directly. The one symbol this
+# module still calls (identify_top_pairs, in filter_options) is imported
+# function-locally, so card_logic never depends on the advisor layer at import
+# time.

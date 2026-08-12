@@ -6,7 +6,7 @@ High-impact test targeting the V4 Deck Suggester and Holistic Scoring engine.
 import pytest
 from unittest.mock import MagicMock
 from src.advisor.deck_builder import suggest_deck
-from src.card_logic import calculate_dynamic_mana_base, count_fixing
+from src.advisor.mana_base import calculate_dynamic_mana_base, count_fixing
 from src.configuration import Configuration
 
 

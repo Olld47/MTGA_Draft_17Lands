@@ -11,7 +11,8 @@ from src import constants
 from src.ui.styles import Theme
 from src.utils import open_file
 from src.ui.components import ManaCurvePlot, TypePieChart
-from src.card_logic import get_deck_metrics, identify_top_pairs
+from src.advisor.deck_scorer import identify_top_pairs
+from src.card_logic import get_deck_metrics
 
 
 class DraftRecapScreen(ttk.Frame):

@@ -15,10 +15,10 @@ import logging
 from typing import Dict, List
 
 from src import constants
+from src.advisor.mana_base import get_strict_colors
 from src.card_logic import (
     copy_deck,
     count_copies,
-    get_strict_colors,
     stack_cards,
     take_copies,
 )
@@ -147,7 +147,7 @@ class DeckSession:
     # --- engine operations --------------------------------------------------
 
     def run_simulation(self) -> SimResultVM:
-        from src.card_logic import simulate_deck
+        from src.advisor.simulator import simulate_deck
 
         stats = simulate_deck(self.deck_list, iterations=10000)
         if not stats:
@@ -228,7 +228,7 @@ class DeckSession:
             else:
                 self.deck_list.append(dict(basic))
 
-        from src.card_logic import simulate_deck
+        from src.advisor.simulator import simulate_deck
 
         stats = simulate_deck(self.deck_list, iterations=10000)
         if not stats:

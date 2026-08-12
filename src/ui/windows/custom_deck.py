@@ -19,15 +19,17 @@ from concurrent.futures import ThreadPoolExecutor
 from PIL import Image, ImageTk
 
 from src import constants
+from src.advisor.mana_base import (
+    calculate_dynamic_mana_base,
+    get_strict_colors,
+    is_castable,
+)
 from src.card_logic import (
     copy_deck,
     count_copies,
     stack_cards,
     take_copies,
-    calculate_dynamic_mana_base,
     format_types_for_ui,
-    get_strict_colors,
-    is_castable,
     get_functional_cmc,
 )
 from src.ui.styles import Theme
@@ -448,7 +450,7 @@ class CustomDeckPanel(ttk.Frame):
             lambda: self._show_sim_loading("Running 10,000 Monte Carlo Simulations..."),
         )
         try:
-            from src.card_logic import simulate_deck
+            from src.advisor.simulator import simulate_deck
 
             stats = simulate_deck(deck_list, iterations=10000)
             self.after(0, lambda: self._show_sim_results(stats))
@@ -478,7 +480,7 @@ class CustomDeckPanel(ttk.Frame):
                 )
 
             from src.advisor.deck_builder import optimize_deck
-            from src.card_logic import get_strict_colors
+            from src.advisor.mana_base import get_strict_colors
 
             spells = [c for c in base_deck if "Land" not in c.get("types", [])]
             deck_colors = get_strict_colors(spells)
