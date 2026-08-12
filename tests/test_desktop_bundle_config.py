@@ -381,3 +381,71 @@ def test_release_artifacts_exclude_the_desktop_bundles():
 
     for target in ("dmg", "msi", "nsis", "bundle-release"):
         assert target not in publish, f"publish-release.yml references {target}"
+
+
+# --- uiScale zoom clamp: one definition, two readers ------------------------
+#
+# The pre-paint script in desktop/index.html and the settings layer's
+# state/scale.ts each apply the uiScale clamp (0.4-2.5, junk -> 1). The script
+# runs synchronously before the bundle loads, so it cannot import the TS
+# module; instead vite.config.ts rewrites its bound literals from
+# state/uiScaleClamp.ts at build time. These guards pin the source to that
+# module in both directions, mirroring the shape-guard pattern above.
+
+UI_SCALE_CLAMP_MODULE = os.path.join(DESKTOP, "src", "state", "uiScaleClamp.ts")
+UI_SCALE_SETTINGS = os.path.join(DESKTOP, "src", "state", "scale.ts")
+UI_SCALE_INDEX_HTML = os.path.join(DESKTOP, "index.html")
+UI_SCALE_VITE_CONFIG = os.path.join(DESKTOP, "vite.config.ts")
+
+
+def test_ui_scale_clamp_bounds_agree_across_pre_paint_and_settings():
+    """
+    If the two sides' clamp bounds drift apart, a corrupted/legacy stored
+    scale zooms differently at first paint than after settings load. The
+    shared definition is state/uiScaleClamp.ts: index.html's pre-paint script
+    carries its literals (rewritten by the build), and scale.ts must import the
+    module rather than hard-code its own copy.
+    """
+    module = _read(UI_SCALE_CLAMP_MODULE)
+    html = _read(UI_SCALE_INDEX_HTML)
+    scale = _read(UI_SCALE_SETTINGS)
+
+    mod_min = re.search(r"UI_SCALE_MIN = ([0-9.]+)", module)
+    mod_max = re.search(r"UI_SCALE_MAX = ([0-9.]+)", module)
+    assert mod_min and mod_max, "uiScaleClamp.ts must declare UI_SCALE_MIN/MAX"
+
+    html_min = re.search(r"const UI_SCALE_MIN = ([0-9.]+)", html)
+    html_max = re.search(r"const UI_SCALE_MAX = ([0-9.]+)", html)
+    assert html_min and html_max, "index.html pre-paint must declare UI_SCALE_MIN/MAX"
+
+    assert html_min.group(1) == mod_min.group(1), (
+        "index.html pre-paint floor drifted from uiScaleClamp.ts"
+    )
+    assert html_max.group(1) == mod_max.group(1), (
+        "index.html pre-paint ceiling drifted from uiScaleClamp.ts"
+    )
+
+    assert re.search(r'from "\./uiScaleClamp"', scale), (
+        "scale.ts must import the clamp from ./uiScaleClamp"
+    )
+    assert "clampUiScale" in scale, "scale.ts must use the shared clampUiScale"
+    assert not re.search(r"0\.4|2\.5", scale), (
+        "scale.ts must not hard-code its own clamp bounds"
+    )
+
+
+def test_ui_scale_clamp_injection_is_wired_into_the_build():
+    """
+    Checkbox 1 depends on the pre-paint script receiving its bounds from the
+    shared module at build time. If the transformIndexHtml wiring were removed,
+    index.html's literals would be test-enforced only — this guards the
+    mechanism itself, the same way the workflow/script guards above do.
+    """
+    config = _read(UI_SCALE_VITE_CONFIG)
+    assert "uiScaleClamp" in config, "vite.config.ts must import state/uiScaleClamp"
+    assert "rewriteUiScaleBounds" in config, (
+        "vite.config.ts must use rewriteUiScaleBounds"
+    )
+    assert "transformIndexHtml" in config, (
+        "the clamp must be wired as an index.html transform"
+    )

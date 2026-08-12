@@ -14,14 +14,18 @@
         document.documentElement.lang =
           localStorage.getItem("mtga.lang") || "en";
         // state/scale.ts owns this key and overwrites it once the real setting
-        // loads; painting it first avoids a zoom flash on launch. Mirror its
-        // clamp (0.4–2.5, junk → 1) so a corrupted/legacy stored value can't
-        // produce an unclamped zoom before the real setting arrives.
+        // loads; painting it first avoids a zoom flash on launch. The bounds
+        // come from state/uiScaleClamp.ts — the module this script can't
+        // import (it runs before the bundle loads), so vite.config.ts rewrites
+        // the two literals below from that module at every dev/build, and
+        // tests/test_desktop_bundle_config.py pins them to the same values.
+        const UI_SCALE_MIN = 0.4;
+        const UI_SCALE_MAX = 2.5;
         const storedScale = Number(localStorage.getItem("mtga.uiScale"));
         const uiScaleFactor =
           Number.isFinite(storedScale) &&
-          storedScale >= 0.4 &&
-          storedScale <= 2.5
+          storedScale >= UI_SCALE_MIN &&
+          storedScale <= UI_SCALE_MAX
             ? storedScale
             : 1;
         document.documentElement.style.setProperty(
