@@ -5,7 +5,8 @@ Challenges the status quo of Mana Base generation and Monte Carlo simulations.
 
 import pytest
 from collections import Counter
-from src.card_logic import build_variant_greedy, simulate_deck
+from src.advisor.deck_builder import build_variant_greedy
+from src.card_logic import simulate_deck
 from src.advisor.mana_base import calculate_dynamic_mana_base
 from unittest.mock import MagicMock
 

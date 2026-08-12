@@ -637,13 +637,13 @@ class DraftAdvisor:
     def _get_fast_best_deck_score(
         self, pool: List[CardData], color_options: List[List[str]]
     ) -> float:
-        from src.card_logic import (
+        from src.advisor.deck_builder import (
             build_variant_consistency,
             build_variant_greedy,
             build_variant_curve,
             build_variant_soup,
-            calculate_holistic_score,
         )
+        from src.card_logic import calculate_holistic_score
 
         best_score = 0.0
         for main_colors in color_options:

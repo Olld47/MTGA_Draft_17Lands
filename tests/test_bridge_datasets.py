@@ -338,7 +338,7 @@ def test_selecting_loads_the_dataset_and_clears_caches(config, sets_folder):
     scanner = MagicMock()
 
     with patch("mtga_bridge.datasets.write_configuration"), patch(
-        "src.card_logic.clear_deck_cache"
+        "src.advisor.deck_builder.clear_deck_cache"
     ) as clear_cache:
         result = datasets.select_dataset_blocking(scanner, config, str(path))
 
@@ -356,7 +356,7 @@ def test_selecting_takes_the_scanner_lock(config, sets_folder):
     scanner = MagicMock()
 
     with patch("mtga_bridge.datasets.write_configuration"), patch(
-        "src.card_logic.clear_deck_cache"
+        "src.advisor.deck_builder.clear_deck_cache"
     ):
         datasets.select_dataset_blocking(scanner, config, str(path))
 

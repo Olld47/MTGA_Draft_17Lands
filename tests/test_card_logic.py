@@ -348,3 +348,48 @@ def test_deck_filter_stats_does_not_invent_data():
     }
     assert deck_filter_stats(card, "WU")["gihwr"] == 0.0
     assert deck_filter_stats(card, "BG") == {}
+
+
+# --- card_logic ↔ deck_builder circular import -------------------------------
+
+
+def test_deck_builder_imports_standalone_without_card_logic():
+    """Acceptance for the P1 fix: importing deck_builder first (before
+    card_logic) must succeed. It used to raise ImportError because card_logic
+    eagerly re-exported deck_builder symbols at module scope. Run in a fresh
+    interpreter because pytest already holds both modules in sys.modules."""
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    repo_root = Path(__file__).resolve().parents[1]
+    result = subprocess.run(
+        [sys.executable, "-c", "import src.advisor.deck_builder"],
+        cwd=str(repo_root),
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
+
+
+def test_card_logic_no_longer_re_exports_deck_builder_symbols():
+    """card_logic must not carry the deck-layer symbols at all — importing them
+    here both reintroduces the cycle and hides their true home. Import the names
+    from src.advisor.deck_builder directly."""
+    import src.card_logic as card_logic
+
+    for name in (
+        "suggest_deck",
+        "optimize_deck",
+        "clear_deck_cache",
+        "get_sideboard",
+        "GLOBAL_DECK_CACHE",
+        "build_variant_consistency",
+        "build_variant_greedy",
+        "build_variant_curve",
+        "build_variant_soup",
+    ):
+        assert not hasattr(card_logic, name), (
+            f"src.card_logic re-exports {name}; import it from "
+            "src.advisor.deck_builder instead"
+        )

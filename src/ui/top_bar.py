@@ -446,7 +446,7 @@ class TopBarControls(ttk.Frame):
                         path
                     )
                     write_configuration(self.app.configuration)
-                    from src.card_logic import clear_deck_cache
+                    from src.advisor.deck_builder import clear_deck_cache
 
                     clear_deck_cache()
                 except Exception as e:

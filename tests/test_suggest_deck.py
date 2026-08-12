@@ -84,7 +84,7 @@ class TestSuggestDeckPanel:
         }
 
     def test_variants_displayed_in_dropdown(self, root, mock_draft, mock_variants):
-        with patch("src.card_logic.suggest_deck", return_value=mock_variants):
+        with patch("src.advisor.deck_builder.suggest_deck", return_value=mock_variants):
             panel = SuggestDeckPanel(root, mock_draft, Configuration())
 
             # Execute background task synchronously so assertions don't fire too early
@@ -101,7 +101,7 @@ class TestSuggestDeckPanel:
             assert any("BG Splash R" in l for l in labels)
 
     def test_deck_selection_updates_table(self, root, mock_draft, mock_variants):
-        with patch("src.card_logic.suggest_deck", return_value=mock_variants):
+        with patch("src.advisor.deck_builder.suggest_deck", return_value=mock_variants):
             panel = SuggestDeckPanel(root, mock_draft, Configuration())
 
             # Execute background task synchronously so assertions don't fire too early

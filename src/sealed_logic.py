@@ -330,11 +330,13 @@ def generate_sealed_shells(session: SealedSession, metrics, tier_data=None) -> N
     Analyzes the SealedSession's master pool and mathematically generates
     the top 3 distinct shells, loading them directly into the session variants.
     """
-    from src.card_logic import (
-        identify_top_pairs,
+    from src.advisor.deck_builder import (
         build_variant_consistency,
         build_variant_greedy,
         build_variant_curve,
+    )
+    from src.card_logic import (
+        identify_top_pairs,
         calculate_holistic_score,
     )
 

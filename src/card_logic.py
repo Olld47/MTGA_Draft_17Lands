@@ -586,14 +586,10 @@ from src.advisor.deck_scorer import (
     calculate_holistic_score,
     estimate_record,
 )
-from src.advisor.deck_builder import (
-    GLOBAL_DECK_CACHE,
-    clear_deck_cache,
-    get_sideboard,
-    optimize_deck,
-    suggest_deck,
-    build_variant_consistency,
-    build_variant_greedy,
-    build_variant_curve,
-    build_variant_soup,
-)
+
+# NOTE: the deck_builder symbols (suggest_deck / optimize_deck /
+# clear_deck_cache / build_variant_* / GLOBAL_DECK_CACHE / get_sideboard) are
+# deliberately NOT re-exported here. deck_builder imports back from this module,
+# so re-exporting it at module scope formed a circular import that only resolved
+# by import order (importing deck_builder first raised ImportError). Consumers
+# must import those names from src.advisor.deck_builder directly.

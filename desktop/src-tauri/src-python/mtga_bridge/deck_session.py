@@ -157,7 +157,7 @@ class DeckSession:
         return self._sim_result(stats, "")
 
     def auto_optimize(self) -> SimResultVM:
-        from src.card_logic import optimize_deck
+        from src.advisor.deck_builder import optimize_deck
 
         base_deck = list(self.deck_list)
         base_sb = list(self.sb_list)

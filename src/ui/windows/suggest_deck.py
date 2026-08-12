@@ -932,7 +932,7 @@ class SuggestDeckPanel(ttk.Frame):
 
         def _worker():
             try:
-                from src.card_logic import suggest_deck
+                from src.advisor.deck_builder import suggest_deck
 
                 raw_results = suggest_deck(
                     raw_pool,

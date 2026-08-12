@@ -96,7 +96,7 @@ class TestAppController:
         mock_app.configuration.card_data.latest_dataset = "M10_Data.json"
 
         with patch("os.path.exists", return_value=True):
-            with patch("src.card_logic.clear_deck_cache") as mock_clear:
+            with patch("src.advisor.deck_builder.clear_deck_cache") as mock_clear:
                 with patch.object(controller, "refresh_ui_data") as mock_refresh:
                     controller.on_dataset_update()
 

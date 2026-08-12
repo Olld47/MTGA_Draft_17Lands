@@ -172,7 +172,7 @@ class AppController:
             if os.path.exists(full_path):
                 try:
                     self.orchestrator.scanner.retrieve_set_data(full_path)
-                    from src.card_logic import clear_deck_cache
+                    from src.advisor.deck_builder import clear_deck_cache
 
                     clear_deck_cache()
                 except Exception:

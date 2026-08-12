@@ -477,7 +477,8 @@ class CustomDeckPanel(ttk.Frame):
                     f"Base deck must be exactly 40 cards to optimize (currently {total_cards})."
                 )
 
-            from src.card_logic import optimize_deck, get_strict_colors
+            from src.advisor.deck_builder import optimize_deck
+            from src.card_logic import get_strict_colors
 
             spells = [c for c in base_deck if "Land" not in c.get("types", [])]
             deck_colors = get_strict_colors(spells)

@@ -267,7 +267,7 @@ def select_dataset_blocking(scanner, config, path: str) -> bool:
         return False
     with scanner.lock:
         scanner.retrieve_set_data(path)
-    from src.card_logic import clear_deck_cache
+    from src.advisor.deck_builder import clear_deck_cache
 
     clear_deck_cache()
     config.card_data.latest_dataset = os.path.basename(path)

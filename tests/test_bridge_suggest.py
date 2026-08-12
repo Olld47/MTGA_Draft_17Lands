@@ -3,7 +3,7 @@ tests/test_bridge_suggest.py
 Bridge-layer tests for the Suggest Deck port (mtga_bridge.suggest_session) and
 the shared simulation/advice builders extracted into mtga_bridge.deck_view.
 Exercises SuggestSession against a real ArenaScanner with a mock pool, with
-src.card_logic.suggest_deck stubbed so tests don't run 10k-game Monte Carlo.
+src.advisor.deck_builder.suggest_deck stubbed so tests don't run 10k-game Monte Carlo.
 No pytauri or tkinter.
 """
 
@@ -177,7 +177,7 @@ def test_calculate_rejects_thin_pool(env):
 
 def test_calculate_reports_empty_result(env):
     session = _session(env)
-    with patch("src.card_logic.suggest_deck", return_value={}):
+    with patch("src.advisor.deck_builder.suggest_deck", return_value={}):
         session.calculate()
     assert "Not enough on-color playables" in session.status
     assert session.suggestions == {}
@@ -185,7 +185,7 @@ def test_calculate_reports_empty_result(env):
 
 def test_calculate_swallows_builder_error(env):
     session = _session(env)
-    with patch("src.card_logic.suggest_deck", side_effect=RuntimeError("boom")):
+    with patch("src.advisor.deck_builder.suggest_deck", side_effect=RuntimeError("boom")):
         session.calculate()
     assert session.status == "Builder error — see the log for details."
     assert session.is_building is False
@@ -234,7 +234,7 @@ def test_engine_error_keeps_stale_for_retry(env):
     """A failed build leaves stale=True so the frontend retries on a fresh
     draft instead of pinning the 'Builder error' message to a finished pool."""
     session = _session(env)
-    with patch("src.card_logic.suggest_deck", side_effect=RuntimeError("boom")):
+    with patch("src.advisor.deck_builder.suggest_deck", side_effect=RuntimeError("boom")):
         session.calculate()
     assert session.status == "Builder error — see the log for details."
     assert session.build_state().stale is True
@@ -259,7 +259,7 @@ def test_calculate_selects_strongest_deck_first(env):
         "WU Consistent (Power: 72)": _suggestion([_card("WU Flex", 3, ["Creature"], ["W", "U"], "{1}{W}{U}", 61.0, count=4)]),
         "BR Tempo (Power: 60)": _suggestion([_card("Red Burn", 1, ["Instant"], ["R"], "{R}", 55.0)]),
     }
-    with patch("src.card_logic.suggest_deck", return_value=results):
+    with patch("src.advisor.deck_builder.suggest_deck", return_value=results):
         session.calculate()
     assert session.status == ""
     assert session.selected == "WU Consistent (Power: 72)"
@@ -285,7 +285,7 @@ def test_calculate_releases_lock_during_engine_run(env):
         t.join()
         return {"A": _suggestion([_card("Red Burn", 1, ["Instant"], ["R"], "{R}", 55.0)])}
 
-    with patch("src.card_logic.suggest_deck", side_effect=fake_suggest):
+    with patch("src.advisor.deck_builder.suggest_deck", side_effect=fake_suggest):
         session.calculate()
 
     assert acquired_by_other_thread == [True]
@@ -308,7 +308,7 @@ def test_calculate_forwards_progress_events(env):
         )
         return {"WU Consistent": _suggestion([_card("WU Flex", 3, ["Creature"], ["W", "U"], "{1}{W}{U}", 61.0)])}
 
-    with patch("src.card_logic.suggest_deck", side_effect=fake_suggest):
+    with patch("src.advisor.deck_builder.suggest_deck", side_effect=fake_suggest):
         session.calculate(progress=lambda kind, payload: events.append((kind, payload)))
 
     assert events[0][0] == "status"
@@ -324,7 +324,7 @@ def test_calculate_forwards_progress_events(env):
 
 def _built(env, results):
     session = _session(env)
-    with patch("src.card_logic.suggest_deck", return_value=results):
+    with patch("src.advisor.deck_builder.suggest_deck", return_value=results):
         session.calculate()
     return session
 

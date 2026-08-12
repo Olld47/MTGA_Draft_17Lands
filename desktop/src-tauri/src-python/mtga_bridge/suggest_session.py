@@ -70,7 +70,7 @@ class SuggestSession:
         The scanner is only locked while snapshotting its inputs; the engine
         run itself takes seconds (10k-game simulations per variant) and must
         not block the log-scanning thread."""
-        from src.card_logic import suggest_deck
+        from src.advisor.deck_builder import suggest_deck
 
         with self.scanner.lock:
             raw_pool = self.scanner.retrieve_taken_cards() or []
