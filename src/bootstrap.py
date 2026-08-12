@@ -36,6 +36,40 @@ def cleanup_old_draft_logs(max_age_seconds: int = 2592000):
         logger.error(f"Failed cleaning old draft logs: {e}")
 
 
+def _sync_cloud_datasets(config, progress_callback) -> int:
+    """Sync pre-compiled 17Lands datasets at boot. Returns how many datasets
+    were actually downloaded this run (0 when unchanged, disabled, or failed);
+    the desktop background notifier (mtga_bridge/dataset_notifier) turns that
+    into "N datasets updated"."""
+    upgraded = config.settings.last_run_version != constants.APPLICATION_VERSION
+    if upgraded:
+        # One-time migration after an update. v4.18 corrects 17Lands stats
+        # that were previously limited to a single day of data, so force a
+        # refresh even if auto-sync is off and clear the now-orphaned raw
+        # cache (keyed by the retired start_date/end_date scheme).
+        progress_callback("Applying corrected 17Lands data (one-time update)...")
+        try:
+            from src.utils import purge_raw_cache
+
+            purge_raw_cache()
+        except Exception as purge_e:
+            logger.debug(f"Raw cache purge skipped (non-fatal): {purge_e}")
+
+        from src.dataset_updater import DatasetUpdater
+
+        downloaded = DatasetUpdater(config).sync_datasets(progress_callback)
+        config.settings.last_run_version = constants.APPLICATION_VERSION
+        write_configuration(config)
+        return downloaded or 0
+    if config.settings.auto_sync_datasets:
+        from src.dataset_updater import DatasetUpdater
+
+        downloaded = DatasetUpdater(config).sync_datasets(progress_callback)
+        return downloaded or 0
+    progress_callback("Cloud sync disabled by user...")
+    return 0
+
+
 def load_data(args, config, progress_callback):
     """Background Task: Robustly locate logs and index current dataset."""
 
@@ -83,33 +117,7 @@ def load_data(args, config, progress_callback):
                 write_configuration(config)
 
         # 3. SYNC OFFICIAL DATASETS
-        upgraded = config.settings.last_run_version != constants.APPLICATION_VERSION
-        if upgraded:
-            # One-time migration after an update. v4.18 corrects 17Lands stats
-            # that were previously limited to a single day of data, so force a
-            # refresh even if auto-sync is off and clear the now-orphaned raw
-            # cache (keyed by the retired start_date/end_date scheme).
-            progress_callback("Applying corrected 17Lands data (one-time update)...")
-            try:
-                from src.utils import purge_raw_cache
-
-                purge_raw_cache()
-            except Exception as purge_e:
-                logger.debug(f"Raw cache purge skipped (non-fatal): {purge_e}")
-
-            from src.dataset_updater import DatasetUpdater
-
-            DatasetUpdater(config).sync_datasets(progress_callback)
-
-            config.settings.last_run_version = constants.APPLICATION_VERSION
-            write_configuration(config)
-        elif config.settings.auto_sync_datasets:
-            from src.dataset_updater import DatasetUpdater
-
-            updater = DatasetUpdater(config)
-            updater.sync_datasets(progress_callback)
-        else:
-            progress_callback("Cloud sync disabled by user...")
+        datasets_updated = _sync_cloud_datasets(config, progress_callback)
 
         # 4. METADATA REFRESH
         progress_callback("Checking 17Lands for New Sets...")
@@ -193,6 +201,10 @@ def load_data(args, config, progress_callback):
                                 scanner.retrieve_set_data(path)
                                 break
 
-        return {"scanner": scanner, "config": config}
+        return {
+            "scanner": scanner,
+            "config": config,
+            "datasets_updated": datasets_updated,
+        }
     finally:
         logging.getLogger().removeHandler(splash_handler)

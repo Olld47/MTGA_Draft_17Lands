@@ -56,7 +56,7 @@ async function patch(p: SettingsPatch) {
     settings = { ...settings, ...p };
     if (p.desktopTheme) applyTheme(p.desktopTheme as ThemePreference);
     if (p.language) setLanguage(p.language as Lang);
-    if (p.uiSize) applyUiScale(p.uiSize);
+    if (p.uiSize !== undefined) applyUiScale(p.uiSize);
     emit();
   }
   try {

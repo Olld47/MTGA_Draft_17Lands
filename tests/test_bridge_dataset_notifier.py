@@ -95,8 +95,9 @@ def test_emits_the_updated_count(runtime, emit, monkeypatch):
 
 
 def test_no_update_means_no_event(runtime, emit, monkeypatch):
-    """sync_datasets already downloaded everything at boot (auto_sync_datasets),
-    so the notifier's re-check usually finds nothing — and must stay silent."""
+    """With nothing to report (boot didn't sync and the fresh sync downloads
+    nothing), the notifier stays silent — an updated_count of 0 is not an
+    event."""
     _patch_sleep_and_sync(monkeypatch, MagicMock(return_value=0))
 
     check_dataset_updates(runtime, emit)
@@ -128,3 +129,32 @@ def test_a_failed_sync_is_swallowed(runtime, emit, monkeypatch):
     check_dataset_updates(runtime, emit)  # must not raise
 
     assert emit.events == []
+
+
+def test_reports_boot_sync_count_without_re_syncing(runtime, emit, monkeypatch):
+    """The boot-time auto-sync (bootstrap.load_data) already downloaded the
+    datasets, so the notifier reports that count and does NOT run a redundant
+    second sync — the AssertionError side_effect proves the sync is skipped."""
+    sync = _patch_sleep_and_sync(
+        monkeypatch,
+        MagicMock(side_effect=AssertionError("must not re-sync after boot")),
+    )
+
+    check_dataset_updates(runtime, emit, boot_updated=3)
+
+    sync.assert_not_called()
+    assert emit.events == [
+        (EVENT_DATASETS_UPDATED, DatasetsUpdatedVM(updated_count=3))
+    ]
+
+
+def test_falls_back_to_a_fresh_sync_when_boot_did_not(runtime, emit, monkeypatch):
+    """When boot didn't download (auto-sync off, or its sync failed → count 0),
+    the notifier still runs its own silent sync so the notification works."""
+    _patch_sleep_and_sync(monkeypatch, MagicMock(return_value=2))
+
+    check_dataset_updates(runtime, emit, boot_updated=0)
+
+    assert emit.events == [
+        (EVENT_DATASETS_UPDATED, DatasetsUpdatedVM(updated_count=2))
+    ]

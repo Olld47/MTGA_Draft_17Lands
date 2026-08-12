@@ -14,10 +14,19 @@
         document.documentElement.lang =
           localStorage.getItem("mtga.lang") || "en";
         // state/scale.ts owns this key and overwrites it once the real setting
-        // loads; painting it first avoids a zoom flash on launch.
+        // loads; painting it first avoids a zoom flash on launch. Mirror its
+        // clamp (0.4–2.5, junk → 1) so a corrupted/legacy stored value can't
+        // produce an unclamped zoom before the real setting arrives.
+        const storedScale = Number(localStorage.getItem("mtga.uiScale"));
+        const uiScaleFactor =
+          Number.isFinite(storedScale) &&
+          storedScale >= 0.4 &&
+          storedScale <= 2.5
+            ? storedScale
+            : 1;
         document.documentElement.style.setProperty(
           "--ui-scale",
-          localStorage.getItem("mtga.uiScale") || "1",
+          String(uiScaleFactor),
         );
       } catch (e) {
         document.documentElement.dataset.theme = "dark";

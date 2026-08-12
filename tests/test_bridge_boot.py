@@ -358,8 +358,25 @@ def test_boot_spawns_the_dataset_notifier_thread(booted):
     boot._boot_blocking(booted.runtime, booted.emit)
 
     booted.thread_cls.assert_called_once_with(
-        target=ANY, args=(booted.runtime, booted.emit), daemon=True
+        target=ANY,
+        args=(booted.runtime, booted.emit),
+        kwargs={"boot_updated": 0},
+        daemon=True,
     )
     target = booted.thread_cls.call_args.kwargs["target"]
     assert target.__name__ == "check_dataset_updates"
     assert booted.thread_cls.return_value.start.call_count == 1
+
+
+def test_boot_forwards_the_boot_sync_count_to_the_notifier(booted):
+    """load_data's return now carries how many datasets the boot-time sync
+    downloaded; boot passes it to the notifier so the toast reports those
+    downloads instead of triggering a redundant re-sync."""
+    booted.load_data.return_value = {
+        "scanner": booted.scanner,
+        "datasets_updated": 4,
+    }
+
+    boot._boot_blocking(booted.runtime, booted.emit)
+
+    assert booted.thread_cls.call_args.kwargs["kwargs"] == {"boot_updated": 4}
