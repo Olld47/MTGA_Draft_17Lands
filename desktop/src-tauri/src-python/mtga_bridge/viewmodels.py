@@ -130,6 +130,12 @@ class DeckColorVM(_VM):
 
 
 class CardVM(_VM):
+    """Bridge projection of one card. Field whitelist is explicit — NOT
+    auto-derived from src.card_data.CardData. oracle_text / subtypes exist on
+    the Python side but have zero frontend consumers (audited 2026-08), so they
+    are intentionally not serialized; add them here only when the React app
+    starts rendering card text or subtypes."""
+
     name: str
     mana_cost: str = ""
     cmc: float = 0.0

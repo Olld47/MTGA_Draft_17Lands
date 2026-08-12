@@ -5,7 +5,7 @@ and consumed by the DraftAdvisor. Field names mirror the ``DATA_FIELD_*``
 constants in src/constants.py; see tests/test_card_data.py for the sync guard.
 """
 
-from typing import Dict, List, TypedDict
+from typing import Dict, List, TypedDict, Union
 
 
 class CardData(TypedDict, total=False):
@@ -29,7 +29,10 @@ class CardData(TypedDict, total=False):
     types: List[str]
     subtypes: List[str]
     cmc: int
-    deck_colors: Dict[str, Dict[str, float]]
+    # Per-archetype 17Lands stats. Values are win-rate floats (gihwr/ohwr/...)
+    # AND integer sample counts (samples/seen_count/pick_count/game_count) —
+    # the ETL writes both; consumers coerce with float() where needed.
+    deck_colors: Dict[str, Dict[str, Union[float, int]]]
     tags: List[str]
     rarity: str
     count: int
