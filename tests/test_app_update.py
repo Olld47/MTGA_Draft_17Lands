@@ -3,7 +3,7 @@ import sys
 import json
 import pytest
 from unittest.mock import patch, MagicMock
-from src.app_update import AppUpdate
+from src.app_update import AppUpdate, UPDATE_FILENAME
 from src.constants import OLD_APPLICATION_VERSION, PREVIOUS_APPLICATION_VERSION
 from src.constants import BASE_DIR
 
@@ -56,7 +56,7 @@ def test_retrieve_file_version_latest_success(
             "assets": [
                 {
                     "browser_download_url": "https://mock.url/file.exe",
-                    "name": "MTGA_Draft_Tool.exe",
+                    "name": UPDATE_FILENAME,
                 }
             ],
         }
@@ -83,7 +83,7 @@ def test_retrieve_file_version_old_success(
             "assets": [
                 {
                     "browser_download_url": "https://mock.url/old.zip",
-                    "name": "MTGA_Draft_Tool_old.zip",
+                    "name": UPDATE_FILENAME,
                 }
             ],
         }
@@ -93,6 +93,32 @@ def test_retrieve_file_version_old_success(
 
     version, file_location = app_update.retrieve_file_version(valid_search_location_old)
     assert version == OLD_APPLICATION_VERSION
+
+
+@patch("src.app_update.urllib.request.urlopen")
+def test_retrieve_file_version_desktop_only_release(
+    mock_urlopen, app_update, valid_search_location_latest
+):
+    """A desktop-first release (no tkinter asset) must not pick assets[0]: the
+    updater reports no update instead of downloading a .dmg/.msi it can't use."""
+    mock_response = MagicMock()
+    mock_response.read.return_value = json.dumps(
+        {
+            "tag_name": "v0.39.0",
+            "assets": [
+                {
+                    "browser_download_url": "https://mock.url/mtga-draft-desktop.dmg",
+                    "name": "mtga-draft-desktop.dmg",
+                }
+            ],
+        }
+    ).encode("utf-8")
+    mock_response.__enter__.return_value = mock_response
+    mock_urlopen.return_value = mock_response
+
+    version, file_location = app_update.retrieve_file_version(valid_search_location_latest)
+    assert version == ""
+    assert file_location == ""
 
 
 @patch("src.app_update.urllib.request.urlopen")

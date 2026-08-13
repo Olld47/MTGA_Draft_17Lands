@@ -351,21 +351,15 @@ def test_desktop_workflows_build_on_the_release_branches(platform):
     )
 
 
-def test_release_artifacts_exclude_the_desktop_bundles():
+def test_release_artifacts_include_the_desktop_bundles():
     """
-    The desktop bundles are unsigned and the .msi has never been launched, so
-    they are built but must not be attached to a Release.
-
-    The publish job's download step passes neither `name` nor `pattern` and sets
-    `merge-multiple: true`, so it takes *every* artifact in its run and flattens
-    them into one directory. Adding a desktop build job to this file would
-    therefore attach the NSIS .exe silently, and the release-body generator —
-    `next(f for f in files if f.endswith('.exe'))` — could name it in the
-    Windows verification instructions.
-
-    Asserted structurally rather than by emulating the glob: Python's fnmatch
-    has no brace expansion, so a pattern-matching version of this test would
-    return False for everything and pass vacuously.
+    The desktop bundles ARE the release artifacts. publish-release.yml runs
+    inline desktop build jobs (continue-on-error, so a red leg does not fail
+    the release) that upload the same artifact names as the standalone
+    build-desktop-*.yml legs, and the publish job attaches the .dmg/.msi/.exe
+    to the Release. Downloads must be scoped by explicit `name:` — a blanket
+    `merge-multiple` grab would silently flatten the wrong artifacts into the
+    publish step.
     """
     publish = _read(PUBLISH_WORKFLOW)
     desktop_artifacts = set()
@@ -376,11 +370,24 @@ def test_release_artifacts_exclude_the_desktop_bundles():
     assert desktop_artifacts, "the desktop workflows upload nothing"
 
     published = _upload_artifact_names(publish)
-    assert published, "publish-release.yml uploads no artifacts"
-    assert not (published & desktop_artifacts)
+    assert desktop_artifacts <= published, (
+        f"publish-release.yml uploads {sorted(published)}; expected the desktop "
+        f"bundle artifacts {sorted(desktop_artifacts)}"
+    )
 
-    for target in ("dmg", "msi", "nsis", "bundle-release"):
-        assert target not in publish, f"publish-release.yml references {target}"
+    for pattern in (
+        "release_assets/macos/*.dmg",
+        "release_assets/windows/*.msi",
+        "release_assets/windows/*.exe",
+    ):
+        assert pattern in publish, f"publish-release.yml does not attach {pattern}"
+
+    assert "merge-multiple" not in publish, "publish downloads must use explicit name:"
+
+    # The tag derives from the desktop version (tauri.conf.json), not the
+    # tkinter APPLICATION_VERSION-derived MTGA_Draft_Tool_Vxxxx scheme.
+    assert "tauri.conf.json" in publish
+    assert "MTGA_Draft_Tool_V" not in publish
 
 
 # --- uiScale zoom clamp: one definition, two readers ------------------------

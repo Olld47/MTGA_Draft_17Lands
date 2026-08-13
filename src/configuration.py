@@ -105,6 +105,10 @@ class Settings(BaseModel):
     # UI language for the pytauri desktop (frontend picks the locale dict from
     # this); the tkinter app has no localization and ignores it.
     language: str = constants.LANGUAGE_DEFAULT
+    # Which UI the default entry point (`main.py`) launches. "desktop" is the
+    # pytauri app; "tkinter" is the legacy fallback for source checkouts
+    # without a built desktop binary.
+    default_ui: str = constants.DEFAULT_UI_DEFAULT
 
     # Core Feature Toggles
     always_on_top: bool = False
@@ -167,6 +171,14 @@ class Settings(BaseModel):
     @classmethod
     def validate_language(cls, value, info):
         allowed_values = constants.LANGUAGE_LIST
+        if value not in allowed_values:
+            return cls.model_fields[info.field_name].default
+        return value
+
+    @field_validator("default_ui")
+    @classmethod
+    def validate_default_ui(cls, value, info):
+        allowed_values = constants.DEFAULT_UI_LIST
         if value not in allowed_values:
             return cls.model_fields[info.field_name].default
         return value

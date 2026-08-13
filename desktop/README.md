@@ -196,6 +196,11 @@ renders and that both palettes declare the same tokens. It cannot evaluate
 `color-mix()` or alpha, and its pair table is hand-written — it guards the
 values, not the CSS.
 
-## Not yet ported (later phases)
+## Entry point
 
-The default entry point is still `poetry run python main.py` at the repo root.
+The desktop app is now the default entry point. `poetry run python main.py` at
+the repo root dispatches to the desktop app when a build is present (via
+`MTGA_DRAFT_DESKTOP`, the bundled `.app`, or a cargo build under `desktop/target/`),
+and falls back to the tkinter UI otherwise. `--ui desktop` / `--ui tkinter`
+force a choice; the config key `default_ui` (in the shared `config.json`) sets
+the non-CLI default. Set `default_ui` to `"tkinter"` to stay on the legacy UI.

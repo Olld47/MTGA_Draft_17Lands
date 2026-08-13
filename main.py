@@ -39,8 +39,10 @@ msgs.initialize_localities = _safe_initialize_localities
 
 import argparse
 import os
+import subprocess
 import sys
 import logging
+from typing import List, Optional
 from src import constants
 from src.configuration import read_configuration, write_configuration
 from src.bootstrap import load_data, cleanup_old_draft_logs
@@ -51,6 +53,114 @@ from src.ui.styles import Theme
 logger = logging.getLogger(__name__)
 
 
+def resolve_target_ui(cli: str, configured: str) -> str:
+    """Resolve the UI to launch: an explicit `--ui` wins, else the configured
+    default, else the desktop default. Invalid values fall back to configured."""
+    if cli in constants.DEFAULT_UI_LIST:
+        return cli
+    if configured in constants.DEFAULT_UI_LIST:
+        return configured
+    return constants.DEFAULT_UI_DEFAULT
+
+
+def find_desktop_launcher() -> Optional[str]:
+    """Return a runnable desktop binary path, or None if none is built.
+
+    Probe order: MTGA_DRAFT_DESKTOP env var, then the bundled .app on macOS,
+    then the cargo release/debug binaries. The env var may be a file or, on
+    macOS, an .app directory (whose inner binary is then probed).
+    """
+    candidates: List[str] = []
+    env = os.environ.get("MTGA_DRAFT_DESKTOP")
+    if env:
+        candidates.append(env)
+        if sys.platform == "darwin" and os.path.isdir(env):
+            candidates.append(
+                os.path.join(env, "Contents", "MacOS", "mtga-draft-desktop")
+            )
+    if sys.platform == "darwin":
+        candidates.append(
+            os.path.join(
+                constants.BASE_DIR,
+                "desktop",
+                "target",
+                "bundle-release",
+                "bundle",
+                "macos",
+                "mtga-draft-desktop.app",
+                "Contents",
+                "MacOS",
+                "mtga-draft-desktop",
+            )
+        )
+    exe = ".exe" if sys.platform == "win32" else ""
+    for build_dir in ("release", "debug"):
+        candidates.append(
+            os.path.join(
+                constants.BASE_DIR,
+                "desktop",
+                "target",
+                build_dir,
+                f"mtga-draft-desktop{exe}",
+            )
+        )
+    for candidate in candidates:
+        if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
+            return candidate
+    return None
+
+
+def launch_desktop(binary: str, file: Optional[str] = None, data: Optional[str] = None):
+    """Spawn the desktop app detached and hand control to it. `-f/-d` are
+    forwarded verbatim (mtga_bridge.boot._parse_cli_args mirrors them)."""
+    argv = [binary]
+    if file:
+        argv += ["-f", file]
+    if data:
+        argv += ["-d", data]
+    kwargs: dict = {"stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL}
+    if sys.platform == "win32":
+        kwargs["creationflags"] = getattr(subprocess, "DETACHED_PROCESS", 0)
+    else:
+        kwargs["start_new_session"] = True
+    subprocess.Popen(argv, **kwargs)
+    sys.exit(0)
+
+
+def dispatch_ui(cli_ui, configured_ui, file=None, data=None):
+    """Route the process to the requested UI; returns None to fall through to
+    the tkinter flow.
+
+    Desktop path: spawn the built binary (sys.exit(0) on success). An explicit
+    `--ui desktop` with nothing built is a hard error (sys.exit(2)); the
+    auto/config path logs a warning and falls back to tkinter so a source
+    checkout without a build always launches something.
+    """
+    target = resolve_target_ui(cli_ui, configured_ui)
+    if target != constants.DEFAULT_UI_DESKTOP:
+        return None
+    launcher = find_desktop_launcher()
+    if launcher:
+        logger.info(f"Launching desktop UI: {launcher}")
+        launch_desktop(launcher, file, data)
+    if cli_ui == constants.DEFAULT_UI_DESKTOP:
+        # An explicit `--ui desktop` is a user contract: never silently
+        # downgrade it to tkinter.
+        print(
+            "No desktop build found. Build or locate one first:\n"
+            "  - dev:    cd desktop && npm run tauri dev\n"
+            "  - build:  ./build_desktop.sh\n"
+            "  - or set MTGA_DRAFT_DESKTOP to the binary.\n"
+            "To launch the legacy tkinter UI instead, pass `--ui tkinter`."
+        )
+        sys.exit(2)
+    logger.warning(
+        "default_ui is 'desktop' but no desktop build is present; "
+        "falling back to the tkinter UI."
+    )
+    return None
+
+
 def main():
     # 30-day draft log cleanup
     cleanup_old_draft_logs()
@@ -59,6 +169,11 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("-f", "--file", help="Path to Player.log")
     parser.add_argument("-d", "--data", help="Path to MTGA Data")
+    parser.add_argument(
+        "--ui",
+        default="auto",
+        help="UI to launch: auto (default, reads config default_ui), desktop, or tkinter",
+    )
     parser.add_argument("--version", action="store_true", help="Print version and exit")
     args, _ = parser.parse_known_args()
 
@@ -70,6 +185,11 @@ def main():
 
     # Load Config
     config, _ = read_configuration()
+
+    # Dispatch to the chosen UI. `--version` short-circuited above so the CI
+    # smoke test never reaches here.
+    dispatch_ui(args.ui, config.settings.default_ui, args.file, args.data)
+
     root = None
 
     # Surface config-save failures via tkinter in this (tkinter) entry point

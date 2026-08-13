@@ -250,6 +250,14 @@ DESKTOP_THEME_DEFAULT = DESKTOP_THEME_SYSTEM
 LANGUAGE_DEFAULT = "en"
 LANGUAGE_LIST = ["en", "zh"]
 
+# Which UI the default entry point (`main.py`) dispatches to. "desktop" is the
+# pytauri app; "tkinter" is the legacy fallback, reachable via `--ui tkinter`
+# or by setting `default_ui` to "tkinter".
+DEFAULT_UI_DESKTOP = "desktop"
+DEFAULT_UI_TKINTER = "tkinter"
+DEFAULT_UI_LIST = [DEFAULT_UI_DESKTOP, DEFAULT_UI_TKINTER]
+DEFAULT_UI_DEFAULT = DEFAULT_UI_DESKTOP
+
 RESULT_UNKNOWN_STRING = " "
 RESULT_UNKNOWN_VALUE = 0.0
 

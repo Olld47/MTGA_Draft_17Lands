@@ -64,6 +64,9 @@ macOS actively quarantines unsigned apps downloaded from the internet. To run th
   - *(Mac Only)* Install web certificates by going to `/Applications/Python 3.12/` and double-clicking the file `Install Certificates.command`.
 - **Step 7:** In MTG Arena, go to **Options -> Account**, and check the **Detailed Logs (Plugin Support)** check box.
 - **Step 8:** Start the application by opening the terminal and entering `poetry run python main.py`.
+  The desktop (PyTauri) app is the default UI when a desktop build is present;
+  a plain source checkout falls back to the tkinter UI. `--ui desktop` forces
+  the desktop app once built, `--ui tkinter` forces the legacy UI.
 - **Step 9:** If the application asks you for the location of the Arena player log, click `File -> Read Player.log` and select your MTGA `Player.log` file.
 - **Step 10:** The app will automatically download 17Lands data for currently active sets in the background.
 - **Step 11:** Start your draft in Arena.

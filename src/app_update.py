@@ -86,8 +86,31 @@ class AppUpdate:
 
     def __process_file_version(self, release: dict) -> None:
         try:
-            # 1. Grab the download URL immediately so it's never skipped
-            self.file_location = release["assets"][0]["browser_download_url"]
+            # The release now ships desktop bundles (.dmg/.msi/.exe) first. The
+            # legacy tkinter app must pick its own asset by name rather than
+            # assets[0], or it would download a desktop bundle it cannot use.
+            asset = next(
+                (
+                    a
+                    for a in release.get("assets", [])
+                    if a.get("name") == UPDATE_FILENAME
+                ),
+                None,
+            )
+            if asset is None:
+                # The desktop app has replaced the legacy update channel; there
+                # is no tkinter asset on this release to fetch.
+                self.version = ""
+                self.file_location = ""
+                logger.info(
+                    "No %s asset on the latest release; the desktop app has "
+                    "replaced the legacy update channel.",
+                    UPDATE_FILENAME,
+                )
+                return
+
+            # 1. Grab the download URL so it's never skipped
+            self.file_location = asset["browser_download_url"]
 
             # 2. Try the modern Semantic Tag approach first (v4.05, v3.2, etc.)
             tag_name = release.get("tag_name", "")
@@ -97,8 +120,7 @@ class AppUpdate:
                 self.version = match.group(1)
             else:
                 # 3. Fallback to legacy filename parsing (MTGA_Draft_Tool_V0320.zip -> 0320)
-                filename = release["assets"][0]["name"]
-                nums = re.findall(r"\d+", filename)
+                nums = re.findall(r"\d+", asset["name"])
                 if nums:
                     version_code = nums[0]
                     if len(version_code) >= 3:

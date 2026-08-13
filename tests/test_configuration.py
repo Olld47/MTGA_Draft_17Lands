@@ -155,6 +155,16 @@ def test_language_validator_accepts_listed_and_falls_back():
     assert Settings(language="fr").language == constants.LANGUAGE_DEFAULT
 
 
+def test_default_ui_validator_accepts_listed_and_falls_back():
+    """Settings.default_ui accepts the constants.DEFAULT_UI_LIST values and falls
+    back to the desktop default on anything else."""
+    from src import constants
+
+    assert Settings().default_ui == constants.DEFAULT_UI_DEFAULT
+    assert Settings(default_ui=constants.DEFAULT_UI_TKINTER).default_ui == "tkinter"
+    assert Settings(default_ui="browser").default_ui == constants.DEFAULT_UI_DEFAULT
+
+
 def test_write_configuration_error_notifier(tmp_path, example_configuration):
     """A registered error notifier is invoked when the config write fails."""
     from src import configuration as config_module
