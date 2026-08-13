@@ -46,8 +46,8 @@ MANIFEST
 #  before PyInstaller builds the exe, so as to inject date/other infos into it.
 *.manifest
 
-# Vitest cache
-node_modules/.vite/vitest/
+# Node.js dependencies
+node_modules/
 
 # Installer logs
 pip-log.txt
