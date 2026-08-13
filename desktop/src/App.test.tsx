@@ -6,7 +6,6 @@ import type {
   DraftLog,
   DraftLogList,
   DraftState,
-  SealedState,
   Settings,
 } from "./api/types";
 import { EVENTS } from "./api/events";
@@ -102,6 +101,7 @@ import {
   setLogFile,
 } from "./api/client";
 import { resetSealedAutoRun } from "./state/sealedAutoRun";
+import { sealedAction, sealedState } from "./test/fixtures";
 
 const bootStatus = (): BootStatus => ({
   booted: true,
@@ -155,32 +155,6 @@ const draftState = (over: Partial<DraftState> = {}): DraftState => ({
   ...over,
 });
 
-const sealedState = (over: Partial<SealedState> = {}): SealedState => ({
-  hasPool: true,
-  poolSize: 60,
-  sessionId: "s1",
-  variants: [{ name: "Build 1", isActive: true, mainCount: 0 }],
-  activeVariant: "Build 1",
-  deck: [],
-  sideboard: [],
-  stats: {
-    totalCards: 0,
-    creatures: 0,
-    noncreatures: 0,
-    lands: 0,
-    avgCmc: 0,
-    pips: [],
-    curve: {},
-    tribes: [],
-    tags: [],
-    basics: {},
-  },
-  mainCount: 0,
-  sideboardCount: 60,
-  activeFilter: "Auto",
-  ...over,
-});
-
 async function renderBooted(
   state: DraftState,
   opts: { logs?: DraftLogList } = {},
@@ -218,16 +192,12 @@ beforeEach(() => {
   // page (empty state) so no auto-run fires; the auto-run tests override the
   // read below with a fresh pool.
   vi.mocked(getSealedState).mockResolvedValue(sealedState({ hasPool: false }));
-  vi.mocked(sealedAutoGenerate).mockResolvedValue({
-    ok: true,
-    message: "",
-    state: sealedState({ mainCount: 23 }),
-  });
-  vi.mocked(sealedAutoLands).mockResolvedValue({
-    ok: true,
-    message: "",
-    state: sealedState({ mainCount: 40 }),
-  });
+  vi.mocked(sealedAutoGenerate).mockResolvedValue(
+    sealedAction(sealedState({ mainCount: 23 })),
+  );
+  vi.mocked(sealedAutoLands).mockResolvedValue(
+    sealedAction(sealedState({ mainCount: 40 })),
+  );
 });
 
 afterEach(() => {

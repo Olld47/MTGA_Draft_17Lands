@@ -19,7 +19,10 @@ import {
 } from "../../api/client";
 import { EVENTS, on, type RefreshPayload } from "../../api/events";
 import type { SealedAction, SealedState } from "../../api/types";
-import { consumeSealedPool } from "../../state/sealedAutoRun";
+import {
+  isFreshSealedPool,
+  markSealedPoolConsumed,
+} from "../../state/sealedAutoRun";
 import { DeckStatsView, DeckTable } from "../deck/DeckStatsView";
 import { PracticeDialog } from "../practice/PracticeDialog";
 import type { GroupBy } from "../../components/cardGroups";
@@ -103,11 +106,15 @@ export function SealedPage({ colorTint }: { colorTint: boolean }) {
   }, [refresh]);
 
   // A first-time visitor lands on a shelled, land-assigned deck without
-  // clicking Auto-generate shells / Auto-lands. consumeSealedPool returns true
-  // only for a fresh pool (empty deck, unseen session), so the page's
-  // conditional remount on tab switches never re-fires and clobber manual edits.
+  // clicking Auto-generate shells / Auto-lands. isFreshSealedPool is true only
+  // for a fresh pool (empty deck, unseen session), so the page's conditional
+  // remount on tab switches never re-fires and clobber manual edits. The
+  // freshness must be judged before the session is marked, or nothing ever
+  // looks fresh; the mark is unconditional so a later clear can't re-trigger.
   useEffect(() => {
-    if (!consumeSealedPool(state)) return;
+    const fresh = isFreshSealedPool(state);
+    markSealedPoolConsumed(state);
+    if (!fresh) return;
     // Lands derive from the generated shells, so both awaits share one try/catch.
     void (async () => {
       setBusy(true);

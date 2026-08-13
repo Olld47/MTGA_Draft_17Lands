@@ -1,62 +1,50 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
-import type { SealedState } from "../api/types";
-import { consumeSealedPool, resetSealedAutoRun } from "./sealedAutoRun";
-
-const pool = (over: Partial<SealedState> = {}): SealedState => ({
-  hasPool: true,
-  poolSize: 60,
-  sessionId: "s1",
-  variants: [{ name: "Build 1", isActive: true, mainCount: 0 }],
-  activeVariant: "Build 1",
-  deck: [],
-  sideboard: [],
-  stats: {
-    totalCards: 0,
-    creatures: 0,
-    noncreatures: 0,
-    lands: 0,
-    avgCmc: 0,
-    pips: [],
-    curve: {},
-    tribes: [],
-    tags: [],
-    basics: {},
-  },
-  mainCount: 0,
-  sideboardCount: 60,
-  activeFilter: "Auto",
-  ...over,
-});
+import { sealedState } from "../test/fixtures";
+import {
+  isFreshSealedPool,
+  markSealedPoolConsumed,
+  resetSealedAutoRun,
+} from "./sealedAutoRun";
 
 beforeEach(() => {
   resetSealedAutoRun();
 });
 
-describe("consumeSealedPool", () => {
-  it("returns true for a fresh pool (empty deck, unseen session)", () => {
-    expect(consumeSealedPool(pool())).toBe(true);
+describe("isFreshSealedPool", () => {
+  it("is true for a fresh pool (empty deck, unseen session)", () => {
+    expect(isFreshSealedPool(sealedState())).toBe(true);
   });
 
-  it("returns false on a second look at the same session — the fresh state is consumed", () => {
-    expect(consumeSealedPool(pool())).toBe(true);
-    expect(consumeSealedPool(pool())).toBe(false);
+  it("is false once the session has been marked consumed", () => {
+    markSealedPoolConsumed(sealedState());
+    expect(isFreshSealedPool(sealedState())).toBe(false);
   });
 
-  it("returns false for a populated deck and keeps the session consumed, so a later clear never re-triggers", () => {
-    expect(consumeSealedPool(pool({ mainCount: 12 }))).toBe(false);
-    expect(consumeSealedPool(pool({ mainCount: 0 }))).toBe(false);
+  it("is false for a populated deck", () => {
+    expect(isFreshSealedPool(sealedState({ mainCount: 12 }))).toBe(false);
   });
 
-  it("returns true again for a genuinely new session", () => {
-    consumeSealedPool(pool());
-    expect(consumeSealedPool(pool({ sessionId: "s2" }))).toBe(true);
+  it("is false when no pool is loaded", () => {
+    expect(isFreshSealedPool(null)).toBe(false);
+    expect(isFreshSealedPool(sealedState({ hasPool: false }))).toBe(false);
   });
 
-  it("returns false and consumes nothing when no pool is loaded", () => {
-    expect(consumeSealedPool(null)).toBe(false);
-    expect(consumeSealedPool(pool({ hasPool: false }))).toBe(false);
-    // A pool arriving later is still treated as fresh.
-    expect(consumeSealedPool(pool())).toBe(true);
+  it("is true again for a genuinely new session", () => {
+    markSealedPoolConsumed(sealedState());
+    expect(isFreshSealedPool(sealedState({ sessionId: "s2" }))).toBe(true);
+  });
+});
+
+describe("markSealedPoolConsumed", () => {
+  it("records the session even for a populated pool, so a later clear never re-triggers", () => {
+    markSealedPoolConsumed(sealedState({ mainCount: 12 }));
+    expect(isFreshSealedPool(sealedState({ mainCount: 0 }))).toBe(false);
+  });
+
+  it("records nothing when no pool is loaded", () => {
+    markSealedPoolConsumed(null);
+    markSealedPoolConsumed(sealedState({ hasPool: false }));
+    expect(isFreshSealedPool(sealedState())).toBe(true);
   });
 });

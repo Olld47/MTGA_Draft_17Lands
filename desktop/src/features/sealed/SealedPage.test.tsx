@@ -1,8 +1,8 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { SealedAction, SealedState } from "../../api/types";
 import { resetSealedAutoRun } from "../../state/sealedAutoRun";
+import { sealedAction, sealedState } from "../../test/fixtures";
 import { SealedPage } from "./SealedPage";
 
 // The bridge is the system boundary: the page reads the pool through
@@ -47,46 +47,16 @@ import {
   sealedAutoLands,
 } from "../../api/client";
 
-const pool = (over: Partial<SealedState> = {}): SealedState => ({
-  hasPool: true,
-  poolSize: 60,
-  sessionId: "s1",
-  variants: [{ name: "Build 1", isActive: true, mainCount: 0 }],
-  activeVariant: "Build 1",
-  deck: [],
-  sideboard: [],
-  stats: {
-    totalCards: 0,
-    creatures: 0,
-    noncreatures: 0,
-    lands: 0,
-    avgCmc: 0,
-    pips: [],
-    curve: {},
-    tribes: [],
-    tags: [],
-    basics: {},
-  },
-  mainCount: 0,
-  sideboardCount: 60,
-  activeFilter: "Auto",
-  ...over,
-});
-
-const action = (state: SealedState, message = ""): SealedAction => ({
-  ok: true,
-  message,
-  state,
-});
-
 beforeEach(() => {
   // The consumed-session memory is module-level (it must survive remounts), so
   // each test starts from a clean slate.
   resetSealedAutoRun();
   vi.mocked(sealedAutoGenerate).mockResolvedValue(
-    action(pool({ mainCount: 23 })),
+    sealedAction(sealedState({ mainCount: 23 })),
   );
-  vi.mocked(sealedAutoLands).mockResolvedValue(action(pool({ mainCount: 40 })));
+  vi.mocked(sealedAutoLands).mockResolvedValue(
+    sealedAction(sealedState({ mainCount: 40 })),
+  );
 });
 
 afterEach(() => {
@@ -95,7 +65,7 @@ afterEach(() => {
 
 describe("SealedPage auto-run on a fresh pool", () => {
   it("auto-generates shells then auto-lands, once, when a fresh pool loads", async () => {
-    vi.mocked(getSealedState).mockResolvedValue(pool());
+    vi.mocked(getSealedState).mockResolvedValue(sealedState());
 
     render(<SealedPage colorTint={false} />);
 
@@ -108,7 +78,7 @@ describe("SealedPage auto-run on a fresh pool", () => {
   });
 
   it("does not re-invoke after a remount of the same pool", async () => {
-    vi.mocked(getSealedState).mockResolvedValue(pool());
+    vi.mocked(getSealedState).mockResolvedValue(sealedState());
 
     const { unmount } = render(<SealedPage colorTint={false} />);
     await waitFor(() => expect(sealedAutoGenerate).toHaveBeenCalledTimes(1));
@@ -126,13 +96,13 @@ describe("SealedPage auto-run on a fresh pool", () => {
   });
 
   it("auto-runs again for a genuinely new pool", async () => {
-    vi.mocked(getSealedState).mockResolvedValue(pool());
+    vi.mocked(getSealedState).mockResolvedValue(sealedState());
 
     const { unmount } = render(<SealedPage colorTint={false} />);
     await waitFor(() => expect(sealedAutoGenerate).toHaveBeenCalledTimes(1));
     unmount();
 
-    vi.mocked(getSealedState).mockResolvedValue(pool({ sessionId: "s2" }));
+    vi.mocked(getSealedState).mockResolvedValue(sealedState({ sessionId: "s2" }));
     render(<SealedPage colorTint={false} />);
 
     await waitFor(() => expect(sealedAutoGenerate).toHaveBeenCalledTimes(2));
@@ -140,7 +110,7 @@ describe("SealedPage auto-run on a fresh pool", () => {
   });
 
   it("is a silent no-op when no pool is loaded", async () => {
-    vi.mocked(getSealedState).mockResolvedValue(pool({ hasPool: false }));
+    vi.mocked(getSealedState).mockResolvedValue(sealedState({ hasPool: false }));
 
     render(<SealedPage colorTint={false} />);
 
@@ -150,7 +120,7 @@ describe("SealedPage auto-run on a fresh pool", () => {
   });
 
   it("does not auto-run on a pool that already has a deck", async () => {
-    vi.mocked(getSealedState).mockResolvedValue(pool({ mainCount: 40 }));
+    vi.mocked(getSealedState).mockResolvedValue(sealedState({ mainCount: 40 }));
 
     render(<SealedPage colorTint={false} />);
 
