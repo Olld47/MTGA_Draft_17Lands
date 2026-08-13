@@ -531,3 +531,29 @@ def test_card_text_access_uses_shared_helper():
         "inline lowercased-oracle_text access still present; use "
         f"src.card_logic.get_oracle_text instead: {offenders}"
     )
+
+
+def test_no_call_site_stringifies_oracle_text_to_none():
+    """No advisor / card-logic module may wrap a raw oracle_text dict access in
+    str(). A None oracle_text stringifies to \"None\" — lower-cased \"none\" —
+    the exact regression get_oracle_text's empty-string fallback was built to
+    prevent. Everyone routes through get_oracle_text."""
+    import re
+    from pathlib import Path
+
+    repo_root = Path(__file__).resolve().parents[1]
+    targets = [
+        repo_root / "src" / "card_logic.py",
+        repo_root / "src" / "sealed_logic.py",
+        *sorted((repo_root / "src" / "advisor").glob("*.py")),
+    ]
+    pattern = re.compile(r'str\(\s*[^)]*\bget\("oracle_text"')
+    offenders = {}
+    for path in targets:
+        for lineno, line in enumerate(path.read_text().splitlines(), 1):
+            if pattern.search(line):
+                offenders.setdefault(str(path), []).append(lineno)
+    assert not offenders, (
+        "raw oracle_text access stringified with str() (None -> \"none\"); use "
+        f"src.card_logic.get_oracle_text instead: {offenders}"
+    )
