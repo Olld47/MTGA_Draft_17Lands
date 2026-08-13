@@ -11,6 +11,7 @@ import time
 from typing import Optional
 
 from src import constants
+from src.boot_sync import BOOT_NOT_ATTEMPTED, BootSyncOutcome
 from src.configuration import write_configuration
 from src.limited_sets import LimitedSets
 from src.log_scanner import ArenaScanner
@@ -51,13 +52,14 @@ def _run_dataset_sync(config, progress_callback) -> Optional[int]:
         return None
 
 
-def _sync_cloud_datasets(config, progress_callback) -> Optional[int]:
-    """Sync pre-compiled 17Lands datasets at boot. Returns how many datasets
-    were actually downloaded this run (0 when unchanged or the sync failed), or
-    None when no sync was attempted (auto-sync off and not an upgrade). The
-    desktop background notifier (mtga_bridge/dataset_notifier) reads None as
-    "boot did not sync — run a fresh silent sync" and any int as "boot synced —
-    report the count, do not re-sync"."""
+def _sync_cloud_datasets(config, progress_callback) -> BootSyncOutcome:
+    """Sync pre-compiled 17Lands datasets at boot. Returns what the boot-time
+    sync did as a typed outcome: `attempted=True, downloaded=N` when a sync
+    ran (N is 0 when unchanged or the sync failed), or BOOT_NOT_ATTEMPTED when
+    no sync was attempted (auto-sync off and not an upgrade). The desktop
+    background notifier (mtga_bridge/dataset_notifier) keys off `attempted`:
+    not-attempted → "boot did not sync — run a fresh silent sync", attempted →
+    "boot synced — report the count, do not re-sync"."""
     upgraded = config.settings.last_run_version != constants.APPLICATION_VERSION
     if upgraded:
         # One-time migration after an update. v4.18 corrects 17Lands stats
@@ -75,11 +77,13 @@ def _sync_cloud_datasets(config, progress_callback) -> Optional[int]:
         downloaded = _run_dataset_sync(config, progress_callback)
         config.settings.last_run_version = constants.APPLICATION_VERSION
         write_configuration(config)
-        return downloaded or 0
+        return BootSyncOutcome(attempted=True, downloaded=downloaded or 0)
     if config.settings.auto_sync_datasets:
-        return _run_dataset_sync(config, progress_callback) or 0
+        return BootSyncOutcome(
+            attempted=True, downloaded=_run_dataset_sync(config, progress_callback) or 0
+        )
     progress_callback("Cloud sync disabled by user...")
-    return None
+    return BOOT_NOT_ATTEMPTED
 
 
 def load_data(args, config, progress_callback):
@@ -129,7 +133,7 @@ def load_data(args, config, progress_callback):
                 write_configuration(config)
 
         # 3. SYNC OFFICIAL DATASETS
-        datasets_updated = _sync_cloud_datasets(config, progress_callback)
+        boot_sync_outcome = _sync_cloud_datasets(config, progress_callback)
 
         # 4. METADATA REFRESH
         progress_callback("Checking 17Lands for New Sets...")
@@ -216,7 +220,7 @@ def load_data(args, config, progress_callback):
         return {
             "scanner": scanner,
             "config": config,
-            "datasets_updated": datasets_updated,
+            "boot_sync_outcome": boot_sync_outcome,
         }
     finally:
         logging.getLogger().removeHandler(splash_handler)

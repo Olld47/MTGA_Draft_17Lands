@@ -31,6 +31,7 @@ BRIDGE_PATH = os.path.join(
 if BRIDGE_PATH not in sys.path:
     sys.path.insert(0, BRIDGE_PATH)
 
+from src.boot_sync import BOOT_NOT_ATTEMPTED, BootSyncOutcome
 from src.configuration import Configuration
 
 from mtga_bridge import boot
@@ -354,13 +355,14 @@ def test_run_boot_survives_a_failing_emitter(runtime):
 def test_boot_spawns_the_dataset_notifier_thread(booted):
     """_boot_blocking hands the post-boot dataset refresh to a daemon thread
     (the legacy Notifications.check_dataset() mirror). It must be daemon so
-    boot never blocks on it and shutdown never joins it."""
+    boot never blocks on it and shutdown never joins it. When load_data's
+    return carries no outcome key, boot defaults to the not-attempted state."""
     boot._boot_blocking(booted.runtime, booted.emit)
 
     booted.thread_cls.assert_called_once_with(
         target=ANY,
         args=(booted.runtime, booted.emit),
-        kwargs={"boot_updated": None},
+        kwargs={"boot_outcome": BOOT_NOT_ATTEMPTED},
         daemon=True,
     )
     target = booted.thread_cls.call_args.kwargs["target"]
@@ -368,15 +370,17 @@ def test_boot_spawns_the_dataset_notifier_thread(booted):
     assert booted.thread_cls.return_value.start.call_count == 1
 
 
-def test_boot_forwards_the_boot_sync_count_to_the_notifier(booted):
-    """load_data's return now carries how many datasets the boot-time sync
-    downloaded; boot passes it to the notifier so the toast reports those
-    downloads instead of triggering a redundant re-sync."""
+def test_boot_forwards_the_boot_sync_outcome_to_the_notifier(booted):
+    """load_data's return now carries a BootSyncOutcome describing what the
+    boot-time sync did; boot passes it to the notifier so the toast reports
+    those downloads instead of triggering a redundant re-sync."""
     booted.load_data.return_value = {
         "scanner": booted.scanner,
-        "datasets_updated": 4,
+        "boot_sync_outcome": BootSyncOutcome(attempted=True, downloaded=4),
     }
 
     boot._boot_blocking(booted.runtime, booted.emit)
 
-    assert booted.thread_cls.call_args.kwargs["kwargs"] == {"boot_updated": 4}
+    assert booted.thread_cls.call_args.kwargs["kwargs"] == {
+        "boot_outcome": BootSyncOutcome(attempted=True, downloaded=4)
+    }

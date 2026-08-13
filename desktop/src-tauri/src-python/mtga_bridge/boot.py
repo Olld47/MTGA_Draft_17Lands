@@ -31,6 +31,7 @@ def _parse_cli_args():
 def _boot_blocking(runtime, emit):
     """Runs on a worker thread. `emit(event, payload)` must be thread-safe."""
     from src.bootstrap import cleanup_old_draft_logs, load_data
+    from src.boot_sync import BOOT_NOT_ATTEMPTED
     from src.ui.orchestrator import DraftOrchestrator
 
     from mtga_bridge.orchestrator_adapter import OrchestratorAdapter
@@ -85,17 +86,17 @@ def _boot_blocking(runtime, emit):
     # Legacy Notifications.check_dataset() ran a silent 17Lands refresh ~1.5s
     # after launch, gated by update_notifications_enabled. Mirror it on a daemon
     # thread so boot never blocks on it and shutdown never joins it. Hand it the
-    # boot-time sync signal so the toast reports what bootstrap.load_data
+    # boot-time sync outcome so the toast reports what bootstrap.load_data
     # already downloaded instead of re-syncing (which would find nothing). The
-    # signal is tri-state: an int (0 or more) means boot synced and downloaded
-    # that many; None (auto-sync off) means boot never attempted, so the
-    # notifier runs its own sync.
+    # outcome is a typed BootSyncOutcome: attempted=True (with the download
+    # count) means boot synced; BOOT_NOT_ATTEMPTED (auto-sync off) means boot
+    # never attempted, so the notifier runs its own sync.
     from mtga_bridge.dataset_notifier import check_dataset_updates
 
     threading.Thread(
         target=check_dataset_updates,
         args=(runtime, emit),
-        kwargs={"boot_updated": data.get("datasets_updated")},
+        kwargs={"boot_outcome": data.get("boot_sync_outcome", BOOT_NOT_ATTEMPTED)},
         daemon=True,
     ).start()
 

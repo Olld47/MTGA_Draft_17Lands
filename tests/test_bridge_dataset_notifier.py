@@ -24,6 +24,7 @@ BRIDGE_PATH = os.path.join(
 if BRIDGE_PATH not in sys.path:
     sys.path.insert(0, BRIDGE_PATH)
 
+from src.boot_sync import BOOT_NOT_ATTEMPTED, BootSyncOutcome
 from src.configuration import Configuration
 
 from mtga_bridge.dataset_notifier import EVENT_DATASETS_UPDATED, check_dataset_updates
@@ -100,7 +101,7 @@ def test_no_update_means_no_event(runtime, emit, monkeypatch):
     event."""
     _patch_sleep_and_sync(monkeypatch, MagicMock(return_value=0))
 
-    check_dataset_updates(runtime, emit, boot_updated=None)
+    check_dataset_updates(runtime, emit, boot_outcome=BOOT_NOT_ATTEMPTED)
 
     assert emit.events == []
 
@@ -140,7 +141,9 @@ def test_reports_boot_sync_count_without_re_syncing(runtime, emit, monkeypatch):
         MagicMock(side_effect=AssertionError("must not re-sync after boot")),
     )
 
-    check_dataset_updates(runtime, emit, boot_updated=3)
+    check_dataset_updates(
+        runtime, emit, boot_outcome=BootSyncOutcome(attempted=True, downloaded=3)
+    )
 
     sync.assert_not_called()
     assert emit.events == [
@@ -149,28 +152,41 @@ def test_reports_boot_sync_count_without_re_syncing(runtime, emit, monkeypatch):
 
 
 def test_boot_synced_nothing_stays_silent(runtime, emit, monkeypatch):
-    """boot_updated=0 means the boot-time sync RAN but downloaded nothing —
-    the notifier reports the count (0 → no event) and must NOT trigger a
-    second sync. The AssertionError side_effect proves the fresh-sync path is
-    skipped."""
+    """An attempted boot sync that downloaded nothing — the notifier reports
+    the count (0 → no event) and must NOT trigger a second sync. The
+    AssertionError side_effect proves the fresh-sync path is skipped."""
     sync = _patch_sleep_and_sync(
         monkeypatch,
         MagicMock(side_effect=AssertionError("must not re-sync after boot")),
     )
 
-    check_dataset_updates(runtime, emit, boot_updated=0)
+    check_dataset_updates(
+        runtime, emit, boot_outcome=BootSyncOutcome(attempted=True, downloaded=0)
+    )
 
     sync.assert_not_called()
     assert emit.events == []
 
 
 def test_falls_back_to_a_fresh_sync_when_boot_did_not(runtime, emit, monkeypatch):
-    """boot_updated=None means boot never synced (auto-sync off), so the
+    """A not-attempted outcome means boot never synced (auto-sync off), so the
     notifier runs its own silent sync to keep the notification working."""
     _patch_sleep_and_sync(monkeypatch, MagicMock(return_value=2))
 
-    check_dataset_updates(runtime, emit, boot_updated=None)
+    check_dataset_updates(runtime, emit, boot_outcome=BOOT_NOT_ATTEMPTED)
 
     assert emit.events == [
         (EVENT_DATASETS_UPDATED, DatasetsUpdatedVM(updated_count=2))
     ]
+
+
+def test_a_falsy_default_is_rejected_not_silently_accepted(runtime, emit, monkeypatch):
+    """Why the tri-state became a named type: a bare Optional[int] let a falsy
+    default like 0 type-check as a valid outcome and silently mean 'boot synced
+    nothing' — skipping the report and any re-sync. A BootSyncOutcome has no
+    falsy stand-in: 0 carries no `.attempted`, so the mistake fails loudly
+    instead of misbehaving."""
+    _patch_sleep_and_sync(monkeypatch, MagicMock(return_value=2))
+
+    with pytest.raises(AttributeError):
+        check_dataset_updates(runtime, emit, boot_outcome=0)
