@@ -1,15 +1,21 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { BootStatus, DraftState, Settings } from "./api/types";
+import type { BootStatus, DraftState, SealedState, Settings } from "./api/types";
 import App from "./App";
 import { setLanguage } from "./i18n/useLanguage";
 import { navigateTab } from "./state/navigation";
 
-// SealedPage is stubbed so this test exercises App's gating (tab strip + body
-// branch) without pulling in SealedPage's own data hooks.
-vi.mock("./features/sealed/SealedPage", () => ({
-  SealedPage: () => <div data-testid="sealed-page-stub" />,
+// The real SealedPage mounts here: its auto-run through App's shell is a
+// subject of the tests below, and its tab gating is what the "Sealed tab
+// gating" describe block asserts against. Only its heavy children are not the
+// subject — mock them the way SealedPage.test.tsx does.
+vi.mock("./features/deck/DeckStatsView", () => ({
+  DeckStatsView: () => null,
+  DeckTable: () => null,
+}));
+vi.mock("./features/practice/PracticeDialog", () => ({
+  PracticeDialog: () => null,
 }));
 
 // The bridge is the system boundary; App and the state hooks read through it.
@@ -32,6 +38,21 @@ vi.mock("./api/client", () => ({
   compareAddCard: vi.fn(),
   openUrl: vi.fn(),
   selectDataset: vi.fn(),
+  getSealedState: vi.fn(),
+  sealedAutoGenerate: vi.fn(),
+  sealedAutoLands: vi.fn(),
+  sealedReloadPool: vi.fn(),
+  sealedCreateVariant: vi.fn(),
+  sealedRenameVariant: vi.fn(),
+  sealedDeleteVariant: vi.fn(),
+  sealedSelectVariant: vi.fn(),
+  sealedMoveCard: vi.fn(),
+  sealedClearDeck: vi.fn(),
+  sealedAddBasic: vi.fn(),
+  sealedRemoveBasic: vi.fn(),
+  sealedImportDeck: vi.fn(),
+  sealedExport: vi.fn(),
+  sealedExportSealeddeck: vi.fn(),
 }));
 
 // Keep the real EVENTS names; stub the listen() wrapper so no backend is
@@ -45,10 +66,14 @@ import {
   getBootStatus,
   getDatasetSwitcher,
   getDraftState,
+  getSealedState,
   getSetMetrics,
   getSettings,
   listDraftLogs,
+  sealedAutoGenerate,
+  sealedAutoLands,
 } from "./api/client";
+import { resetSealedAutoRun } from "./state/sealedAutoRun";
 
 const bootStatus = (): BootStatus => ({
   booted: true,
@@ -102,6 +127,32 @@ const draftState = (over: Partial<DraftState> = {}): DraftState => ({
   ...over,
 });
 
+const sealedState = (over: Partial<SealedState> = {}): SealedState => ({
+  hasPool: true,
+  poolSize: 60,
+  sessionId: "s1",
+  variants: [{ name: "Build 1", isActive: true, mainCount: 0 }],
+  activeVariant: "Build 1",
+  deck: [],
+  sideboard: [],
+  stats: {
+    totalCards: 0,
+    creatures: 0,
+    noncreatures: 0,
+    lands: 0,
+    avgCmc: 0,
+    pips: [],
+    curve: {},
+    tribes: [],
+    tags: [],
+    basics: {},
+  },
+  mainCount: 0,
+  sideboardCount: 60,
+  activeFilter: "Auto",
+  ...over,
+});
+
 async function renderBooted(state: DraftState) {
   vi.mocked(getBootStatus).mockResolvedValue(bootStatus());
   vi.mocked(getDraftState).mockResolvedValue(state);
@@ -122,6 +173,24 @@ async function renderBooted(state: DraftState) {
 
 beforeEach(() => {
   setLanguage("en");
+  // The consumed-session memory is module-level (it must survive SealedPage's
+  // remounts), so every case starts from a clean slate — the "does not leak
+  // across cases" test below verifies this is in place.
+  resetSealedAutoRun();
+  // Defaults for the real SealedPage when a gating test mounts it: a pool-less
+  // page (empty state) so no auto-run fires; the auto-run tests override the
+  // read below with a fresh pool.
+  vi.mocked(getSealedState).mockResolvedValue(sealedState({ hasPool: false }));
+  vi.mocked(sealedAutoGenerate).mockResolvedValue({
+    ok: true,
+    message: "",
+    state: sealedState({ mainCount: 23 }),
+  });
+  vi.mocked(sealedAutoLands).mockResolvedValue({
+    ok: true,
+    message: "",
+    state: sealedState({ mainCount: 40 }),
+  });
 });
 
 afterEach(() => {
@@ -142,7 +211,7 @@ describe("Sealed tab gating", () => {
     // render the page either.
     act(() => navigateTab("sealed"));
     await waitFor(() =>
-      expect(screen.queryByTestId("sealed-page-stub")).not.toBeInTheDocument(),
+      expect(screen.queryByRole("button", { name: "Reload pool" })).not.toBeInTheDocument(),
     );
   });
 
@@ -151,7 +220,7 @@ describe("Sealed tab gating", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Sealed Deck" }));
 
-    await screen.findByTestId("sealed-page-stub");
+    await screen.findByRole("button", { name: "Reload pool" });
   });
 
   it("treats TradSealed as a Sealed variant", async () => {
@@ -178,5 +247,34 @@ describe("Sealed tab gating", () => {
     expect(
       screen.getByRole("button", { name: "Sealed Deck" }),
     ).toBeInTheDocument();
+  });
+});
+
+// Convention for any App-level test that mounts the real SealedPage: the
+// consumed-session memory lives at module level (state/sealedAutoRun.ts), so a
+// session consumed by a previous case would silently skip the auto-run here —
+// the beforeEach reset is what isolates each case.
+describe("Sealed auto-run through App's shell", () => {
+  it("auto-generates shells then auto-lands for a fresh pool", async () => {
+    vi.mocked(getSealedState).mockResolvedValue(sealedState());
+    await renderBooted(draftState({ eventType: "Sealed" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Sealed Deck" }));
+
+    await waitFor(() => expect(sealedAutoGenerate).toHaveBeenCalledTimes(1));
+    expect(sealedAutoLands).toHaveBeenCalledTimes(1);
+    expect(
+      vi.mocked(sealedAutoGenerate).mock.invocationCallOrder[0],
+    ).toBeLessThan(vi.mocked(sealedAutoLands).mock.invocationCallOrder[0]);
+  });
+
+  it("auto-runs again in a later case for the same session — consumed-session memory does not leak across cases", async () => {
+    vi.mocked(getSealedState).mockResolvedValue(sealedState());
+    await renderBooted(draftState({ eventType: "Sealed" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Sealed Deck" }));
+
+    await waitFor(() => expect(sealedAutoGenerate).toHaveBeenCalledTimes(1));
+    expect(sealedAutoLands).toHaveBeenCalledTimes(1);
   });
 });
