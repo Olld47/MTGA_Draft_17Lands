@@ -197,3 +197,6 @@ review.md
 .scratch/
 .env
 .mcp.json
+
+# CODEX
+AGENTS.md
