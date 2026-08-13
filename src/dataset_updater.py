@@ -1,12 +1,29 @@
 import os
 import json
 import gzip
+from datetime import datetime, timezone
 import requests
 import logging
 from src import constants
 from src.configuration import write_configuration
 
 logger = logging.getLogger(__name__)
+
+
+def utc_date_today() -> str:
+    """UTC calendar date (YYYY-MM-DD). The natural-day boundary is UTC 0."""
+    return datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+
+def is_auto_synced_today(config) -> bool:
+    """True when the cloud datasets were already auto-refreshed this UTC day."""
+    return config.card_data.last_auto_sync_date == utc_date_today()
+
+
+def mark_auto_synced_today(config) -> None:
+    """Persist that the cloud datasets were auto-refreshed today (UTC)."""
+    config.card_data.last_auto_sync_date = utc_date_today()
+    write_configuration(config)
 
 
 def _dataset_set_format(key: str):

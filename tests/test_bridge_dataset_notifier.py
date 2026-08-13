@@ -24,7 +24,7 @@ BRIDGE_PATH = os.path.join(
 if BRIDGE_PATH not in sys.path:
     sys.path.insert(0, BRIDGE_PATH)
 
-from src.boot_sync import BOOT_NOT_ATTEMPTED, BootSyncOutcome
+from src.boot_sync import BOOT_NOT_ATTEMPTED, BOOT_SKIPPED_TODAY, BootSyncOutcome
 from src.configuration import Configuration
 
 from mtga_bridge.dataset_notifier import EVENT_DATASETS_UPDATED, check_dataset_updates
@@ -62,6 +62,13 @@ def _patch_sleep_and_sync(monkeypatch, sync_mock):
         "src.dataset_updater.DatasetUpdater.sync_datasets", sync_mock
     )
     return sync_mock
+
+
+@pytest.fixture(autouse=True)
+def _no_config_write(monkeypatch):
+    """The fresh-sync path now stamps the once-per-day date via
+    write_configuration; keep every notifier test hermetic."""
+    monkeypatch.setattr("src.dataset_updater.write_configuration", MagicMock())
 
 
 def test_toggle_off_skips_the_sync(runtime, emit, monkeypatch):
@@ -190,3 +197,53 @@ def test_a_falsy_default_is_rejected_not_silently_accepted(runtime, emit, monkey
 
     with pytest.raises(AttributeError):
         check_dataset_updates(runtime, emit, boot_outcome=0)
+
+
+def test_skipped_today_outcome_reports_nothing_and_does_not_resync(
+    runtime, emit, monkeypatch
+):
+    """Boot skipped because today's auto-sync already ran — the notifier must
+    report nothing AND NOT run the fresh silent sync a not-attempted outcome
+    would trigger (that would defeat the once-per-day limit). The AssertionError
+    side_effect proves the fresh-sync path is skipped."""
+    sync = _patch_sleep_and_sync(
+        monkeypatch,
+        MagicMock(side_effect=AssertionError("must not re-sync after a skipped boot")),
+    )
+
+    check_dataset_updates(runtime, emit, boot_outcome=BOOT_SKIPPED_TODAY)
+
+    sync.assert_not_called()
+    assert emit.events == []
+
+
+def test_fresh_sync_is_gated_to_once_per_day(runtime, emit, monkeypatch):
+    """A not-attempted boot (auto-sync off) on a NEW UTC day → the notifier runs
+    its own silent sync and stamps today's date so a later boot today skips."""
+    runtime.config.card_data.last_auto_sync_date = "2026-08-12"
+    monkeypatch.setattr("src.dataset_updater.utc_date_today", lambda: "2026-08-13")
+    _patch_sleep_and_sync(monkeypatch, MagicMock(return_value=2))
+
+    check_dataset_updates(runtime, emit, boot_outcome=BOOT_NOT_ATTEMPTED)
+
+    assert emit.events == [
+        (EVENT_DATASETS_UPDATED, DatasetsUpdatedVM(updated_count=2))
+    ]
+    assert runtime.config.card_data.last_auto_sync_date == "2026-08-13"
+
+
+def test_fresh_sync_skips_when_already_synced_today(runtime, emit, monkeypatch):
+    """A not-attempted boot (auto-sync off) on a day that was already auto-synced
+    (e.g. the notifier ran this morning and the user rebooted) → no second silent
+    sync. The AssertionError side_effect proves the sync is skipped."""
+    runtime.config.card_data.last_auto_sync_date = "2026-08-13"
+    monkeypatch.setattr("src.dataset_updater.utc_date_today", lambda: "2026-08-13")
+    sync = _patch_sleep_and_sync(
+        monkeypatch,
+        MagicMock(side_effect=AssertionError("must not re-sync when already synced today")),
+    )
+
+    check_dataset_updates(runtime, emit, boot_outcome=BOOT_NOT_ATTEMPTED)
+
+    sync.assert_not_called()
+    assert emit.events == []

@@ -10,7 +10,7 @@ import os
 import time
 
 from src import constants
-from src.boot_sync import BOOT_NOT_ATTEMPTED, BootSyncOutcome
+from src.boot_sync import BOOT_NOT_ATTEMPTED, BOOT_SKIPPED_TODAY, BootSyncOutcome
 from src.configuration import write_configuration
 from src.limited_sets import LimitedSets
 from src.log_scanner import ArenaScanner
@@ -54,11 +54,16 @@ def _run_dataset_sync(config, progress_callback) -> int:
 def _sync_cloud_datasets(config, progress_callback) -> BootSyncOutcome:
     """Sync pre-compiled 17Lands datasets at boot. Returns what the boot-time
     sync did as a typed outcome: `attempted=True, downloaded=N` when a sync
-    ran (N is 0 when unchanged or the sync failed), or BOOT_NOT_ATTEMPTED when
-    no sync was attempted (auto-sync off and not an upgrade). The desktop
-    background notifier (mtga_bridge/dataset_notifier) keys off `attempted`:
-    not-attempted → "boot did not sync — run a fresh silent sync", attempted →
-    "boot synced — report the count, do not re-sync"."""
+    ran (N is 0 when unchanged or the sync failed), BOOT_SKIPPED_TODAY when the
+    auto-sync was skipped because today's auto-sync already ran (once per UTC
+    day), or BOOT_NOT_ATTEMPTED when no sync was attempted (auto-sync off and
+    not an upgrade). The desktop background notifier
+    (mtga_bridge/dataset_notifier) keys off `attempted` and
+    `already_synced_today`: not-attempted → "boot did not sync — run a fresh
+    silent sync", already-synced-today → "report nothing, do not re-sync",
+    attempted → "boot synced — report the count, do not re-sync"."""
+    from src.dataset_updater import is_auto_synced_today, mark_auto_synced_today
+
     upgraded = config.settings.last_run_version != constants.APPLICATION_VERSION
     if upgraded:
         # One-time migration after an update. v4.18 corrects 17Lands stats
@@ -74,7 +79,19 @@ def _sync_cloud_datasets(config, progress_callback) -> BootSyncOutcome:
             logger.debug(f"Raw cache purge skipped (non-fatal): {purge_e}")
         config.settings.last_run_version = constants.APPLICATION_VERSION
         write_configuration(config)
-    if upgraded or config.settings.auto_sync_datasets:
+        # The upgrade refreshed today's data, so a later boot the same day must
+        # not auto-sync again.
+        mark_auto_synced_today(config)
+        return BootSyncOutcome(
+            attempted=True, downloaded=_run_dataset_sync(config, progress_callback)
+        )
+    if config.settings.auto_sync_datasets:
+        if is_auto_synced_today(config):
+            progress_callback("Datasets already updated today...")
+            return BOOT_SKIPPED_TODAY
+        # Stamp before running so the once-per-day limit holds even if the sync
+        # hangs or the process is killed mid-download.
+        mark_auto_synced_today(config)
         return BootSyncOutcome(
             attempted=True, downloaded=_run_dataset_sync(config, progress_callback)
         )

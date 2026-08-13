@@ -25,6 +25,13 @@ def notifications(config):
     )
 
 
+@pytest.fixture(autouse=True)
+def _no_config_write(monkeypatch):
+    """update_dataset now stamps the once-per-day date via write_configuration;
+    keep every test hermetic."""
+    monkeypatch.setattr("src.dataset_updater.write_configuration", MagicMock())
+
+
 def test_check_for_updates(notifications):
     with patch.object(notifications, "check_arena_log", return_value=True):
         assert notifications.check_for_updates() == True
@@ -77,6 +84,28 @@ def test_update_dataset(mock_updater_cls, notifications):
     mock_instance = mock_updater_cls.return_value
     notifications.update_dataset()
     mock_instance.sync_datasets.assert_called_once()
+
+
+@patch("src.dataset_updater.DatasetUpdater")
+def test_update_dataset_skips_when_already_synced_today(mock_updater_cls, notifications):
+    """The post-boot silent check must not run a second sync on a day the auto-sync
+    already ran (once-per-UTC-day limit). The mock is never instantiated."""
+    notifications.configuration.card_data.last_auto_sync_date = "2026-08-13"
+    with patch("src.dataset_updater.utc_date_today", return_value="2026-08-13"):
+        notifications.update_dataset()
+    mock_updater_cls.assert_not_called()
+
+
+@patch("src.dataset_updater.DatasetUpdater")
+def test_update_dataset_syncs_and_stamps_on_new_day(mock_updater_cls, notifications):
+    """A new UTC day → the silent check runs the sync and records today's date so
+    a later launch today skips. A dropped stamp leaves the date at yesterday."""
+    notifications.configuration.card_data.last_auto_sync_date = "2026-08-12"
+    mock_instance = mock_updater_cls.return_value
+    with patch("src.dataset_updater.utc_date_today", return_value="2026-08-13"):
+        notifications.update_dataset()
+    mock_instance.sync_datasets.assert_called_once()
+    assert notifications.configuration.card_data.last_auto_sync_date == "2026-08-13"
 
 
 @patch("src.notifications.tkinter.messagebox.askyesno", return_value=False)

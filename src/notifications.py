@@ -86,13 +86,22 @@ class Notifications:
 
     def update_dataset(self):
         try:
-            from src.dataset_updater import DatasetUpdater
+            from src.dataset_updater import (
+                DatasetUpdater,
+                is_auto_synced_today,
+                mark_auto_synced_today,
+            )
+            # Once-per-UTC-day limit for the auto-sync cascade: skip when
+            # today's auto-sync already ran. Manual downloads are unaffected.
+            if is_auto_synced_today(self.configuration):
+                return
 
             def silent_progress(msg):
                 pass
 
             updater = DatasetUpdater(self.configuration)
             updater.sync_datasets(silent_progress)
+            mark_auto_synced_today(self.configuration)
 
         except Exception as e:
             logger.error(f"Notification error: {e}")

@@ -215,6 +215,9 @@ class CardData(BaseModel):
     latest_dataset: str = ""
     last_check: float = 0
     last_auto_check: float = 0
+    # UTC date (YYYY-MM-DD) the cloud datasets were last auto-refreshed. Drives
+    # the once-per-natural-day auto-sync gate; manual downloads ignore it.
+    last_auto_sync_date: str = ""
 
 
 class Configuration(BaseModel):

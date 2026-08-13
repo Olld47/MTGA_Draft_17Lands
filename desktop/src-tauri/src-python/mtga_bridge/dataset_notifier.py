@@ -15,7 +15,7 @@ environment; heavy imports (DatasetUpdater, the VM) are deferred to call time.
 import logging
 import time
 
-from src.boot_sync import BOOT_NOT_ATTEMPTED, BootSyncOutcome
+from src.boot_sync import BOOT_NOT_ATTEMPTED, BOOT_SKIPPED_TODAY, BootSyncOutcome
 
 logger = logging.getLogger(__name__)
 
@@ -32,9 +32,14 @@ def check_dataset_updates(
     actually downloaded.
 
     `boot_outcome` is a typed BootSyncOutcome, not a bare count:
-      * attempted=False (BOOT_NOT_ATTEMPTED) — boot did not sync at all
-        (auto-sync off). Run a fresh silent sync here so the update
-        notification still works.
+      * attempted=False, already_synced_today=False (BOOT_NOT_ATTEMPTED) — boot
+        did not sync at all (auto-sync off). Run a fresh silent sync here so
+        the update notification still works, but respect the once-per-UTC-day
+        limit: if today's auto-sync already ran, report nothing and do NOT
+        re-sync.
+      * attempted=False, already_synced_today=True (BOOT_SKIPPED_TODAY) — boot
+        skipped because today's auto-sync already ran. Report nothing and do
+        NOT re-sync (a fresh sync would defeat the once-per-day limit).
       * attempted=True, downloaded=0 — boot synced and downloaded nothing.
         Report nothing and do NOT re-sync: a re-check right after boot would
         find nothing, and a redundant network hit buys nothing.
@@ -56,14 +61,22 @@ def check_dataset_updates(
 
     if boot_outcome.attempted:
         updated = boot_outcome.downloaded
+    elif boot_outcome.already_synced_today:
+        updated = 0
     else:
         updated = 0
         try:
-            from src.dataset_updater import DatasetUpdater
-
-            updated = (
-                DatasetUpdater(runtime.config).sync_datasets(lambda msg: None) or 0
+            from src.dataset_updater import (
+                DatasetUpdater,
+                is_auto_synced_today,
+                mark_auto_synced_today,
             )
+
+            if not is_auto_synced_today(runtime.config):
+                updated = (
+                    DatasetUpdater(runtime.config).sync_datasets(lambda msg: None) or 0
+                )
+                mark_auto_synced_today(runtime.config)
         except Exception as e:
             logger.warning(f"Background dataset check failed: {e}")
     if updated:

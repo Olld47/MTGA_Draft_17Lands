@@ -5,12 +5,21 @@ that flows to the desktop background notifier (mtga_bridge/dataset_notifier)
 so it can toast "N datasets updated" for what boot actually downloaded.
 """
 
+import pytest
 from unittest.mock import MagicMock
 
 from src import constants
-from src.boot_sync import BOOT_NOT_ATTEMPTED
+from src.boot_sync import BOOT_NOT_ATTEMPTED, BOOT_SKIPPED_TODAY
 from src.bootstrap import _sync_cloud_datasets
 from src.configuration import Configuration
+
+
+@pytest.fixture(autouse=True)
+def _no_config_writes(monkeypatch):
+    """The once-per-day gate persists its UTC date via write_configuration;
+    keep every test hermetic regardless of which branch it exercises."""
+    monkeypatch.setattr("src.bootstrap.write_configuration", MagicMock())
+    monkeypatch.setattr("src.dataset_updater.write_configuration", MagicMock())
 
 
 def test_sync_cloud_datasets_returns_the_download_count(monkeypatch):
@@ -109,3 +118,66 @@ def test_sync_cloud_datasets_returns_zero_when_sync_ran_but_raised(monkeypatch):
 
     assert outcome.attempted is True
     assert outcome.downloaded == 0
+
+
+def test_sync_cloud_datasets_skips_when_already_synced_today(monkeypatch):
+    """Boot must not re-sync when today's auto-sync already ran (once-per-UTC-day
+    gate). It returns the skipped-today outcome, not a not-attempted one — the
+    desktop notifier keys on the difference so a skipped boot does NOT trigger a
+    fresh silent sync ~1.5s later. assert_not_called guards the gate: removing
+    the skip would fall through to a network sync, which the mock's AssertionError
+    side_effect makes explode."""
+    config = Configuration()
+    config.settings.auto_sync_datasets = True
+    config.settings.last_run_version = constants.APPLICATION_VERSION  # not upgraded
+    config.card_data.last_auto_sync_date = "2026-08-13"
+    monkeypatch.setattr("src.dataset_updater.utc_date_today", lambda: "2026-08-13")
+    sync = MagicMock(side_effect=AssertionError("must not sync when already synced today"))
+    monkeypatch.setattr("src.dataset_updater.DatasetUpdater.sync_datasets", sync)
+
+    outcome = _sync_cloud_datasets(config, lambda msg: None)
+
+    assert outcome == BOOT_SKIPPED_TODAY
+    assert outcome.attempted is False
+    sync.assert_not_called()
+
+
+def test_sync_cloud_datasets_syncs_and_stamps_on_a_new_day(monkeypatch):
+    """A new UTC day (last auto-sync was yesterday) → boot runs the sync and
+    records today's date so a later boot today skips. A dropped stamp would leave
+    the date at yesterday and re-sync on the next launch."""
+    config = Configuration()
+    config.settings.auto_sync_datasets = True
+    config.settings.last_run_version = constants.APPLICATION_VERSION
+    config.card_data.last_auto_sync_date = "2026-08-12"
+    monkeypatch.setattr("src.dataset_updater.utc_date_today", lambda: "2026-08-13")
+    monkeypatch.setattr(
+        "src.dataset_updater.DatasetUpdater.sync_datasets", MagicMock(return_value=2)
+    )
+
+    outcome = _sync_cloud_datasets(config, lambda msg: None)
+
+    assert outcome.attempted is True
+    assert outcome.downloaded == 2
+    assert config.card_data.last_auto_sync_date == "2026-08-13"
+
+
+def test_sync_cloud_datasets_upgrade_forces_sync_even_when_already_synced_today(
+    monkeypatch,
+):
+    """The one-time upgrade migration must bypass the day-gate: a new app version
+    forces a corrected-data refresh even if auto-sync already ran today (and even
+    with auto-sync off). Gating the upgrade branch would skip the migration."""
+    config = Configuration()
+    config.settings.auto_sync_datasets = False
+    config.settings.last_run_version = "0.0.0"  # != APPLICATION_VERSION → upgraded
+    config.card_data.last_auto_sync_date = "2026-08-13"
+    monkeypatch.setattr("src.dataset_updater.utc_date_today", lambda: "2026-08-13")
+    monkeypatch.setattr(
+        "src.dataset_updater.DatasetUpdater.sync_datasets", MagicMock(return_value=1)
+    )
+
+    outcome = _sync_cloud_datasets(config, lambda msg: None)
+
+    assert outcome.attempted is True
+    assert outcome.downloaded == 1
