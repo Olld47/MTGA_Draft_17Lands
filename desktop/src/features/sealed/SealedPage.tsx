@@ -108,19 +108,22 @@ export function SealedPage({ colorTint }: { colorTint: boolean }) {
   // conditional remount on tab switches never re-fires and clobber manual edits.
   useEffect(() => {
     if (!consumeSealedPool(state)) return;
-    setBusy(true);
-    sealedAutoGenerate()
-      .then((gen) => {
+    // Lands derive from the generated shells, so both awaits share one try/catch.
+    void (async () => {
+      setBusy(true);
+      try {
+        const gen = await sealedAutoGenerate();
         setState(gen.state);
         setMessage(gen.message);
-        return sealedAutoLands();
-      })
-      .then((lands) => {
+        const lands = await sealedAutoLands();
         setState(lands.state);
         setMessage(lands.message);
-      })
-      .catch((e) => setMessage(String(e)))
-      .finally(() => setBusy(false));
+      } catch (e) {
+        setMessage(String(e));
+      } finally {
+        setBusy(false);
+      }
+    })();
   }, [state]);
 
   const act = (fn: () => Promise<SealedAction>) => {
