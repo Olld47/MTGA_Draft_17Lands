@@ -58,3 +58,35 @@ def test_sync_cloud_datasets_returns_zero_when_sync_ran_but_nothing_changed(
     )
 
     assert _sync_cloud_datasets(config, lambda msg: None) == 0
+
+
+def test_sync_cloud_datasets_returns_zero_when_upgrade_sync_raised(monkeypatch):
+    """The one-time upgrade migration forces a sync even with auto-sync off;
+    if that sync raises, the function must still return 0 (never None / never
+    propagate) so the notifier sees 'boot synced' and skips the redundant
+    1.5s re-sync."""
+    config = Configuration()
+    config.settings.auto_sync_datasets = False
+    config.settings.last_run_version = "0.0.0"  # != APPLICATION_VERSION → upgraded
+    monkeypatch.setattr(
+        "src.dataset_updater.DatasetUpdater.sync_datasets",
+        MagicMock(side_effect=RuntimeError("sync failed")),
+    )
+
+    assert _sync_cloud_datasets(config, lambda msg: None) == 0
+
+
+def test_sync_cloud_datasets_returns_zero_when_sync_ran_but_raised(monkeypatch):
+    """Auto-sync on but the sync itself blew up → 0, NOT None and NOT an
+    uncaught exception. The notifier reads any int as 'boot synced → no 1.5s
+    re-sync'; a propagated exception or a None return would re-sync 1.5s after
+    a boot that already attempted and failed the sync."""
+    config = Configuration()
+    config.settings.auto_sync_datasets = True
+    config.settings.last_run_version = constants.APPLICATION_VERSION
+    monkeypatch.setattr(
+        "src.dataset_updater.DatasetUpdater.sync_datasets",
+        MagicMock(side_effect=RuntimeError("sync failed")),
+    )
+
+    assert _sync_cloud_datasets(config, lambda msg: None) == 0

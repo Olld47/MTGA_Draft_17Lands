@@ -37,6 +37,20 @@ def cleanup_old_draft_logs(max_age_seconds: int = 2592000):
         logger.error(f"Failed cleaning old draft logs: {e}")
 
 
+def _run_dataset_sync(config, progress_callback) -> Optional[int]:
+    """Run the dataset sync, collapsing an unexpected exception to None so the
+    call site's `or 0` yields 0. A boot sync that RAN but failed must read as
+    'synced, downloaded 0' to the notifier — never an uncaught exception and
+    never None, either of which would re-sync 1.5s after boot."""
+    from src.dataset_updater import DatasetUpdater
+
+    try:
+        return DatasetUpdater(config).sync_datasets(progress_callback)
+    except Exception as e:
+        logger.error(f"Dataset sync failed: {e}")
+        return None
+
+
 def _sync_cloud_datasets(config, progress_callback) -> Optional[int]:
     """Sync pre-compiled 17Lands datasets at boot. Returns how many datasets
     were actually downloaded this run (0 when unchanged or the sync failed), or
@@ -58,17 +72,12 @@ def _sync_cloud_datasets(config, progress_callback) -> Optional[int]:
         except Exception as purge_e:
             logger.debug(f"Raw cache purge skipped (non-fatal): {purge_e}")
 
-        from src.dataset_updater import DatasetUpdater
-
-        downloaded = DatasetUpdater(config).sync_datasets(progress_callback)
+        downloaded = _run_dataset_sync(config, progress_callback)
         config.settings.last_run_version = constants.APPLICATION_VERSION
         write_configuration(config)
         return downloaded or 0
     if config.settings.auto_sync_datasets:
-        from src.dataset_updater import DatasetUpdater
-
-        downloaded = DatasetUpdater(config).sync_datasets(progress_callback)
-        return downloaded or 0
+        return _run_dataset_sync(config, progress_callback) or 0
     progress_callback("Cloud sync disabled by user...")
     return None
 
