@@ -476,7 +476,6 @@ def test_every_view_model_is_used_outside_viewmodels():
 # desktop/src, demanding its removal.
 _UNREAD_FIELD_EXCEPTIONS = {
     "activeVariant": "redundant with variants[].isActive (SealedPage tab bar)",
-    "sessionId": "sealed-save persistence key; never displayed",
     "isBuilding": "mirrored locally by SuggestPage around the awaited command",
     "rating": "already inside the rendered label ('(Power: N)')",
     "labelPrefix": "already inside the rendered label",
