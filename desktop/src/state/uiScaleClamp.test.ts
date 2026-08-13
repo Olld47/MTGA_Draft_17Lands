@@ -19,13 +19,14 @@ describe("uiScaleClamp (the shared clamp definition)", () => {
     expect(clampUiScale(2.5)).toBe(2.5);
   });
 
-  it("collapses out-of-range and junk factors to 1", () => {
-    expect(clampUiScale(3.0)).toBe(1); // ticket: stored scale above the ceiling
-    expect(clampUiScale(0.1)).toBe(1); // ticket: stored scale below the floor
-    expect(clampUiScale(0.39)).toBe(1);
-    expect(clampUiScale(2.6)).toBe(1);
+  it("clamps out-of-range factors to the bounds; junk degrades to 1", () => {
+    expect(clampUiScale(3.0)).toBe(2.5); // ticket: stored scale above the ceiling
+    expect(clampUiScale(0.1)).toBe(0.4); // ticket: stored scale below the floor
+    expect(clampUiScale(0.39)).toBe(0.4);
+    expect(clampUiScale(2.6)).toBe(2.5);
     expect(clampUiScale(Number.NaN)).toBe(1);
     expect(clampUiScale(Number.POSITIVE_INFINITY)).toBe(1);
+    expect(clampUiScale(Number.NEGATIVE_INFINITY)).toBe(1);
   });
 
   it("rewrites the pre-paint script's bound literals to its own values", () => {

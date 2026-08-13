@@ -386,7 +386,8 @@ def test_release_artifacts_exclude_the_desktop_bundles():
 # --- uiScale zoom clamp: one definition, two readers ------------------------
 #
 # The pre-paint script in desktop/index.html and the settings layer's
-# state/scale.ts each apply the uiScale clamp (0.4-2.5, junk -> 1). The script
+# state/scale.ts each apply the uiScale clamp (0.4-2.5, out-of-range factors
+# clamped to the bounds, junk -> 1). The script
 # runs synchronously before the bundle loads, so it cannot import the TS
 # module; instead vite.config.ts rewrites its bound literals from
 # state/uiScaleClamp.ts at build time. These guards pin the source to that

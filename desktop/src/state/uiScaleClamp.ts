@@ -7,13 +7,13 @@
 export const UI_SCALE_MIN = 0.4;
 export const UI_SCALE_MAX = 2.5;
 
-/** Accept a zoom factor and return it if it lies inside the clamp range, else
- *  1 (the "restore default zoom" fallback). Non-finite input degrades to 1. */
+/** Clamp a zoom factor to [UI_SCALE_MIN, UI_SCALE_MAX]; non-finite input
+ *  degrades to 1 (the "restore default zoom" fallback). */
 export function clampUiScale(factor: number): number {
-  if (Number.isFinite(factor) && factor >= UI_SCALE_MIN && factor <= UI_SCALE_MAX) {
-    return factor;
+  if (!Number.isFinite(factor)) {
+    return 1;
   }
-  return 1;
+  return Math.min(Math.max(factor, UI_SCALE_MIN), UI_SCALE_MAX);
 }
 
 /** Rewrites the pre-paint script's bound literals in `index.html` to this

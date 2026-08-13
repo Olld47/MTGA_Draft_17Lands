@@ -55,9 +55,9 @@ describe("index.html pre-paint script (first paint)", () => {
     }
   });
 
-  it("paints factor 1 for junk and out-of-range stored values", () => {
-    expect(firstPaint("3")).toBe("1");
-    expect(firstPaint("0.1")).toBe("1");
+  it("paints the clamped factor for out-of-range stored values, 1 for junk", () => {
+    expect(firstPaint("3")).toBe("2.5");
+    expect(firstPaint("0.1")).toBe("0.4");
     expect(firstPaint("banana")).toBe("1");
   });
 

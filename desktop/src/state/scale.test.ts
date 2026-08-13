@@ -37,10 +37,10 @@ describe("applyUiScale", () => {
     expect(uiScale()).toBe("0.4");
     applyUiScale("250%"); // ceiling
     expect(uiScale()).toBe("2.5");
-    applyUiScale("30%"); // below the floor
-    expect(uiScale()).toBe("1");
-    applyUiScale("400%"); // above the ceiling
-    expect(uiScale()).toBe("1");
+    applyUiScale("30%"); // below the floor, clamps to it
+    expect(uiScale()).toBe("0.4");
+    applyUiScale("400%"); // above the ceiling, clamps to it
+    expect(uiScale()).toBe("2.5");
   });
 
   it("leaves the var untouched when never called", () => {
