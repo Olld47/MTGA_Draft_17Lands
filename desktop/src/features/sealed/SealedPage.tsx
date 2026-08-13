@@ -19,6 +19,7 @@ import {
 } from "../../api/client";
 import { EVENTS, on, type RefreshPayload } from "../../api/events";
 import type { SealedAction, SealedState } from "../../api/types";
+import { consumeSealedPool } from "../../state/sealedAutoRun";
 import { DeckStatsView, DeckTable } from "../deck/DeckStatsView";
 import { PracticeDialog } from "../practice/PracticeDialog";
 import type { GroupBy } from "../../components/cardGroups";
@@ -100,6 +101,27 @@ export function SealedPage({ colorTint }: { colorTint: boolean }) {
       un.then((f) => f());
     };
   }, [refresh]);
+
+  // A first-time visitor lands on a shelled, land-assigned deck without
+  // clicking Auto-generate shells / Auto-lands. consumeSealedPool returns true
+  // only for a fresh pool (empty deck, unseen session), so the page's
+  // conditional remount on tab switches never re-fires and clobber manual edits.
+  useEffect(() => {
+    if (!consumeSealedPool(state)) return;
+    setBusy(true);
+    sealedAutoGenerate()
+      .then((gen) => {
+        setState(gen.state);
+        setMessage(gen.message);
+        return sealedAutoLands();
+      })
+      .then((lands) => {
+        setState(lands.state);
+        setMessage(lands.message);
+      })
+      .catch((e) => setMessage(String(e)))
+      .finally(() => setBusy(false));
+  }, [state]);
 
   const act = (fn: () => Promise<SealedAction>) => {
     setBusy(true);
