@@ -16,6 +16,7 @@ import { DatasetUpdateToast } from "./components/DatasetUpdateToast";
 import { useDatasetSwitcher } from "./state/useDatasetSwitcher";
 import { onNavigateTab } from "./state/navigation";
 import { draftPhase } from "./state/draftPhase";
+import { isSealedEvent } from "./state/sealedTab";
 import { useDraftLogs } from "./state/useDraftLogs";
 import { useSettings } from "./state/useSettings";
 import { useMiniMode } from "./state/useMiniMode";
@@ -143,6 +144,11 @@ export default function App() {
     state && state.eventSet && !state.datasetName ? state.eventSet : undefined;
   const colorTint = settings?.cardColorsEnabled ?? false;
   const phase = draftPhase(state);
+  // The Sealed tab only belongs to a Sealed draft; hiding it for Premier /
+  // Traditional / Quick drafts keeps the strip honest for the active log (live
+  // or a loaded history log — state.eventType follows whichever is loaded).
+  const sealedVisible = isSealedEvent(state?.eventType);
+  const tabs = TABS.filter((t) => t.id !== "sealed" || sealedVisible);
 
   if (mini) {
     return (
@@ -211,7 +217,7 @@ export default function App() {
       </header>
 
       <nav className="tab-strip">
-        {TABS.map((tabDef) => (
+        {tabs.map((tabDef) => (
           <button
             key={tabDef.id}
             className={tab === tabDef.id ? "active" : ""}
@@ -248,7 +254,9 @@ export default function App() {
               onSentToBuilder={() => setTab("deck")}
             />
           )}
-          {tab === "sealed" && <SealedPage colorTint={colorTint} />}
+          {tab === "sealed" && sealedVisible && (
+            <SealedPage colorTint={colorTint} />
+          )}
           {tab === "compare" && <ComparePage colorTint={colorTint} />}
           {tab === "tiers" && <TiersPage />}
           {tab === "datasets" && <DatasetsPage missingSet={missingSet} />}
