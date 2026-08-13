@@ -16,6 +16,13 @@ describe("isSealedEvent", () => {
     expect(isSealedEvent("ContenderDraft")).toBe(false);
   });
 
+  it("rejects a hypothetical event type that merely contains Sealed", () => {
+    // Exact membership, not substring: a future non-Sealed event whose type
+    // happens to include "Sealed" must not false-positive.
+    expect(isSealedEvent("SealedPrelim")).toBe(false);
+    expect(isSealedEvent("TradSealedChallenge")).toBe(false);
+  });
+
   it("is false with no active draft", () => {
     expect(isSealedEvent("")).toBe(false);
     expect(isSealedEvent(null)).toBe(false);

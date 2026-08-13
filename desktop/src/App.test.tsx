@@ -1,7 +1,15 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { BootStatus, DraftState, SealedState, Settings } from "./api/types";
+import type {
+  BootStatus,
+  DraftLog,
+  DraftLogList,
+  DraftState,
+  SealedState,
+  Settings,
+} from "./api/types";
+import { EVENTS } from "./api/events";
 import App from "./App";
 import { setLanguage } from "./i18n/useLanguage";
 import { navigateTab } from "./state/navigation";
@@ -55,11 +63,30 @@ vi.mock("./api/client", () => ({
   sealedExportSealeddeck: vi.fn(),
 }));
 
+const { onMock, fireBridgeEvent, clearBridgeEvents } = vi.hoisted(() => {
+  const handlers = new Map<string, Set<(payload: unknown) => void>>();
+  return {
+    onMock: vi.fn((event: string, handler: (payload: unknown) => void) => {
+      let list = handlers.get(event);
+      if (!list) handlers.set(event, (list = new Set()));
+      list.add(handler);
+      return Promise.resolve(() => {
+        list.delete(handler);
+      });
+    }),
+    fireBridgeEvent: (event: string, payload?: unknown) => {
+      handlers.get(event)?.forEach((cb) => cb(payload));
+    },
+    clearBridgeEvents: () => handlers.clear(),
+  };
+});
+
 // Keep the real EVENTS names; stub the listen() wrapper so no backend is
-// contacted in jsdom.
+// contacted in jsdom, but capture handlers so tests can simulate bridge emits
+// (e.g. the orchestrator's draft://refresh after set_log_file).
 vi.mock("./api/events", async (importOriginal) => {
   const mod = await importOriginal<typeof import("./api/events")>();
-  return { ...mod, on: vi.fn(() => Promise.resolve(() => {})) };
+  return { ...mod, on: onMock };
 });
 
 import {
@@ -72,6 +99,7 @@ import {
   listDraftLogs,
   sealedAutoGenerate,
   sealedAutoLands,
+  setLogFile,
 } from "./api/client";
 import { resetSealedAutoRun } from "./state/sealedAutoRun";
 
@@ -153,12 +181,17 @@ const sealedState = (over: Partial<SealedState> = {}): SealedState => ({
   ...over,
 });
 
-async function renderBooted(state: DraftState) {
+async function renderBooted(
+  state: DraftState,
+  opts: { logs?: DraftLogList } = {},
+) {
   vi.mocked(getBootStatus).mockResolvedValue(bootStatus());
   vi.mocked(getDraftState).mockResolvedValue(state);
   vi.mocked(getSettings).mockResolvedValue(settings());
   vi.mocked(getSetMetrics).mockResolvedValue({ metrics: {}, hasData: false });
-  vi.mocked(listDraftLogs).mockResolvedValue({ logs: [], current: "" });
+  vi.mocked(listDraftLogs).mockResolvedValue(
+    opts.logs ?? { logs: [], current: "" },
+  );
   vi.mocked(getDatasetSwitcher).mockResolvedValue({
     setCode: "",
     detectedEvent: null,
@@ -173,6 +206,10 @@ async function renderBooted(state: DraftState) {
 
 beforeEach(() => {
   setLanguage("en");
+  // The bridge-handler capture map is a closure the mock factory owns; RTL's
+  // unmount cleanup removes handlers via an async microtask and vi.clearAllMocks
+  // only clears call history, so wipe the map here to isolate each case.
+  clearBridgeEvents();
   // The consumed-session memory is module-level (it must survive SealedPage's
   // remounts), so every case starts from a clean slate — the "does not leak
   // across cases" test below verifies this is in place.
@@ -243,6 +280,64 @@ describe("Sealed tab gating", () => {
     await renderBooted(
       draftState({ logSource: "history", eventType: "Sealed" }),
     );
+
+    expect(
+      screen.getByRole("button", { name: "Sealed Deck" }),
+    ).toBeInTheDocument();
+  });
+
+  it("shows the Sealed tab after loading a Sealed history log via the log switcher", async () => {
+    const liveLog: DraftLog = {
+      path: "/logs/Player.log",
+      fileName: "Player.log",
+      modified: 100,
+      label: "Live Arena Log",
+      isLive: true,
+    };
+    const sealedLog: DraftLog = {
+      path: "/logs/DraftLog_OTJ_Sealed.log",
+      fileName: "DraftLog_OTJ_Sealed.log",
+      modified: 200,
+      label: "OTJ Sealed",
+      isLive: false,
+    };
+
+    await renderBooted(
+      draftState({ eventType: "PremierDraft", logName: "Player.log" }),
+      { logs: { logs: [liveLog, sealedLog], current: "Player.log" } },
+    );
+
+    // Live Premier draft: no Sealed tab.
+    expect(
+      screen.queryByRole("button", { name: "Sealed Deck" }),
+    ).not.toBeInTheDocument();
+
+    // The log switcher is the only combobox (DatasetSwitcher renders null).
+    const switcher = await screen.findByRole("combobox");
+    await act(async () => {
+      fireEvent.change(switcher, { target: { value: sealedLog.path } });
+    });
+
+    // set_log_file ran, but the tab must stay hidden until the backend's
+    // draft://refresh makes useDraftState re-fetch with the history log's own
+    // event type.
+    await waitFor(() => expect(setLogFile).toHaveBeenCalledWith(sealedLog.path));
+    expect(
+      screen.queryByRole("button", { name: "Sealed Deck" }),
+    ).not.toBeInTheDocument();
+
+    // The orchestrator re-scanned the log and emitted draft://refresh; the
+    // re-fetched state carries the history log's Sealed event type.
+    vi.mocked(getDraftState).mockResolvedValue(
+      draftState({
+        logSource: "history",
+        eventType: "Sealed",
+        logName: sealedLog.fileName,
+      }),
+    );
+    await act(async () => {
+      fireBridgeEvent(EVENTS.draftRefresh, { seq: 1 });
+    });
 
     expect(
       screen.getByRole("button", { name: "Sealed Deck" }),
