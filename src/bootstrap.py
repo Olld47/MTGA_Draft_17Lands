@@ -8,7 +8,6 @@ live in main.py, with progress reported through a plain callback.
 import logging
 import os
 import time
-from typing import Optional
 
 from src import constants
 from src.boot_sync import BOOT_NOT_ATTEMPTED, BootSyncOutcome
@@ -38,18 +37,18 @@ def cleanup_old_draft_logs(max_age_seconds: int = 2592000):
         logger.error(f"Failed cleaning old draft logs: {e}")
 
 
-def _run_dataset_sync(config, progress_callback) -> Optional[int]:
-    """Run the dataset sync, collapsing an unexpected exception to None so the
-    call site's `or 0` yields 0. A boot sync that RAN but failed must read as
-    'synced, downloaded 0' to the notifier — never an uncaught exception and
-    never None, either of which would re-sync 1.5s after boot."""
+def _run_dataset_sync(config, progress_callback) -> int:
+    """Run the dataset sync. Always returns an int download count — 0 both when
+    nothing was downloaded and when the sync failed — so a boot sync that RAN
+    but failed reads as 'synced, downloaded 0' to the notifier. None or an
+    uncaught exception would make the notifier re-sync 1.5s after boot."""
     from src.dataset_updater import DatasetUpdater
 
     try:
-        return DatasetUpdater(config).sync_datasets(progress_callback)
+        return DatasetUpdater(config).sync_datasets(progress_callback) or 0
     except Exception as e:
         logger.error(f"Dataset sync failed: {e}")
-        return None
+        return 0
 
 
 def _sync_cloud_datasets(config, progress_callback) -> BootSyncOutcome:
@@ -77,10 +76,10 @@ def _sync_cloud_datasets(config, progress_callback) -> BootSyncOutcome:
         downloaded = _run_dataset_sync(config, progress_callback)
         config.settings.last_run_version = constants.APPLICATION_VERSION
         write_configuration(config)
-        return BootSyncOutcome(attempted=True, downloaded=downloaded or 0)
+        return BootSyncOutcome(attempted=True, downloaded=downloaded)
     if config.settings.auto_sync_datasets:
         return BootSyncOutcome(
-            attempted=True, downloaded=_run_dataset_sync(config, progress_callback) or 0
+            attempted=True, downloaded=_run_dataset_sync(config, progress_callback)
         )
     progress_callback("Cloud sync disabled by user...")
     return BOOT_NOT_ATTEMPTED
