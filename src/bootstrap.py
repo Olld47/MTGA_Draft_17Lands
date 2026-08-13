@@ -72,12 +72,9 @@ def _sync_cloud_datasets(config, progress_callback) -> BootSyncOutcome:
             purge_raw_cache()
         except Exception as purge_e:
             logger.debug(f"Raw cache purge skipped (non-fatal): {purge_e}")
-
-        downloaded = _run_dataset_sync(config, progress_callback)
         config.settings.last_run_version = constants.APPLICATION_VERSION
         write_configuration(config)
-        return BootSyncOutcome(attempted=True, downloaded=downloaded)
-    if config.settings.auto_sync_datasets:
+    if upgraded or config.settings.auto_sync_datasets:
         return BootSyncOutcome(
             attempted=True, downloaded=_run_dataset_sync(config, progress_callback)
         )
