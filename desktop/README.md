@@ -24,7 +24,8 @@ Player.log → ArenaScanner ─┐ (src/, shared with tkinter app)
   - `snapshot.py` — headless port of `AppController.refresh_ui_data`
   - `orchestrator_adapter.py` — drains `update_queue` → `draft://*` events
   - `viewmodels.py` — pydantic IPC models (camelCase aliases)
-  - `commands.py` — the pytauri command surface (thin wrappers only)
+  - `commands/` — per-feature pytauri command packages (thin wrappers only),
+    merged into one `Commands` object by `commands/__init__.py`
   - `services.py` / `datasets.py` — pure command implementations
 - `src/` (this folder) — Vite + React + TypeScript frontend
 
@@ -127,7 +128,7 @@ scripts were removed in v0.10, before they were ever built.
 ## Versioning
 
 The desktop app has its own version series, independent of the tkinter app's
-`APPLICATION_VERSION` (`src/constants.py`). It is written in **eight literals
+`APPLICATION_VERSION` (`src/constants/versions.py`). It is written in **eight literals
 across seven files** — `package.json`, `package-lock.json` (twice),
 `pyproject.toml`, `src-tauri/pyproject.toml`, `src-tauri/Cargo.toml`,
 `Cargo.lock`, and `src-tauri/tauri.conf.json`.

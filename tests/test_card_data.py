@@ -1,9 +1,9 @@
 """
 tests/test_card_data.py
 Guards for the CardData TypedDict: field names must mirror the DATA_FIELD_*
-constants in src/constants.py so the documented card shape can't drift. The
-single exception is returnable_at, a computed pack-card field with no
-constants.py equivalent — whitelisted below by name.
+constants in src/constants (data_fields.py) so the documented card shape
+can't drift. The single exception is returnable_at, a computed pack-card
+field with no constants equivalent — whitelisted below by name.
 """
 
 from src.card_data import CardData

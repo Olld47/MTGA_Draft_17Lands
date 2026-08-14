@@ -41,7 +41,7 @@ from mtga_bridge.runtime import AppRuntime
 from mtga_bridge.viewmodels import SettingsPatch, _VM
 
 
-COMMANDS_SOURCE = os.path.join(BRIDGE_PATH, "mtga_bridge", "commands.py")
+COMMANDS_DIR = os.path.join(BRIDGE_PATH, "mtga_bridge", "commands")
 
 
 def _vm_classes():
@@ -166,23 +166,27 @@ def test_inbound_accepts_both_casings(model):
 
 
 def _command_return_annotations():
-    """(command name, return annotation) for every @commands.command() in
-    commands.py, read from source so pytauri needn't be importable."""
-    with open(COMMANDS_SOURCE, "r", encoding="utf-8") as handle:
-        tree = ast.parse(handle.read())
-
+    """(command name, return annotation) for every @commands.command() across
+    the mtga_bridge.commands package, read from source so pytauri needn't be
+    importable."""
     results = []
-    for node in ast.walk(tree):
-        if not isinstance(node, (ast.AsyncFunctionDef, ast.FunctionDef)):
+    for filename in sorted(os.listdir(COMMANDS_DIR)):
+        if not filename.endswith(".py") or filename.startswith("_"):
             continue
-        decorated = any(
-            isinstance(d, ast.Call)
-            and isinstance(d.func, ast.Attribute)
-            and d.func.attr == "command"
-            for d in node.decorator_list
-        )
-        if decorated:
-            results.append((node.name, ast.unparse(node.returns) if node.returns else None))
+        with open(os.path.join(COMMANDS_DIR, filename), "r", encoding="utf-8") as handle:
+            tree = ast.parse(handle.read())
+
+        for node in ast.walk(tree):
+            if not isinstance(node, (ast.AsyncFunctionDef, ast.FunctionDef)):
+                continue
+            decorated = any(
+                isinstance(d, ast.Call)
+                and isinstance(d.func, ast.Attribute)
+                and d.func.attr == "command"
+                for d in node.decorator_list
+            )
+            if decorated:
+                results.append((node.name, ast.unparse(node.returns) if node.returns else None))
     return results
 
 
@@ -401,19 +405,8 @@ CLIENT_SOURCE = os.path.join(FRONTEND_DIR, "api", "client.ts")
 
 
 def _registered_commands():
-    with open(COMMANDS_SOURCE, "r", encoding="utf-8") as handle:
-        tree = ast.parse(handle.read())
-    return {
-        node.name
-        for node in ast.walk(tree)
-        if isinstance(node, (ast.AsyncFunctionDef, ast.FunctionDef))
-        and any(
-            isinstance(d, ast.Call)
-            and isinstance(d.func, ast.Attribute)
-            and d.func.attr == "command"
-            for d in node.decorator_list
-        )
-    }
+    """Every command name across the mtga_bridge.commands package."""
+    return {name for name, _ in _command_return_annotations()}
 
 
 def _client_source():
@@ -457,16 +450,20 @@ def test_every_view_model_is_used_outside_viewmodels():
     while boot.py emitted hand-written dicts — the drift this file exists to
     catch. A VM referenced nowhere else is either dead or a contract nothing
     honors."""
-    bridge_dir = os.path.dirname(COMMANDS_SOURCE)
+    bridge_dir = os.path.dirname(COMMANDS_DIR)
     with open(os.path.join(bridge_dir, "viewmodels.py"), "r", encoding="utf-8") as handle:
         declared = set(re.findall(r"^class (\w+)\(_VM\):", handle.read(), re.M))
     assert len(declared) > 50, "viewmodels reflection found suspiciously few models"
 
+    python_files = [
+        os.path.join(root, name)
+        for root, _, files in os.walk(bridge_dir)
+        for name in files
+        if name.endswith(".py") and name != "viewmodels.py"
+    ]
     orphans = set(declared)
-    for name in os.listdir(bridge_dir):
-        if not name.endswith(".py") or name == "viewmodels.py":
-            continue
-        with open(os.path.join(bridge_dir, name), "r", encoding="utf-8") as handle:
+    for path in python_files:
+        with open(path, "r", encoding="utf-8") as handle:
             text = handle.read()
         orphans -= {v for v in orphans if re.search(rf"\b{v}\b", text)}
 

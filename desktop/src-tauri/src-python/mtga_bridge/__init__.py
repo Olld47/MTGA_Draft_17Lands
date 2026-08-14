@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 def main() -> int:
-    # Pin cwd/sys.path BEFORE any `src.*` import (src/constants.py derives its
+    # Pin cwd/sys.path BEFORE any `src.*` import (src/constants derives its
     # data folders from the cwd in a source checkout).
     from mtga_bridge.paths import ensure_runtime_paths
 

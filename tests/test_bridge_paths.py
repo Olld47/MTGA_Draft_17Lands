@@ -7,8 +7,8 @@ read at module import by nearly every module, so a regression here silently
 relocates Sets/, Logs/, Temp/ and config.json.
 """
 
-import importlib
 import os
+import subprocess
 import sys
 from unittest.mock import patch
 
@@ -129,23 +129,32 @@ def test_resolve_base_dir_creates_missing_directory(tmp_path, monkeypatch):
 # --- constants / logger delegate to app_paths ------------------------------
 
 
-def test_constants_base_dir_honors_env_override(tmp_path, monkeypatch):
-    """constants.BASE_DIR is computed at import; reimporting under the override
-    must relocate every derived folder with it."""
+def test_constants_base_dir_honors_env_override(tmp_path):
+    """BASE_DIR is computed when src.constants is first imported; a fresh
+    process that sets MTGA_DRAFT_BASE_DIR before importing must resolve every
+    derived folder under it (this is how the bundled pytauri app opts in)."""
     target = str(tmp_path / "relocated")
-    monkeypatch.setenv(app_paths.BASE_DIR_ENV_VAR, target)
-
-    import src.constants as constants
-
-    reloaded = importlib.reload(constants)
-    try:
-        assert reloaded.BASE_DIR == target
-        assert reloaded.SETS_FOLDER == os.path.join(target, "Sets")
-        assert reloaded.TEMP_FOLDER == os.path.join(target, "Temp")
-        assert reloaded.DRAFT_LOG_FOLDER == os.path.join(target, "Logs")
-    finally:
-        monkeypatch.delenv(app_paths.BASE_DIR_ENV_VAR, raising=False)
-        importlib.reload(reloaded)
+    script = (
+        "import os, sys\n"
+        f"sys.path.insert(0, {REPO_ROOT!r})\n"
+        f"os.environ['{app_paths.BASE_DIR_ENV_VAR}'] = {target!r}\n"
+        "from src import constants\n"
+        "print(constants.BASE_DIR)\n"
+        "print(constants.SETS_FOLDER)\n"
+        "print(constants.TEMP_FOLDER)\n"
+        "print(constants.DRAFT_LOG_FOLDER)\n"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    lines = result.stdout.splitlines()
+    assert lines[0] == target
+    assert lines[1] == os.path.join(target, "Sets")
+    assert lines[2] == os.path.join(target, "Temp")
+    assert lines[3] == os.path.join(target, "Logs")
 
 
 def test_logger_debug_folder_tracks_base_dir():
@@ -165,7 +174,7 @@ def test_find_repo_root_locates_checkout():
 
 
 def test_find_repo_root_returns_none_when_bundled(tmp_path):
-    """Walking up from an embedded site-packages never reaches src/constants.py."""
+    """Walking up from an embedded site-packages never reaches src/constants/."""
     fake = tmp_path / "lib" / "python3.13" / "site-packages" / "mtga_bridge"
     fake.mkdir(parents=True)
     with patch.object(paths, "__file__", str(fake / "paths.py")):

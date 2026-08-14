@@ -5,7 +5,7 @@ import subprocess
 from datetime import datetime
 
 # --- CONFIGURATION ---
-CONSTANTS_PATH = os.path.join("src", "constants.py")
+CONSTANTS_PATH = os.path.join("src", "constants", "versions.py")
 INSTALLER_PATH = os.path.join("builder", "Installer.iss")
 REL_NOTES_PATH = "release_notes.txt"
 

@@ -1,7 +1,7 @@
 """
 mtga_bridge.paths
 Pins the process working directory and `src` importability before any `src.*`
-import happens. `src/constants.py` derives BASE_DIR (Sets/, Logs/, Temp/) from
+import happens. `src/constants` derives BASE_DIR (Sets/, Logs/, Temp/) from
 the cwd in a source checkout, so both UIs must agree on cwd or their data
 folders silently fork.
 
@@ -18,14 +18,14 @@ from typing import Optional
 
 
 def find_repo_root() -> Optional[str]:
-    """Walks up from this file looking for the repo root (contains src/constants.py).
+    """Walks up from this file looking for the repo root (contains src/constants/).
 
     Returns None when running from a bundle, where `src` lives in the embedded
     interpreter's site-packages rather than above this file.
     """
     current = os.path.dirname(os.path.abspath(__file__))
     while True:
-        if os.path.exists(os.path.join(current, "src", "constants.py")):
+        if os.path.isdir(os.path.join(current, "src", "constants")):
             return current
         parent = os.path.dirname(current)
         if parent == current:
