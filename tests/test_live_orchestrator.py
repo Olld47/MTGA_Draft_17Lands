@@ -2,7 +2,7 @@ import pytest
 import os
 import queue
 from unittest.mock import patch, MagicMock
-from src.orchestrator import DraftOrchestrator
+from src.orchestrator import DraftOrchestrator, RefreshMessage, StatusMessage
 from src.configuration import Configuration
 
 
@@ -135,3 +135,54 @@ def test_file_swap_queue_processing(orchestrator):
 
     # Verify scanner was updated
     orchestrator.scanner.set_arena_file.assert_called_with("historical_draft_2.log")
+
+
+def test_orchestrator_emits_typed_refresh_message(orchestrator):
+    """The queue must carry a typed RefreshMessage, never a bare "REFRESH" string."""
+    orchestrator.request_math_update()
+    with patch("src.orchestrator.time.sleep", return_value=None):
+        orchestrator._stop_event.is_set = MagicMock(side_effect=[False, True])
+        orchestrator.run()
+
+    msgs = list(orchestrator.update_queue.queue)
+    assert msgs
+    assert all(isinstance(m, RefreshMessage) for m in msgs)
+    assert all(not isinstance(m, str) for m in msgs)
+
+
+def test_orchestrator_emits_typed_status_then_refresh_sequence(orchestrator):
+    """The file-swap path emits StatusMessage(s) then a final RefreshMessage."""
+    orchestrator.set_file_and_scan("fake.log")
+    orchestrator.scanner.set_arena_file = MagicMock()
+    orchestrator.scanner.draft_start_search = MagicMock(return_value=False)
+    orchestrator.sync_dataset_to_event = MagicMock()
+    with patch("src.orchestrator.time.sleep", return_value=None):
+        orchestrator._stop_event.is_set = MagicMock(side_effect=[False, True])
+        orchestrator.run()
+
+    msgs = list(orchestrator.update_queue.queue)
+    assert msgs[0] == StatusMessage(text="Scanning Log...")
+    assert any(m == StatusMessage(text="Parsing Picks...") for m in msgs)
+    assert msgs[-1] == RefreshMessage()
+    assert all(not isinstance(m, (dict, str)) for m in msgs)
+
+
+def test_sync_dataset_emits_loading_status_message(orchestrator):
+    """sync_dataset_to_event reports a typed Loading status message on cache miss."""
+    orchestrator.scanner.retrieve_current_limited_event = MagicMock(
+        return_value=("OTJ", "PremierDraft")
+    )
+    orchestrator.scanner.event_string = "PremierDraft"
+    orchestrator.scanner.select_best_dataset = MagicMock(
+        return_value="/sets/OTJ_Data.json"
+    )
+    orchestrator.scanner.retrieve_set_data = MagicMock()
+    orchestrator.scanner.set_data._dataset = None
+    orchestrator.config.card_data.latest_dataset = "M10_Data.json"
+
+    with patch("src.configuration.write_configuration"):
+        assert orchestrator.sync_dataset_to_event() is True
+
+    msgs = list(orchestrator.update_queue.queue)
+    assert StatusMessage(text="Loading OTJ Dataset...") in msgs
+    assert all(not isinstance(m, dict) for m in msgs)

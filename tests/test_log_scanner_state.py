@@ -1,5 +1,6 @@
 import pytest
 from unittest.mock import MagicMock
+import os
 import src.constants as constants
 from src.log_scanner import ArenaScanner, _dataset_event_type_rank
 from src.constants import LIMITED_TYPE_DRAFT_PREMIER_V2
@@ -339,9 +340,9 @@ def test_state_persists_scan_offsets(tmp_path):
 
     s = _recovery_scanner(tmp_path, "MTGA Log Start\n")
     s.search_offset = 1111
-    s.pick_offset = 2222
-    s.pack_offset = 3333
-    s.pool_offset = 4444
+    s.pick_offset.position = 2222
+    s.pack_offset.position = 3333
+    s.pool_offset.position = 4444
     s.file_size = 5555
     s.draft_type = constants.LIMITED_TYPE_DRAFT_PREMIER_V2
     s.taken_cards = ["1"]
@@ -350,9 +351,9 @@ def test_state_persists_scan_offsets(tmp_path):
     fresh = _recovery_scanner(tmp_path, "MTGA Log Start\n")
     assert fresh._load_state() is True
     assert fresh.search_offset == 1111
-    assert fresh.pick_offset == 2222
-    assert fresh.pack_offset == 3333
-    assert fresh.pool_offset == 4444
+    assert fresh.pick_offset.position == 2222
+    assert fresh.pack_offset.position == 3333
+    assert fresh.pool_offset.position == 4444
     assert fresh.file_size == 5555
 
 
@@ -383,9 +384,9 @@ def test_reopen_does_not_wipe_restored_state_when_log_has_old_events(tmp_path):
     s.current_pack = 2
     s.current_pick = 3
     s.search_offset = log_size
-    s.pick_offset = log_size
-    s.pack_offset = log_size
-    s.pool_offset = log_size
+    s.pick_offset.position = log_size
+    s.pack_offset.position = log_size
+    s.pool_offset.position = log_size
     s.file_size = log_size
     s._save_state()
 
@@ -412,9 +413,9 @@ def test_reopened_scanner_detects_truncated_log_and_resets(tmp_path):
     s.draft_type = constants.LIMITED_TYPE_DRAFT_QUICK
     s.taken_cards = [str(1000 + i) for i in range(17)]
     s.search_offset = 5000
-    s.pick_offset = 5000
-    s.pack_offset = 5000
-    s.pool_offset = 5000
+    s.pick_offset.position = 5000
+    s.pack_offset.position = 5000
+    s.pool_offset.position = 5000
     s.file_size = 5000
     s._save_state()
 
@@ -476,3 +477,67 @@ def test_recovery_mode_sets_draft_label(scanner):
     scanner._ArenaScanner__perform_search_logic()
 
     assert scanner.draft_label == constants.LIMITED_TYPE_STRING_DRAFT_PREMIER
+
+
+# --- Typed scan cursors (architecture-review issue04) -------------------------
+# The old offset_attr string reflection made _scan_log_for_events/_parse_events
+# silently break on rename. Cursors are now explicit objects: renames fail with
+# AttributeError at the call site, and the three cursors advance independently.
+
+
+def _cursor_log(tmp_path):
+    log = tmp_path / "draft.log"
+    log.write_text(
+        '[UnityCrossThreadLogger]==> {"Pack":1,"Pick":1}\n'
+        "[UnityCrossThreadLogger]==> some noise\n"
+        '[UnityCrossThreadLogger]==> {"Pack":1,"Pick":2}\n'
+    )
+    s = ArenaScanner(str(log), MagicMock(), retrieve_unknown=False)
+    return s, log
+
+
+def test_scan_log_events_advances_typed_cursor(tmp_path):
+    """_scan_log_for_events reads from cursor.position and advances it, so a
+    re-scan resumes where it left off instead of re-reading the whole log."""
+    s, log = _cursor_log(tmp_path)
+    cursor = s.pack_offset
+
+    payloads = list(s._scan_log_for_events(cursor, ['{"Pack":']))
+    assert len(payloads) == 2
+    assert all("Pack" in p for p in payloads)
+    assert cursor.position == os.path.getsize(str(log))
+
+
+def test_scan_log_events_resumes_from_cursor_position(tmp_path):
+    """The cursor sits at EOF after one pass; a second pass only yields lines
+    appended since — the append-only Player.log model."""
+    s, log = _cursor_log(tmp_path)
+    cursor = s.pick_offset
+
+    list(s._scan_log_for_events(cursor, ["noise"]))  # first pass consumes to EOF
+
+    with open(str(log), "a", encoding="utf-8") as f:
+        f.write('[UnityCrossThreadLogger]==> {"Pack":2,"Pick":1}\n')
+
+    second = list(s._scan_log_for_events(cursor, ["Pack"]))
+    assert len(second) == 1
+    assert '"Pack":2' in second[0]
+
+
+def test_scan_cursors_are_independent(tmp_path):
+    """pack/pick/pool cursors advance separately; scanning one never touches the others."""
+    s, _ = _cursor_log(tmp_path)
+
+    list(s._scan_log_for_events(s.pack_offset, ["Pack"]))
+    assert s.pack_offset.position > 0
+    assert s.pick_offset.position == 0
+    assert s.pool_offset.position == 0
+
+
+def test_scan_log_events_rejects_legacy_string_cursor(tmp_path):
+    """The offset_attr string form must be gone — passing a string now fails
+    loudly (AttributeError) instead of silently reflecting an attribute name."""
+    s, _ = _cursor_log(tmp_path)
+    with pytest.raises(AttributeError):
+        list(s._scan_log_for_events("pack_offset", ['{"Pack":']))
+

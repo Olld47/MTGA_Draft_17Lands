@@ -11,6 +11,7 @@ import sys
 from typing import Dict, List
 
 from src import constants
+from src.orchestrator import RefreshMessage, StatusMessage
 from src.card_data import CardData
 from src.configuration import write_configuration
 from src.advisor.engine import DraftAdvisor
@@ -101,15 +102,17 @@ class AppController:
             while True:
                 try:
                     msg = self.orchestrator.update_queue.get_nowait()
-                    if isinstance(msg, dict) and "status" in msg:
-                        self.app.vars["status_text"].set(msg["status"])
-                        if hasattr(self.app, "loading_overlay"):
-                            self.app.loading_overlay.update_status(msg["status"])
-                        self.root.update_idletasks()
-                    elif msg == "REFRESH":
-                        update_detected = True
                 except queue.Empty:
                     break
+                if isinstance(msg, StatusMessage):
+                    self.app.vars["status_text"].set(msg.text)
+                    if hasattr(self.app, "loading_overlay"):
+                        self.app.loading_overlay.update_status(msg.text)
+                    self.root.update_idletasks()
+                elif isinstance(msg, RefreshMessage):
+                    update_detected = True
+                else:
+                    logger.warning(f"Ignoring unknown orchestrator message: {msg!r}")
 
             if update_detected:
                 self.app.top_bar.set_history_dropdown_state("readonly")

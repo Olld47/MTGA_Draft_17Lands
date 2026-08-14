@@ -14,6 +14,7 @@ import time
 from typing import Callable
 
 from mtga_bridge.viewmodels import HeartbeatEvent, RefreshEvent, StatusEvent
+from src.orchestrator import RefreshMessage, StatusMessage
 
 logger = logging.getLogger(__name__)
 
@@ -70,12 +71,14 @@ class OrchestratorAdapter(threading.Thread):
                 self._maybe_heartbeat()
                 continue
 
-            if isinstance(msg, dict) and "status" in msg:
-                self.runtime.last_boot_message = msg["status"]
-                self._emit_safe(EVENT_STATUS, StatusEvent(text=msg["status"]))
-            elif msg == "REFRESH":
+            if isinstance(msg, StatusMessage):
+                self.runtime.last_boot_message = msg.text
+                self._emit_safe(EVENT_STATUS, StatusEvent(text=msg.text))
+            elif isinstance(msg, RefreshMessage):
                 seq = self.runtime.bump_refresh()
                 self._emit_safe(EVENT_REFRESH, RefreshEvent(seq=seq))
+            else:
+                logger.warning(f"Ignoring unknown orchestrator message: {msg!r}")
 
             self._maybe_heartbeat()
         logger.info("Orchestrator adapter stopped.")

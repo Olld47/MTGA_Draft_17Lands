@@ -3,9 +3,25 @@ import logging
 import threading
 import time
 import queue
+from dataclasses import dataclass
 from src.configuration import write_configuration
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class StatusMessage:
+    """A status line to surface in the UI (status bar / boot splash)."""
+
+    text: str
+
+
+@dataclass(frozen=True)
+class RefreshMessage:
+    """Signals that pack/pick state changed and both UIs must refresh."""
+
+
+QueueMessage = StatusMessage | RefreshMessage
 
 
 class DraftOrchestrator(threading.Thread):
@@ -23,7 +39,7 @@ class DraftOrchestrator(threading.Thread):
         self._force_full_scan_event = threading.Event()
 
         self.daemon = True
-        self.update_queue = queue.Queue()
+        self.update_queue: queue.Queue[QueueMessage] = queue.Queue()
         self._last_file_size = -1
 
         # Thread-safe queue for file swaps
@@ -128,7 +144,7 @@ class DraftOrchestrator(threading.Thread):
 
             if new_file:
                 self.loading = True
-                self.update_queue.put({"status": "Scanning Log..."})
+                self.update_queue.put(StatusMessage(text="Scanning Log..."))
                 try:
                     self.scanner.set_arena_file(new_file)
 
@@ -140,13 +156,13 @@ class DraftOrchestrator(threading.Thread):
                     self.scanner.draft_start_search()
                     self.sync_dataset_to_event()
 
-                    self.update_queue.put({"status": "Parsing Picks..."})
+                    self.update_queue.put(StatusMessage(text="Parsing Picks..."))
                     self.scanner.draft_data_search()
                 except Exception as e:
                     logger.error(f"Error processing file swap: {e}")
                 finally:
                     self.loading = False
-                    self.update_queue.put("REFRESH")
+                    self.update_queue.put(RefreshMessage())
 
             # 2. Check if file changed OR if a manual event was triggered
             if not self.loading and (
@@ -181,7 +197,7 @@ class DraftOrchestrator(threading.Thread):
                 log_changed = self.check_for_updates(force=force)
                 if log_changed or self._force_math_event.is_set():
                     self._force_math_event.clear()
-                    self.update_queue.put("REFRESH")
+                    self.update_queue.put(RefreshMessage())
             except Exception as e:
                 logger.error(f"Logic Step Error: {e}")
 
@@ -251,7 +267,7 @@ class DraftOrchestrator(threading.Thread):
                 return True
 
             # Notify UI of heavy operation
-            self.update_queue.put({"status": f"Loading {s_code} Dataset..."})
+            self.update_queue.put(StatusMessage(text=f"Loading {s_code} Dataset..."))
 
             self.scanner.retrieve_set_data(path)
             self.config.card_data.latest_dataset = os.path.basename(path)

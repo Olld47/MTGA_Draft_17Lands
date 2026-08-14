@@ -29,6 +29,7 @@ from src import constants
 from src.configuration import Configuration
 from src.limited_sets import SetDictionary, SetInfo
 from src.log_scanner import ArenaScanner
+from src.orchestrator import RefreshMessage, StatusMessage
 from src.utils import Result
 
 from mtga_bridge.snapshot import (
@@ -398,8 +399,8 @@ def test_adapter_forwards_events(tmp_path):
     adapter = OrchestratorAdapter(orch, runtime, lambda e, p: events.append((e, p)))
     adapter.start()
 
-    orch.update_queue.put({"status": "Scanning Log..."})
-    orch.update_queue.put("REFRESH")
+    orch.update_queue.put(StatusMessage(text="Scanning Log..."))
+    orch.update_queue.put(RefreshMessage())
     time.sleep(0.5)
     adapter.stop()
     adapter.join(timeout=2)
@@ -414,6 +415,32 @@ def test_adapter_forwards_events(tmp_path):
     assert isinstance(refresh_payload, RefreshEvent)
     assert refresh_payload.seq == 1
     assert runtime.current_seq == 1
+
+
+def test_adapter_logs_unknown_messages(tmp_path):
+    """An unrecognized queue message must be logged loudly, never silently dropped.
+
+    This is the fail-loud signal that keeps both consumers honest when a new
+    message type is added to the queue protocol (architecture-review issue04)."""
+    log = tmp_path / "Player.log"
+    log.write_text("x")
+    orch = _FakeOrchestrator(str(log))
+    runtime = AppRuntime()
+    events = []
+    adapter = OrchestratorAdapter(orch, runtime, lambda e, p: events.append((e, p)))
+    adapter.start()
+
+    with patch("mtga_bridge.orchestrator_adapter.logger") as mock_logger:
+        orch.update_queue.put("REFRESH")  # legacy bare-string format is gone
+        time.sleep(0.5)
+    adapter.stop()
+    adapter.join(timeout=2)
+
+    mock_logger.warning.assert_called_once()
+    kinds = {e for e, _ in events}
+    assert EVENT_STATUS not in kinds  # unknown message emitted no status/refresh
+    assert EVENT_REFRESH not in kinds
+    assert runtime.current_seq == 0  # no refresh bump
 
 
 def test_adapter_heartbeat_is_a_view_model(tmp_path):
@@ -448,7 +475,7 @@ def test_adapter_emit_errors_do_not_kill_thread(tmp_path):
 
     adapter = OrchestratorAdapter(orch, runtime, bad_emit)
     adapter.start()
-    orch.update_queue.put("REFRESH")
+    orch.update_queue.put(RefreshMessage())
     time.sleep(0.3)
     assert adapter.is_alive()
     adapter.stop()

@@ -1,6 +1,7 @@
 import pytest
 from unittest.mock import MagicMock, patch
 from src.ui.app_controller import AppController
+from src.orchestrator import RefreshMessage, StatusMessage
 
 
 class TestAppController:
@@ -38,15 +39,15 @@ class TestAppController:
         return app
 
     def test_update_loop_processes_queue(self, mock_app):
-        """Verify that the update loop drains the orchestrator's queue and applies UI updates."""
+        """Verify that the update loop drains the orchestrator's typed queue and applies UI updates."""
         controller = AppController(mock_app)
 
-        # Inject messages into the mock queue
+        # Inject typed messages into the mock queue
         import queue
 
         mock_queue = queue.Queue()
-        mock_queue.put({"status": "Scanning Log..."})
-        mock_queue.put("REFRESH")
+        mock_queue.put(StatusMessage(text="Scanning Log..."))
+        mock_queue.put(RefreshMessage())
         mock_app.orchestrator.update_queue = mock_queue
 
         # Temporarily disable the recursive `after` call to prevent infinite loops
@@ -58,11 +59,33 @@ class TestAppController:
             # Verify the status variable was updated
             mock_app.vars["status_text"].set.assert_any_call("Scanning Log...")
 
-            # Verify a full UI refresh was triggered by the "REFRESH" signal
+            # Verify a full UI refresh was triggered by the RefreshMessage
             mock_refresh.assert_called_once()
 
             # Verify the loop scheduled itself again
             mock_app.root.after.assert_called_once()
+
+    def test_update_loop_logs_unknown_messages(self, mock_app):
+        """An unrecognized queue message must be logged loudly, never silently dropped.
+
+        This is the fail-loud signal that keeps both consumers honest when a new
+        message type is added to the queue protocol (architecture-review issue04)."""
+        controller = AppController(mock_app)
+
+        import queue
+
+        mock_queue = queue.Queue()
+        mock_queue.put("REFRESH")  # legacy bare-string format is gone
+        mock_app.orchestrator.update_queue = mock_queue
+
+        mock_app.root.after = MagicMock()
+
+        with patch.object(controller, "refresh_ui_data") as mock_refresh:
+            with patch("src.ui.app_controller.logger") as mock_logger:
+                controller.update_loop()
+
+        mock_logger.warning.assert_called_once()
+        mock_refresh.assert_not_called()
 
     def test_force_reload_triggers_deep_scan(self, mock_app):
         """Verify the Reload button aggressively wipes state and requests a full scan."""

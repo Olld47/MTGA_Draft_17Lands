@@ -43,6 +43,18 @@ class Source(Enum):
     UPDATE = 2
 
 
+class LogOffset:
+    """A mutable log-cursor position passed by object reference to the scan
+    helpers. Replaces the old offset_attr string reflection: renaming a scanner
+    offset attribute now raises AttributeError at the call site instead of
+    silently breaking a getattr/setattr round-trip."""
+
+    __slots__ = ("position",)
+
+    def __init__(self, position: int = 0):
+        self.position = position
+
+
 def _dataset_event_type_rank(
     label_event_type: str, event_name: str
 ) -> Optional[int]:
@@ -117,9 +129,9 @@ class ArenaScanner:
         self.draft_type = constants.LIMITED_TYPE_UNKNOWN
 
         # File Pointers
-        self.pick_offset = 0
-        self.pack_offset = 0
-        self.pool_offset = 0
+        self.pick_offset = LogOffset()
+        self.pack_offset = LogOffset()
+        self.pool_offset = LogOffset()
         self.search_offset = 0
         self.draft_start_offset = 0
         self.file_size = 0
@@ -258,9 +270,9 @@ class ArenaScanner:
                 # draft_start_search work across restarts (a recreated log is
                 # smaller than the saved size → full clear_draft(True)).
                 self.search_offset = state.get("search_offset", 0)
-                self.pick_offset = state.get("pick_offset", 0)
-                self.pack_offset = state.get("pack_offset", 0)
-                self.pool_offset = state.get("pool_offset", 0)
+                self.pick_offset.position = state.get("pick_offset", 0)
+                self.pack_offset.position = state.get("pack_offset", 0)
+                self.pool_offset.position = state.get("pool_offset", 0)
                 self.file_size = state.get("file_size", 0)
 
                 if self.draft_type != constants.LIMITED_TYPE_UNKNOWN:
@@ -296,9 +308,9 @@ class ArenaScanner:
                 "draft_history": self.draft_history,
                 "draft_start_time": self.draft_start_time,
                 "search_offset": self.search_offset,
-                "pick_offset": self.pick_offset,
-                "pack_offset": self.pack_offset,
-                "pool_offset": self.pool_offset,
+                "pick_offset": self.pick_offset.position,
+                "pack_offset": self.pack_offset.position,
+                "pool_offset": self.pool_offset.position,
                 "file_size": self.file_size,
             }
             with open(self.state_file, "w", encoding="utf-8") as f:
@@ -321,9 +333,9 @@ class ArenaScanner:
                 self.set_data.clear()
 
             self.draft_type = constants.LIMITED_TYPE_UNKNOWN
-            self.pick_offset = 0
-            self.pack_offset = 0
-            self.pool_offset = 0
+            self.pick_offset.position = 0
+            self.pack_offset.position = 0
+            self.pool_offset.position = 0
             self.draft_sets = None
             self.current_pick = 0
             self.current_pack = 0
@@ -463,9 +475,9 @@ class ArenaScanner:
                     if self.draft_sets:
                         self.__new_log(self.draft_sets[0], event_type, draft_id)
                     self.draft_log.info(event_line.strip())
-                    self.pick_offset = self.draft_start_offset
-                    self.pack_offset = self.draft_start_offset
-                    self.pool_offset = self.draft_start_offset
+                    self.pick_offset.position = self.draft_start_offset
+                    self.pack_offset.position = self.draft_start_offset
+                    self.pool_offset.position = self.draft_start_offset
         except Exception as error:
             logger.error(error)
 
@@ -606,9 +618,14 @@ class ArenaScanner:
     # CORE MODULAR LOGIC ENGINES
     # =========================================================================
 
-    def _scan_log_for_events(self, offset_attr: str, search_strings: list):
-        """A robust generator that handles all file IO and yielding of JSON payloads. Completely lock-free during IO."""
-        offset = getattr(self, offset_attr, 0)
+    def _scan_log_for_events(self, cursor: LogOffset, search_strings: list):
+        """A robust generator that handles all file IO and yielding of JSON payloads. Completely lock-free during IO.
+
+        Reads from cursor.position and advances it past every consumed line, so a
+        re-scan resumes where the last pass stopped. Each call site owns its own
+        cursor (pack/pick/pool) and passes it by reference.
+        """
+        offset = cursor.position
 
         try:
             with open(self.arena_file, "r", encoding="utf-8", errors="replace") as log:
@@ -621,7 +638,7 @@ class ArenaScanner:
                         break
 
                     current_pos = log.tell()
-                    setattr(self, offset_attr, current_pos)
+                    cursor.position = current_pos
 
                     if line.startswith("[UnityCrossThreadLogger]"):
                         content = line[24:].strip()
@@ -641,7 +658,7 @@ class ArenaScanner:
             logger.error(f"Error scanning {search_strings}: {e}")
 
     def _parse_events(
-        self, offset_attr: str, search_strings: list, extractor_func: callable
+        self, cursor: LogOffset, search_strings: list, extractor_func: callable
     ) -> bool:
         """Generic event processor that DRYs up JSON parsing, looping, and error handling."""
         update = False
@@ -653,7 +670,7 @@ class ArenaScanner:
             else:
                 flat_search.append(s)
 
-        for payload in self._scan_log_for_events(offset_attr, flat_search):
+        for payload in self._scan_log_for_events(cursor, flat_search):
             try:
                 draft_data = process_json(payload)
                 if not draft_data:
@@ -992,7 +1009,7 @@ class ArenaScanner:
             )
 
         return self._parse_events(
-            "pack_offset", [constants.DRAFT_PACK_STRING_PREMIER], _extract
+            self.pack_offset, [constants.DRAFT_PACK_STRING_PREMIER], _extract
         )
 
     def _search_pick_human(self) -> bool:
@@ -1038,7 +1055,7 @@ class ArenaScanner:
             )
 
         return self._parse_events(
-            "pick_offset", [constants.DRAFT_PICK_STRING_PREMIER], _extract
+            self.pick_offset, [constants.DRAFT_PICK_STRING_PREMIER], _extract
         )
 
     def _search_pick_v1(self) -> bool:
@@ -1065,7 +1082,7 @@ class ArenaScanner:
             )
 
         return self._parse_events(
-            "pick_offset", [constants.DRAFT_PICK_STRING_PREMIER_OLD], _extract
+            self.pick_offset, [constants.DRAFT_PICK_STRING_PREMIER_OLD], _extract
         )
 
     def _search_pack_bot(self) -> bool:
@@ -1112,7 +1129,7 @@ class ArenaScanner:
             return changed
 
         return self._parse_events(
-            "pack_offset", [constants.DRAFT_PACK_STRING_QUICK], _extract
+            self.pack_offset, [constants.DRAFT_PACK_STRING_QUICK], _extract
         )
 
     def _search_pick_bot(self) -> bool:
@@ -1144,12 +1161,14 @@ class ArenaScanner:
             )
 
         return self._parse_events(
-            "pick_offset", [constants.DRAFT_PICK_STRING_QUICK], _extract
+            self.pick_offset, [constants.DRAFT_PICK_STRING_QUICK], _extract
         )
 
     def _search_card_pool(self):
         update = False
-        for payload in self._scan_log_for_events("pool_offset", ['"CardPool":[']):
+        for payload in self._scan_log_for_events(
+            self.pool_offset, ['"CardPool":[']
+        ):
             try:
                 data = process_json(payload)
                 if not data:
