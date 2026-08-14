@@ -8,7 +8,6 @@ import logging
 import queue
 import os
 import sys
-import threading
 from typing import Dict, List
 
 from src import constants
@@ -17,7 +16,6 @@ from src.configuration import write_configuration
 from src.advisor.engine import DraftAdvisor
 from src.signals import SignalCalculator
 from src.card_logic import filter_options, get_deck_metrics
-from src.app_update import AppUpdate
 
 logger = logging.getLogger(__name__)
 
@@ -78,19 +76,11 @@ class AppController:
         self.root.after(1500, self.check_background_updates)
 
     def check_background_updates(self):
-        """Executes non-critical network checks (e.g., GitHub Releases)."""
+        """Executes non-critical background checks (dataset sync). The legacy
+        AppUpdate polling thread was deleted (architecture-review issue03) — the
+        desktop app owns update notifications now."""
         if not hasattr(self.app, "notifications") or self.app.notifications is None:
             return
-
-        def _check_app():
-            try:
-                v, _ = AppUpdate().retrieve_file_version()
-                if v and float(v) > float(constants.APPLICATION_VERSION):
-                    self.root.after(0, lambda: self.app.menu_bar.notify_app_update(v))
-            except Exception as e:
-                logger.error(f"App update check failed: {e}")
-
-        threading.Thread(target=_check_app, daemon=True).start()
 
         try:
             self.app.notifications.check_dataset()

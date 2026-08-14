@@ -73,21 +73,15 @@ class TestAppController:
         mock_app.orchestrator.scanner.clear_draft.assert_called_with(True)
         mock_app.orchestrator.trigger_full_scan.assert_called_once()
 
-    @patch("src.ui.app_controller.AppUpdate")
-    @patch("src.ui.app_controller.threading.Thread")
-    def test_check_background_updates(self, mock_thread, mock_updater_cls, mock_app):
-        """Verify background updates fire asynchronously and report to the UI."""
+    def test_check_background_updates(self, mock_app):
+        """Background checks only run the dataset sync; the legacy AppUpdate
+        polling thread was deleted (architecture-review issue03) — the desktop
+        app owns update notifications now, so no app-update thread may spawn."""
         controller = AppController(mock_app)
 
-        # Mocks
-        mock_instance = mock_updater_cls.return_value
-        mock_instance.retrieve_file_version.return_value = ("99.99", "url")
-
-        # Execute background check (triggers thread and notifications)
         controller.check_background_updates()
 
         mock_app.notifications.check_dataset.assert_called_once()
-        mock_thread.assert_called_once()
 
     def test_on_dataset_update_clears_cache(self, mock_app):
         """Verify loading a new dataset invalidates the mathematical cache."""

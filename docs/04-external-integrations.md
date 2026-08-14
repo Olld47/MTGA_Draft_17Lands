@@ -78,28 +78,42 @@ To ensure the app works seamlessly on Day 1 of a new set release without waiting
 
 ## 5. GitHub Releases (Self-Update)
 
-Releases now ship the **desktop bundles** first (tag `v<desktop-version>` from `desktop/src-tauri/tauri.conf.json`, e.g. `v0.39.0`). The two apps handle updates differently.
+Releases ship the **desktop bundles** (tag `v<desktop-version>` from
+`desktop/src-tauri/tauri.conf.json` — the single source of the desktop version —
+e.g. `v0.39.0`). The desktop app is the only self-updating client; the legacy
+tkinter self-update channel was removed.
 
-### A. Legacy tkinter app (`src/app_update.py`)
+### A. Legacy tkinter self-update channel — removed
 
-- **Endpoint:** `https://api.github.com/repos/unrealities/MTGA_Draft_17Lands/releases/latest`
-- **Asset matching:** because the release's first assets are desktop bundles the
-  tkinter app cannot run, `AppUpdate.__process_file_version` picks the asset
-  **by name** — `UPDATE_FILENAME` — instead of `assets[0]`:
-  - macOS: `MTGA_Draft_Tool_macOS.zip`
-  - Linux: `MTGA_Draft_Tool_Linux.tar.gz`
-  - Windows: `MTGA_Draft_Tool_Setup.exe`
-- **Version compare:** parses the semantic tag (`v4.19` -> `4.19`) and compares
-  against `APPLICATION_VERSION` in `src/constants.py`. If the named asset is
-  absent (the desktop app has replaced the legacy channel), the update is
-  silently skipped.
+The tkinter `src/app_update.py` self-update channel was **deleted** on
+2026-08-14 (architecture-review issue03). It had become a zombie: it compared
+the desktop release tag (`v0.39.0` → `0.39`) against the tkinter
+`APPLICATION_VERSION` (`4.19`) with `float(...)`, which can never fire, and the
+desktop app now owns update notifications (§5.B below). No tkinter asset is
+built or attached to releases; the frozen tkinter app does not self-update.
+
+**Version series (how the three numbers relate):**
+
+- **tkinter `APPLICATION_VERSION`** (`src/constants.py`): frozen identity of the
+  bug-fix-only UI. Decoupled from the desktop series — nothing compares it
+  against desktop tags anymore.
+- **desktop `0.x`**: single source is `desktop/src-tauri/tauri.conf.json` (it
+  names the `.dmg`/`.msi`, fills `Info.plist`, drives the release tag). Every
+  other desktop literal — including `mtga_bridge/version.py` — is rewritten
+  from it by `bump_desktop_version.py` (one command, one input); the guard
+  `test_desktop_version_is_consistent_across_manifests` re-verifies each site
+  against it.
+- **release tag `v<desktop-version>`**: derived from `tauri.conf.json` by
+  `publish-release.yml`.
 
 ### B. Desktop app
 
-The desktop app has its **own version series** (v0.x, pinned in
-`desktop/src-tauri/src-python/mtga_bridge/version.py`). Its bundles
-(`.dmg`/`.app` on macOS, `.msi`/`.exe` on Windows) are attached to the same
-release by `publish-release.yml`, with SHA-256 checksums.
+The desktop app's version series (v0.x) has the single source
+`desktop/src-tauri/tauri.conf.json`; the runtime literal
+`mtga_bridge/version.py` and every other manifest copy are rewritten from it by
+`bump_desktop_version.py`. Its bundles (`.dmg`/`.app` on macOS, `.msi`/`.exe`
+on Windows) are attached to the release by `publish-release.yml`, with SHA-256
+checksums.
 
 On every launch, `app_update_notifier.py` fetches the latest release tag
 ~3s after boot on a daemon thread. When the tag is newer than the desktop's own

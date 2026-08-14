@@ -4,7 +4,6 @@ import os
 import tkinter.messagebox
 from datetime import datetime, date, timedelta
 from src.configuration import Configuration, write_configuration, read_configuration
-from src.app_update import AppUpdate
 from src.logger import create_logger
 from src.utils import retrieve_local_set_list, read_dataset_info
 from src.seventeenlands import Seventeenlands
@@ -38,7 +37,6 @@ class Notifications:
             else {}
         )
         self.dataset_window = dataset_window
-        self.update = AppUpdate()
 
     def check_for_updates(self):
         if self.check_application():

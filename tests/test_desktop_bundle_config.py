@@ -20,6 +20,8 @@ import re
 import pytest
 from PIL import Image
 
+import bump_desktop_version
+
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DESKTOP = os.path.join(REPO_ROOT, "desktop")
 TAURI_CONF = os.path.join(DESKTOP, "src-tauri", "tauri.conf.json")
@@ -43,48 +45,12 @@ TARGET_DIRS = {"app": "macos", "dmg": "dmg", "msi": "msi", "nsis": "nsis"}
 PUBLISH_WORKFLOW = os.path.join(WORKFLOWS, "publish-release.yml")
 CHANGELOG = os.path.join(REPO_ROOT, "CHANGELOG.md")
 
-# Every place the desktop version is written, as (path, regex, count). Eight
-# files, nine literals: package-lock.json repeats it for the root package
-# entry, and mtga_bridge/version.py is the literal the app-update check reads.
-# Dependency version keys follow in the same files, so only the leading
-# `count` matches belong to the app. desktop/Cargo.toml is absent on purpose —
-# its [workspace.package] version is 0.1.0 and src-tauri does not inherit it.
-DESKTOP_VERSION_SITES = [
-    (os.path.join(DESKTOP, "package.json"), r'"version":\s*"([^"]+)"', 1),
-    (os.path.join(DESKTOP, "package-lock.json"), r'"version":\s*"([^"]+)"', 2),
-    (os.path.join(DESKTOP, "pyproject.toml"), r'(?m)^version\s*=\s*"([^"]+)"', 1),
-    (
-        os.path.join(DESKTOP, "src-tauri", "pyproject.toml"),
-        r'(?m)^version\s*=\s*"([^"]+)"',
-        1,
-    ),
-    (
-        os.path.join(DESKTOP, "src-tauri", "Cargo.toml"),
-        r'(?m)^version\s*=\s*"([^"]+)"',
-        1,
-    ),
-    (
-        os.path.join(DESKTOP, "Cargo.lock"),
-        r'name = "mtga-draft-desktop"\nversion = "([^"]+)"',
-        1,
-    ),
-    (
-        TAURI_CONF,
-        r'"version":\s*"([^"]+)"',
-        1,
-    ),
-    (
-        os.path.join(
-            DESKTOP,
-            "src-tauri",
-            "src-python",
-            "mtga_bridge",
-            "version.py",
-        ),
-        r'DESKTOP_VERSION\s*=\s*"([^"]+)"',
-        1,
-    ),
-]
+# Every place the desktop version is written now lives in
+# bump_desktop_version.VERSION_SITES (eight files, nine literals) — the single
+# definition shared with the one-command bump script. The consistency test
+# below reads the expected version from tauri.conf.json, the single source of
+# truth, and checks every site against it.
+VERSION_SITES = bump_desktop_version.VERSION_SITES
 
 
 def _upload_artifact_names(workflow_text):
@@ -318,30 +284,36 @@ def test_icons_are_not_the_tauri_template_defaults():
 
 def test_desktop_version_is_consistent_across_manifests():
     """
-    The desktop app carries its version in nine literals across eight files,
-    and only tauri.conf.json reaches a user — it names the .dmg/.msi and fills
-    Info.plist. The other eight exist to be consistent with it, so a stale one
-    is invisible until someone reads it and believes it.
+    The desktop app carries its version in nine literals across eight files.
+    tauri.conf.json is the single source of truth — it names the .dmg/.msi,
+    fills Info.plist, and drives the release tag. Every other literal exists to
+    be consistent with it, and bump_desktop_version.py rewrites them all from
+    one input, so a stale one is invisible until someone reads it and believes
+    it (or a release is named after it).
 
-    Pinned to the topmost CHANGELOG heading rather than only to each other,
+    The topmost CHANGELOG heading must agree with the single source too,
     because agreeing-but-stale is the failure that actually happened: the
     changelog reached v0.12 while all nine sat at 0.7.0 from v0.7, and CI
-    published bundles named 0.7.0 five releases running. A manifests-only check
-    passes happily through that.
+    published bundles named 0.7.0 five releases running.
     """
+    expected = json.loads(_read(TAURI_CONF))["version"]
+
     heading = re.search(r"(?m)^## \[v(\d+)\.(\d+)(?:\.(\d+))?\]", _read(CHANGELOG))
     assert heading, "no '## [vX.Y]' heading found in CHANGELOG.md"
-    major, minor, patch = heading.groups()
-    expected = f"{major}.{minor}.{patch or 0}"
+    changelog_major_minor = f"{heading.group(1)}.{heading.group(2)}"
+    assert changelog_major_minor == ".".join(expected.split(".")[:2]), (
+        f"CHANGELOG says v{changelog_major_minor}, "
+        f"tauri.conf.json says {expected}"
+    )
 
-    for path, pattern, count in DESKTOP_VERSION_SITES:
+    for rel, pattern, count in VERSION_SITES:
+        path = os.path.join(REPO_ROOT, rel)
         found = re.findall(pattern, _read(path))[:count]
-        rel = os.path.relpath(path, REPO_ROOT)
         assert len(found) == count, f"{rel}: expected {count} version literals"
         for version in found:
             assert (
                 version == expected
-            ), f"{rel} says {version}, changelog says v{expected}"
+            ), f"{rel} says {version}, tauri.conf.json says {expected}"
 
 
 @pytest.mark.parametrize("platform", ["macos", "windows"])
