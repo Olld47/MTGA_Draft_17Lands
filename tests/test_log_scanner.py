@@ -36,12 +36,16 @@ TEST_SETS_DIRECTORY = os.path.join(os.getcwd(), "tests", "data")
 
 
 @pytest.fixture(name="session_scanner", scope="session")
-def fixture_session_scanner():
+def fixture_session_scanner(tmp_path_factory):
     scanner = ArenaScanner(
         TEST_LOG_FILE_LOCATION,
         TEST_SETS,
         sets_location=TEST_LOG_DIRECTORY,
         retrieve_unknown=True,
+        state_file=str(
+            tmp_path_factory.mktemp("session_scanner_state")
+            / "active_draft_state.json"
+        ),
     )
     scanner.log_enable(False)
     yield scanner
@@ -50,7 +54,7 @@ def fixture_session_scanner():
 
 
 @pytest.fixture(name="function_scanner", scope="function")
-def fixture_function_scanner():
+def fixture_function_scanner(tmp_path):
     if os.path.exists(TEST_LOG_FILE_LOCATION):
         os.remove(TEST_LOG_FILE_LOCATION)
     scanner = ArenaScanner(
@@ -58,6 +62,7 @@ def fixture_function_scanner():
         TEST_SETS,
         sets_location=TEST_SETS_DIRECTORY,
         retrieve_unknown=False,
+        state_file=str(tmp_path / "active_draft_state.json"),
     )
     scanner.log_enable(False)
     yield scanner
@@ -462,6 +467,7 @@ def test_draft_state_recovery(function_scanner):
         TEST_SETS,
         sets_location=TEST_SETS_DIRECTORY,
         retrieve_unknown=True,
+        state_file=function_scanner.state_file,
     )
 
     # 4. Verify the new scanner perfectly recovered the state from disk!

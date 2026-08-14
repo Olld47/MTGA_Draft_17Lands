@@ -140,8 +140,13 @@ class SealedVariant:
 class SealedSession:
     """The master state manager for the Sealed Studio."""
 
-    def __init__(self, session_id: str):
+    def __init__(self, session_id: str, session_dir: Optional[str] = None):
         self.session_id = session_id
+        # Injectable persistence directory (Ticket 08): tests pass a tmp_path;
+        # production keeps the TEMP_FOLDER default.
+        self.session_dir = (
+            session_dir if session_dir is not None else constants.TEMP_FOLDER
+        )
         self.master_pool: List[CardData] = []
         self.variants: Dict[str, SealedVariant] = {}
         self.active_variant_name: str = ""
@@ -290,7 +295,7 @@ class SealedSession:
         return main_deck, sideboard
 
     def save_session(self):
-        filepath = os.path.join(constants.TEMP_FOLDER, f"sealed_{self.session_id}.json")
+        filepath = os.path.join(self.session_dir, f"sealed_{self.session_id}.json")
         try:
             data = {
                 "session_id": self.session_id,
@@ -304,9 +309,15 @@ class SealedSession:
 
     @classmethod
     def load_session(
-        cls, session_id: str, raw_pool: List[CardData]
+        cls,
+        session_id: str,
+        raw_pool: List[CardData],
+        session_dir: Optional[str] = None,
     ) -> Optional["SealedSession"]:
-        filepath = os.path.join(constants.TEMP_FOLDER, f"sealed_{session_id}.json")
+        filepath = os.path.join(
+            session_dir if session_dir is not None else constants.TEMP_FOLDER,
+            f"sealed_{session_id}.json",
+        )
         if not os.path.exists(filepath):
             return None
         try:
@@ -315,7 +326,7 @@ class SealedSession:
             if data.get("session_id") != session_id:
                 return None
 
-            session = cls(session_id)
+            session = cls(session_id, session_dir)
             session.load_pool(raw_pool)
             session.active_variant_name = data.get("active_variant_name", "")
             for k, v_data in data.get("variants", {}).items():

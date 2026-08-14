@@ -111,13 +111,21 @@ class ArenaScanner:
         step_through: bool = False,
         retrieve_unknown: bool = False,
         db_path: str = None,
+        state_file: Optional[str] = None,
     ):
         self.arena_file = filename
         self.set_list = set_list
         self.draft_log = logging.getLogger(LOG_TYPE_DRAFT)
         self.draft_log.setLevel(logging.INFO)
         self.sets_location = sets_location
-        self.state_file = os.path.join(constants.TEMP_FOLDER, "active_draft_state.json")
+        # Injectable persistence path (Ticket 08): tests pass a tmp_path-backed
+        # file; production keeps the TEMP_FOLDER default, resolved at
+        # construction time so monkeypatched paths still apply.
+        self.state_file = (
+            state_file
+            if state_file is not None
+            else os.path.join(constants.TEMP_FOLDER, "active_draft_state.json")
+        )
 
         # CENTRAL DATA LOCK: Co-ordinates UI and Background Threading
         self.lock = threading.RLock()

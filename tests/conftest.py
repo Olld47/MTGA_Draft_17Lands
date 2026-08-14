@@ -108,30 +108,6 @@ def patch_tk_lifecycle(monkeypatch, session_tk_root):
             pass
 
 
-@pytest.fixture(autouse=True)
-def clean_draft_state():
-    """Ensures the active draft state file is wiped before and after every test
-    so the log scanner doesn't accidentally resume a draft from a previous test!"""
-    import os
-    from src import constants
-
-    state_file = os.path.join(constants.TEMP_FOLDER, "active_draft_state.json")
-
-    if os.path.exists(state_file):
-        try:
-            os.remove(state_file)
-        except Exception:
-            pass
-
-    yield
-
-    if os.path.exists(state_file):
-        try:
-            os.remove(state_file)
-        except Exception:
-            pass
-
-
 @pytest.fixture
 def mock_style(self):
     """Patches ttk.Style so it doesn't attempt to contact a real Tcl interpreter."""

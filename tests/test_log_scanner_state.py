@@ -8,8 +8,13 @@ from src.limited_sets import SetDictionary, SetInfo
 
 
 @pytest.fixture
-def scanner():
-    s = ArenaScanner("mock.log", MagicMock(), retrieve_unknown=False)
+def scanner(tmp_path):
+    s = ArenaScanner(
+        "mock.log",
+        MagicMock(),
+        retrieve_unknown=False,
+        state_file=str(tmp_path / "active_draft_state.json"),
+    )
     s.draft_type = LIMITED_TYPE_DRAFT_PREMIER_V2
     return s
 
@@ -69,10 +74,74 @@ def test_load_state_normalizes_legacy_string_draft_type(tmp_path):
         )
     )
 
-    s = ArenaScanner("mock.log", MagicMock(), retrieve_unknown=False)
-    s.state_file = str(state_file)
+    s = ArenaScanner(
+        "mock.log",
+        MagicMock(),
+        retrieve_unknown=False,
+        state_file=str(state_file),
+    )
     assert s._load_state() is True
     assert s.draft_type == constants.LIMITED_TYPE_DRAFT_CONTENDER
+
+
+# --- state_file injection ----------------------------------------------------
+# Ticket 08: the draft-state path was a module-level constant with no injection
+# point; tests hacked `s.state_file = ...` after construction and conftest wiped
+# the fixed file around every test. The seam is now a constructor argument.
+
+def test_state_file_injection_persists_only_to_injected_path(tmp_path):
+    """A scanner given a state_file constructor arg persists draft state there —
+    and never touches the module-level TEMP_FOLDER default."""
+    from pathlib import Path
+
+    state_file = tmp_path / "active_draft_state.json"
+    s = ArenaScanner(
+        "mock.log",
+        MagicMock(),
+        retrieve_unknown=False,
+        state_file=str(state_file),
+    )
+    s.draft_type = LIMITED_TYPE_DRAFT_PREMIER_V2
+    s.current_draft_id = "draft_injected"
+    s.taken_cards = ["1", "2", "3"]
+    s._save_state()
+
+    assert state_file.exists()
+    default_file = Path(constants.TEMP_FOLDER) / "active_draft_state.json"
+    assert not default_file.exists()
+
+    fresh = ArenaScanner(
+        "mock.log",
+        MagicMock(),
+        retrieve_unknown=False,
+        state_file=str(state_file),
+    )
+    assert fresh._load_state() is True
+    assert fresh.draft_type == LIMITED_TYPE_DRAFT_PREMIER_V2
+    assert fresh.current_draft_id == "draft_injected"
+    assert fresh.taken_cards == ["1", "2", "3"]
+
+
+def test_state_file_injection_clear_draft_removes_injected_file(tmp_path):
+    """clear_draft(True) must delete the injected file, not a fixed default."""
+    state_file = tmp_path / "active_draft_state.json"
+    s = ArenaScanner(
+        "mock.log", MagicMock(), retrieve_unknown=False, state_file=str(state_file)
+    )
+    s._save_state()
+    assert state_file.exists()
+
+    s.clear_draft(True)
+
+    assert not state_file.exists()
+
+
+def test_state_file_defaults_to_temp_folder(monkeypatch, tmp_path):
+    """Omitting state_file keeps the legacy TEMP_FOLDER-derived path, resolved at
+    construction time so monkeypatched TEMP_FOLDER still applies."""
+    monkeypatch.setattr(constants, "TEMP_FOLDER", str(tmp_path))
+    s = ArenaScanner("mock.log", MagicMock(), retrieve_unknown=False)
+    assert s.state_file == str(tmp_path / "active_draft_state.json")
 
 
 def test_stale_pool_no_wipe_historical_replay(scanner):
@@ -269,8 +338,8 @@ def _recovery_scanner(tmp_path, line):
                   "DSK": SetInfo(seventeenlands=["DSK"], set_code="DSK")}
         ),
         retrieve_unknown=False,
+        state_file=str(tmp_path / "active_draft_state.json"),
     )
-    s.state_file = str(tmp_path / "active_draft_state.json")
     s.log_enable(False)
     return s
 
