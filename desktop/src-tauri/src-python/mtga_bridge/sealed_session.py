@@ -1,25 +1,24 @@
 """
 mtga_bridge.sealed_session
-Headless port of src/ui/windows/sealed_studio.py::SealedStudio. Wraps the
-already-pure src.sealed_logic.SealedSession with the studio's action handlers
-(auto-generate shells, variant management, move to/from main, auto-lands,
-clipboard import, export) as pure methods returning view-models.
+Sealed Studio adapter for the desktop bridge. Loads the sealed pool from the
+scanner, delegates every action to the shared src.sealed_actions.SealedStudioActions
+(the single implementation both this bridge and the legacy tkinter studio
+consume — ticket 09 convergence), and maps results to view-models for the
+frontend.
 
-No tkinter, no pytauri. The tkinter studio held a SealedSession plus StringVars
-and clipboard access; here the pool is loaded from the scanner, clipboard text
-arrives as an argument, and every mutation returns a SealedStateVM the frontend
-re-renders from.
+No tkinter, no pytauri. Pool loading is scanner-driven, clipboard text arrives
+as an argument, and every mutation returns a SealedStateVM the frontend
+re-renders from. Persistence is an adapter policy: the bridge saves best-effort
+after each mutation (the tkinter studio saves on close); the shared actions
+layer mutates only.
 """
 
 import logging
-import re
 from typing import List, Optional
 
 from src import constants
-from src.advisor.mana_base import get_strict_colors
-from src.card_logic import copy_deck
-from src.sealed_logic import SealedSession, generate_sealed_shells
-from src.utils import sanitize_card_name
+from src.sealed_actions import SealedStudioActions
+from src.sealed_logic import SealedSession
 
 from mtga_bridge.deck_view import build_stats, card_sort_key, row_vm
 from mtga_bridge.viewmodels import (
@@ -75,207 +74,123 @@ class SealedStudioSession:
         self.session = session
         self._save()
 
+    # --- shared action delegation --------------------------------------------
+
+    def _actions(self) -> SealedStudioActions:
+        return SealedStudioActions(self.session)
+
     # --- shell generation ----------------------------------------------------
 
     def auto_generate(self) -> SealedActionVM:
         if not self.ensure_pool():
             return self._action("No sealed pool detected.", ok=False)
-        if len(self.session.master_pool) < 40:
-            return self._action(
-                "A sealed pool needs at least 40 cards to build shells.", ok=False
-            )
         metrics = self.scanner.retrieve_set_metrics()
         tier_data = self.scanner.retrieve_tier_data()
-        generate_sealed_shells(self.session, metrics, tier_data)
-        self._save()
-        return self._action("Generated 3 candidate shells.")
+        ok, message = self._actions().auto_generate(metrics, tier_data)
+        if ok:
+            self._save()
+        return self._action(message, ok=ok)
 
     # --- variant management --------------------------------------------------
 
     def select_variant(self, name: str) -> SealedActionVM:
         if not self.ensure_pool():
             return self._action("No sealed pool detected.", ok=False)
-        if name in self.session.variants:
-            self.session.active_variant_name = name
+        ok, message = self._actions().select_variant(name)
+        if ok:
             self._save()
-        return self._action()
+        return self._action(message, ok=ok)
 
     def create_variant(self, name: str, copy_from: Optional[str] = None) -> SealedActionVM:
         if not self.ensure_pool():
             return self._action("No sealed pool detected.", ok=False)
-        self.session.create_variant(name, copy_from)
-        self._save()
-        return self._action(f"Created '{self.session.active_variant_name}'.")
+        ok, message = self._actions().create_variant(name, copy_from)
+        if ok:
+            self._save()
+        return self._action(message, ok=ok)
 
     def delete_variant(self, name: str) -> SealedActionVM:
         if not self.ensure_pool():
             return self._action("No sealed pool detected.", ok=False)
-        if len(self.session.variants) <= 1:
-            return self._action("Cannot delete the only build.", ok=False)
-        self.session.delete_variant(name)
-        self._save()
-        return self._action(f"Deleted '{name}'.")
+        ok, message = self._actions().delete_variant(name)
+        if ok:
+            self._save()
+        return self._action(message, ok=ok)
 
     def rename_variant(self, old_name: str, new_name: str) -> SealedActionVM:
         if not self.ensure_pool():
             return self._action("No sealed pool detected.", ok=False)
-        if not new_name.strip():
-            return self._action("Name cannot be empty.", ok=False)
-        if self.session.rename_variant(old_name, new_name):
+        ok, message = self._actions().rename_variant(old_name, new_name)
+        if ok:
             self._save()
-            return self._action()
-        return self._action("Rename failed (name in use?).", ok=False)
+        return self._action(message, ok=ok)
 
     # --- card movement -------------------------------------------------------
 
     def move_card(self, card_name: str, to_sideboard: bool, count: int = 1) -> SealedActionVM:
         if not self.ensure_pool():
             return self._action("No sealed pool detected.", ok=False)
-        if to_sideboard:
-            self.session.move_to_sideboard(card_name, count)
-        else:
-            if not self.session.move_to_main(card_name, count):
-                return self._action(
-                    f"Can't add '{card_name}' (not in pool / quantity limit).", ok=False
-                )
-        self._save()
-        return self._action()
+        ok, message = self._actions().move_card(card_name, to_sideboard, count)
+        if ok:
+            self._save()
+        return self._action(message, ok=ok)
 
     def clear_deck(self) -> SealedActionVM:
         if not self.ensure_pool():
             return self._action("No sealed pool detected.", ok=False)
-        if self.session.active_variant_name:
-            self.session.variants[
-                self.session.active_variant_name
-            ].main_deck_counts.clear()
+        ok, message = self._actions().clear_deck()
+        if ok:
             self._save()
-        return self._action("Cleared main deck.")
+        return self._action(message, ok=ok)
 
     # --- basic lands ---------------------------------------------------------
 
-    # Legacy sealed_studio.py binds left-click to add and right-click to remove
-    # on each basic-land button. move_to_main/move_to_sideboard special-case
-    # BASIC_LANDS (sealed_logic.py:216,222) so basics bypass the pool-inventory
-    # limit the way the legacy buttons did.
     def add_basic(self, color_name: str) -> SealedActionVM:
         if not self.ensure_pool():
             return self._action("No sealed pool detected.", ok=False)
-        if not self.session.active_variant_name:
-            return self._action("No build selected.", ok=False)
-        self.session.move_to_main(color_name)
-        self._save()
-        return self._action()
+        ok, message = self._actions().add_basic(color_name)
+        if ok:
+            self._save()
+        return self._action(message, ok=ok)
 
     def remove_basic(self, color_name: str) -> SealedActionVM:
         if not self.ensure_pool():
             return self._action("No sealed pool detected.", ok=False)
-        if not self.session.active_variant_name:
-            return self._action("No build selected.", ok=False)
-        self.session.move_to_sideboard(color_name)
-        self._save()
-        return self._action()
+        ok, message = self._actions().remove_basic(color_name)
+        if ok:
+            self._save()
+        return self._action(message, ok=ok)
 
-    # --- auto-lands (port of _apply_auto_lands) ------------------------------
+    # --- auto-lands ----------------------------------------------------------
 
     def apply_auto_lands(self) -> SealedActionVM:
-        from src.advisor.mana_base import calculate_dynamic_mana_base
-        from src.card_logic import count_copies
-
         if not self.ensure_pool():
             return self._action("No sealed pool detected.", ok=False)
+        ok, message = self._actions().apply_auto_lands()
+        if ok:
+            self._save()
+        return self._action(message, ok=ok)
 
-        main_deck, _ = self.session.get_active_deck_lists()
-        for c in main_deck:
-            if c["name"] in constants.BASIC_LANDS:
-                self.session.move_to_sideboard(c["name"], c.get("count", 1))
-
-        main_deck, _ = self.session.get_active_deck_lists()
-        spells = [c for c in main_deck if "Land" not in c.get("types", [])]
-        non_basic_lands = [c for c in main_deck if "Land" in c.get("types", [])]
-
-        if not spells:
-            return self._action("Add spells to the deck first.", ok=False)
-
-        colors = get_strict_colors(spells) or ["W", "U", "B", "R", "G"]
-        # get_active_deck_lists returns stacked rows, so count copies.
-        needed = max(0, 40 - count_copies(spells) - count_copies(non_basic_lands))
-
-        basics_to_add = calculate_dynamic_mana_base(
-            spells, non_basic_lands, colors, forced_count=needed
-        )
-        for b in basics_to_add:
-            self.session.move_to_main(b["name"], 1)
-
-        self._save()
-        return self._action("Mana base optimized.")
-
-    # --- clipboard import (port of _import_deck_from_clipboard) ---------------
+    # --- clipboard import / export -------------------------------------------
 
     def import_deck(self, text: str) -> SealedActionVM:
         if not self.ensure_pool():
             return self._action("No sealed pool detected.", ok=False)
-
-        deck_cards = []
-        for line in text.split("\n"):
-            line = line.strip()
-            if not line or line.lower() in (
-                "deck",
-                "sideboard",
-                "commander",
-                "companion",
-            ):
-                continue
-            match = re.match(r"^(\d+)\s+([^(]+)", line)
-            if match:
-                count = int(match.group(1))
-                name = match.group(2).strip()
-                deck_cards.append({"name": name, "count": count})
-
-        if not deck_cards:
-            return self._action(
-                "No valid MTGA format cards found in the pasted text.", ok=False
-            )
-
-        self.session.create_variant("Imported Deck")
-        self.session.variants[
-            self.session.active_variant_name
-        ].main_deck_counts.clear()
-
-        missing_cards = []
-        for req in deck_cards:
-            clean_name = sanitize_card_name(req["name"])
-            success = self.session.move_to_main(clean_name, req["count"])
-            if not success:
-                success = self.session.move_to_main(req["name"], req["count"])
-                if not success:
-                    missing_cards.append(req["name"])
-
-        self._save()
-
-        if missing_cards:
-            preview = ", ".join(missing_cards[:10])
-            if len(missing_cards) > 10:
-                preview += f" ...and {len(missing_cards) - 10} more."
-            return self._action(
-                f"Deck imported, but these cards were skipped (not in pool / over "
-                f"owned quantity): {preview}"
-            )
-        return self._action("Deck imported successfully.")
-
-    # --- export --------------------------------------------------------------
+        ok, message = self._actions().import_deck(text)
+        if ok:
+            self._save()
+        return self._action(message, ok=ok)
 
     def export(self) -> SealedExportVM:
         if not self.ensure_pool():
             return SealedExportVM(text="")
-        main_deck, sideboard = self.session.get_active_deck_lists()
-        return SealedExportVM(text=copy_deck(main_deck, sideboard))
+        return SealedExportVM(text=self._actions().export())
 
     def export_payload(self) -> str:
         """MTGA export string for the active deck (used by sealeddeck.tech)."""
         if not self.ensure_pool():
             return ""
-        main_deck, sideboard = self.session.get_active_deck_lists()
-        return copy_deck(main_deck, sideboard)
+        return self._actions().export()
 
     # --- serialization -------------------------------------------------------
 

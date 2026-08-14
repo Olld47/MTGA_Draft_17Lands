@@ -27,8 +27,9 @@ from src.ui.components import (
     CardToolTip,
     AutoScrollbar,
 )
-from src.card_logic import copy_deck, get_deck_metrics
-from src.sealed_logic import SealedSession, generate_sealed_shells
+from src.card_logic import get_deck_metrics
+from src.sealed_actions import SealedStudioActions
+from src.sealed_logic import SealedSession
 from src.utils import open_file
 
 
@@ -65,6 +66,10 @@ class SealedStudioWindow(tb.Toplevel):
         if not self.session:
             self.session = SealedSession(draft_id)
             self.session.load_pool(raw_pool)
+
+        # Shared action orchestration (ticket 09: the bridge delegates to the
+        # same layer — src/sealed_actions.py is the single implementation).
+        self.actions = SealedStudioActions(self.session)
 
         # State
         self.view_mode = "visual"  # Options: "visual" or "list"
@@ -676,7 +681,7 @@ class SealedStudioWindow(tb.Toplevel):
             "New Deck", "Enter a name for the new deck variant:", parent=self
         )
         if name:
-            self.session.create_variant(name)
+            self.actions.create_variant(name)
             self._refresh_tabs()
 
     def _rename_tab(self):
@@ -687,9 +692,9 @@ class SealedStudioWindow(tb.Toplevel):
                 initialvalue=self.session.active_variant_name,
                 parent=self,
             )
-            if new_name and self.session.rename_variant(
+            if new_name and self.actions.rename_variant(
                 self.session.active_variant_name, new_name
-            ):
+            )[0]:
                 self._refresh_tabs()
 
     def _delete_tab(self):
@@ -699,7 +704,7 @@ class SealedStudioWindow(tb.Toplevel):
                 f"Are you sure you want to delete '{self.session.active_variant_name}'?",
                 parent=self,
             ):
-                self.session.delete_variant(self.session.active_variant_name)
+                self.actions.delete_variant(self.session.active_variant_name)
                 self._refresh_tabs()
         else:
             messagebox.showwarning(
@@ -728,19 +733,18 @@ class SealedStudioWindow(tb.Toplevel):
         try:
             current_tab_idx = notebook.index(notebook.select())
             tab_name = notebook.tab(current_tab_idx, "text").strip()
-            if tab_name in self.session.variants:
-                self.session.active_variant_name = tab_name
-                # Sync other notebook
-                other_nb = (
-                    self.notebook_vis
-                    if notebook == self.notebook_list
-                    else self.notebook_list
-                )
-                for i in range(other_nb.index("end")):
-                    if other_nb.tab(i, "text").strip() == tab_name:
-                        other_nb.select(i)
-                        break
-                self._refresh_data()
+            self.actions.select_variant(tab_name)
+            # Sync other notebook
+            other_nb = (
+                self.notebook_vis
+                if notebook == self.notebook_list
+                else self.notebook_list
+            )
+            for i in range(other_nb.index("end")):
+                if other_nb.tab(i, "text").strip() == tab_name:
+                    other_nb.select(i)
+                    break
+            self._refresh_data()
         except:
             pass
 
@@ -755,21 +759,17 @@ class SealedStudioWindow(tb.Toplevel):
         self.update_idletasks()
 
         tier_data = self.app_context.orchestrator.scanner.retrieve_tier_data()
-        generate_sealed_shells(self.session, self.metrics, tier_data)
+        self.actions.auto_generate(self.metrics, tier_data)
 
         self._refresh_tabs()
         self._refresh_data()
 
     def _clear_deck(self):
-        main_deck, _ = self.session.get_active_deck_lists()
-        for c in main_deck:
-            self.session.move_to_sideboard(c["name"], c.get("count", 1))
+        self.actions.clear_deck()
         self._refresh_data()
 
     def _add_all_to_deck(self):
-        _, sideboard = self.session.get_active_deck_lists()
-        for c in sideboard:
-            self.session.move_to_main(c["name"], c.get("count", 1))
+        self.actions.add_all_to_main()
         self._refresh_data()
 
     def _refresh_data(self):
@@ -1479,111 +1479,39 @@ class SealedStudioWindow(tb.Toplevel):
                 )
 
     def _add_basic(self, name):
-        self.session.move_to_main(name)
+        self.actions.add_basic(name)
         self._refresh_data()
 
     def _remove_basic(self, name):
-        self.session.move_to_sideboard(name)
+        self.actions.remove_basic(name)
         self._refresh_data()
 
     def _apply_auto_lands(self):
-        from src.advisor.mana_base import (
-            calculate_dynamic_mana_base,
-            get_strict_colors,
-        )
-        from src.card_logic import count_copies
-
-        main_deck, _ = self.session.get_active_deck_lists()
-
-        for c in main_deck:
-            if c["name"] in constants.BASIC_LANDS:
-                self.session.move_to_sideboard(c["name"], c.get("count", 1))
-
-        main_deck, _ = self.session.get_active_deck_lists()
-        spells = [c for c in main_deck if "Land" not in c.get("types", [])]
-        non_basic_lands = [c for c in main_deck if "Land" in c.get("types", [])]
-
-        if not spells:
-            return
-
-        colors = get_strict_colors(spells) or ["W", "U", "B", "R", "G"]
-        # get_active_deck_lists returns stacked rows, so count copies.
-        needed = max(0, 40 - count_copies(spells) - count_copies(non_basic_lands))
-
-        basics_to_add = calculate_dynamic_mana_base(
-            spells, non_basic_lands, colors, forced_count=needed
-        )
-        for b in basics_to_add:
-            self.session.move_to_main(b["name"], 1)
-
+        self.actions.apply_auto_lands()
         self._refresh_data()
 
     def _import_deck_from_clipboard(self):
         try:
             text = self.clipboard_get()
-            import re
-
-            deck_cards = []
-            for line in text.split("\n"):
-                line = line.strip()
-                if not line or line.lower() in (
-                    "deck",
-                    "sideboard",
-                    "commander",
-                    "companion",
-                ):
-                    continue
-
-                match = re.match(r"^(\d+)\s+([^(]+)", line)
-                if match:
-                    count = int(match.group(1))
-                    name = match.group(2).strip()
-                    deck_cards.append({"name": name, "count": count})
-
-            if not deck_cards:
-                messagebox.showwarning(
-                    "Import Failed",
-                    "No valid MTGA format cards found in clipboard.",
-                    parent=self,
-                )
-                return
-
-            self.session.create_variant("Imported Deck")
-            self.session.variants[
-                self.session.active_variant_name
-            ].main_deck_counts.clear()
-
-            missing_cards = []
-            for req in deck_cards:
-                from src.utils import sanitize_card_name
-
-                clean_name = sanitize_card_name(req["name"])
-                success = self.session.move_to_main(clean_name, req["count"])
-                if not success:
-                    success = self.session.move_to_main(req["name"], req["count"])
-                    if not success:
-                        missing_cards.append(req["name"])
-
-            self._refresh_tabs()
-            self._refresh_data()
-
-            if missing_cards:
-                msg = "Deck imported, but the following cards were skipped because they are not in your pool (or you exceeded your owned quantity limits):\n\n"
-                msg += ", ".join(missing_cards[:10])
-                if len(missing_cards) > 10:
-                    msg += f" ...and {len(missing_cards) - 10} more."
-                messagebox.showwarning("Partial Import", msg, parent=self)
-            else:
-                messagebox.showinfo(
-                    "Success", "Deck imported successfully!", parent=self
-                )
-
+            ok, message = self.actions.import_deck(text)
         except Exception as e:
             messagebox.showerror("Error", f"Failed to import deck: {e}", parent=self)
+            return
+
+        if not ok:
+            messagebox.showwarning("Import Failed", message, parent=self)
+            return
+
+        self._refresh_tabs()
+        self._refresh_data()
+
+        if "skipped" in message.lower():
+            messagebox.showwarning("Partial Import", message, parent=self)
+        else:
+            messagebox.showinfo("Success", message, parent=self)
 
     def _export_active_deck(self):
-        main_deck, sideboard = self.session.get_active_deck_lists()
-        export_text = copy_deck(main_deck, sideboard)
+        export_text = self.actions.export()
         self.clipboard_clear()
         self.clipboard_append(export_text)
         messagebox.showinfo(
@@ -1591,8 +1519,7 @@ class SealedStudioWindow(tb.Toplevel):
         )
 
     def _export_to_sealeddeck_tech(self):
-        main_deck, sideboard = self.session.get_active_deck_lists()
-        mtga_payload = copy_deck(main_deck, sideboard)
+        mtga_payload = self.actions.export()
 
         lbl = (
             self.lbl_deck_title_vis
