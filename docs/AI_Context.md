@@ -8,6 +8,21 @@
 > `03-business-logic.md` (scoring engine), `04-external-integrations.md` (APIs),
 > `05-server-etl-pipeline.md` (cloud datasets).
 
+## 0. Test environment (macOS)
+
+- The root `.venv` runs on uv-managed `cpython-3.13.9` (local git-ignored
+  `.python-version` pin). Never re-point it at uv's rolling `cpython-3.13`
+  build — it ships no Tcl scripts, so the pytest `session_tk_root` fixture
+  dies with `TclError` at collection.
+- After any `uv venv` rebuild run `./repair_venv_tcl.sh` (idempotent):
+  re-points the venv at 3.13.9 AND symlinks its `lib/tcl8.6` + `lib/tk8.6`
+  into `.venv/lib` (a venv's `sys.prefix` points at itself, so swapping the
+  interpreter alone leaves Tcl unfindable).
+- Poetry 2.x lives inside the venv (`.venv/bin/poetry`); `poetry run` auto-
+  detects the active environment — no `poetry.toml` needed. Equivalent:
+  `poetry run pytest tests/` = `.venv/bin/python -m pytest tests/`.
+- Full detail: CLAUDE.md → "Test environment (macOS, uv-managed venv)".
+
 ## 1. System Architecture
 
 The application is a **Reactive Overlay & Data Warehouse** for Magic: The Gathering Arena (MTGA).
