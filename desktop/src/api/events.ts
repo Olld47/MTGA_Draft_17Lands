@@ -14,6 +14,7 @@ export const EVENTS = {
   draftHeartbeat: "draft://heartbeat",
   appError: "app://error",
   datasetsUpdated: "datasets://updated",
+  datasetsSyncFailed: "datasets://syncFailed",
   updateAvailable: "update://available",
 } as const;
 
@@ -54,6 +55,8 @@ export interface AppErrorPayload {
 export interface DatasetsUpdatedPayload {
   updatedCount: number;
 }
+
+export interface DatasetSyncFailedPayload {}
 
 export interface UpdateAvailablePayload {
   latestVersion: string;

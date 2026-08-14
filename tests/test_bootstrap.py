@@ -12,6 +12,7 @@ from src import constants
 from src.boot_sync import BOOT_NOT_ATTEMPTED, BOOT_SKIPPED_TODAY
 from src.bootstrap import _sync_cloud_datasets
 from src.configuration import Configuration
+from src.dataset_updater import SyncResult
 
 
 @pytest.fixture(autouse=True)
@@ -23,19 +24,21 @@ def _no_config_writes(monkeypatch):
 
 
 def test_sync_cloud_datasets_returns_the_download_count(monkeypatch):
-    """sync_datasets now returns a count; bootstrap must forward it so the
-    desktop notifier can report what boot downloaded. A dropped return (or a
-    boolean collapse) fails this assertion."""
+    """sync_datasets returns a SyncResult; bootstrap must forward its count so
+    the desktop notifier can report what boot downloaded. A dropped return (or
+    a boolean collapse) fails this assertion."""
     config = Configuration()
     config.settings.auto_sync_datasets = True
     config.settings.last_run_version = constants.APPLICATION_VERSION  # not upgraded
     monkeypatch.setattr(
-        "src.dataset_updater.DatasetUpdater.sync_datasets", MagicMock(return_value=3)
+        "src.dataset_updater.DatasetUpdater.sync_datasets",
+        MagicMock(return_value=SyncResult(succeeded=True, downloaded=3)),
     )
 
     outcome = _sync_cloud_datasets(config, lambda msg: None)
 
     assert outcome.attempted is True
+    assert outcome.failed is False
     assert outcome.downloaded == 3
 
 
@@ -72,12 +75,14 @@ def test_sync_cloud_datasets_returns_zero_when_sync_ran_but_nothing_changed(
     config.settings.auto_sync_datasets = True
     config.settings.last_run_version = constants.APPLICATION_VERSION
     monkeypatch.setattr(
-        "src.dataset_updater.DatasetUpdater.sync_datasets", MagicMock(return_value=0)
+        "src.dataset_updater.DatasetUpdater.sync_datasets",
+        MagicMock(return_value=SyncResult(succeeded=True, downloaded=0)),
     )
 
     outcome = _sync_cloud_datasets(config, lambda msg: None)
 
     assert outcome.attempted is True
+    assert outcome.failed is False
     assert outcome.downloaded == 0
 
 
@@ -97,15 +102,17 @@ def test_sync_cloud_datasets_returns_zero_when_upgrade_sync_raised(monkeypatch):
     outcome = _sync_cloud_datasets(config, lambda msg: None)
 
     assert outcome.attempted is True
+    assert outcome.failed is True
     assert outcome.downloaded == 0
+    assert config.card_data.last_auto_sync_date == ""
 
 
 def test_sync_cloud_datasets_returns_zero_when_sync_ran_but_raised(monkeypatch):
-    """Auto-sync on but the sync itself blew up → a synced-0 outcome, NOT
-    not-attempted and NOT an uncaught exception. The notifier reads any
-    attempted outcome as 'boot synced → no 1.5s re-sync'; a propagated
-    exception or a not-attempted return would re-sync 1.5s after a boot that
-    already attempted and failed the sync."""
+    """Auto-sync on but the sync itself blew up → a synced-0, failed outcome,
+    NOT not-attempted and NOT an uncaught exception. The notifier reads any
+    attempted outcome as 'boot synced → no 1.5s re-sync' unless failed=True; a
+    propagated exception or a not-attempted return would re-sync 1.5s after a
+    boot that already attempted and failed the sync."""
     config = Configuration()
     config.settings.auto_sync_datasets = True
     config.settings.last_run_version = constants.APPLICATION_VERSION
@@ -117,6 +124,7 @@ def test_sync_cloud_datasets_returns_zero_when_sync_ran_but_raised(monkeypatch):
     outcome = _sync_cloud_datasets(config, lambda msg: None)
 
     assert outcome.attempted is True
+    assert outcome.failed is True
     assert outcome.downloaded == 0
 
 
@@ -152,12 +160,14 @@ def test_sync_cloud_datasets_syncs_and_stamps_on_a_new_day(monkeypatch):
     config.card_data.last_auto_sync_date = "2026-08-12"
     monkeypatch.setattr("src.dataset_updater.utc_date_today", lambda: "2026-08-13")
     monkeypatch.setattr(
-        "src.dataset_updater.DatasetUpdater.sync_datasets", MagicMock(return_value=2)
+        "src.dataset_updater.DatasetUpdater.sync_datasets",
+        MagicMock(return_value=SyncResult(succeeded=True, downloaded=2)),
     )
 
     outcome = _sync_cloud_datasets(config, lambda msg: None)
 
     assert outcome.attempted is True
+    assert outcome.failed is False
     assert outcome.downloaded == 2
     assert config.card_data.last_auto_sync_date == "2026-08-13"
 
@@ -174,10 +184,52 @@ def test_sync_cloud_datasets_upgrade_forces_sync_even_when_already_synced_today(
     config.card_data.last_auto_sync_date = "2026-08-13"
     monkeypatch.setattr("src.dataset_updater.utc_date_today", lambda: "2026-08-13")
     monkeypatch.setattr(
-        "src.dataset_updater.DatasetUpdater.sync_datasets", MagicMock(return_value=1)
+        "src.dataset_updater.DatasetUpdater.sync_datasets",
+        MagicMock(return_value=SyncResult(succeeded=True, downloaded=1)),
     )
 
     outcome = _sync_cloud_datasets(config, lambda msg: None)
 
     assert outcome.attempted is True
+    assert outcome.failed is False
     assert outcome.downloaded == 1
+
+
+def test_sync_cloud_datasets_does_not_stamp_on_failure(monkeypatch):
+    """A failed sync must NOT consume the once-per-day budget: the date stays
+    unset so the next launch retries (stamp-on-success). A failed boot that
+    stamped today would otherwise read as 'synced' and lock out the day."""
+    config = Configuration()
+    config.settings.auto_sync_datasets = True
+    config.settings.last_run_version = constants.APPLICATION_VERSION
+    monkeypatch.setattr(
+        "src.dataset_updater.DatasetUpdater.sync_datasets",
+        MagicMock(return_value=SyncResult(succeeded=False)),
+    )
+
+    outcome = _sync_cloud_datasets(config, lambda msg: None)
+
+    assert outcome.attempted is True
+    assert outcome.failed is True
+    assert outcome.downloaded == 0
+    assert config.card_data.last_auto_sync_date == ""
+
+
+def test_sync_cloud_datasets_does_not_stamp_on_upgrade_failure(monkeypatch):
+    """The one-time upgrade sync failing is also a failed day — the migration
+    must not consume the once-per-day budget either, or the corrected data is
+    never retried."""
+    config = Configuration()
+    config.settings.auto_sync_datasets = False
+    config.settings.last_run_version = "0.0.0"  # != APPLICATION_VERSION → upgraded
+    monkeypatch.setattr(
+        "src.dataset_updater.DatasetUpdater.sync_datasets",
+        MagicMock(return_value=SyncResult(succeeded=False)),
+    )
+
+    outcome = _sync_cloud_datasets(config, lambda msg: None)
+
+    assert outcome.attempted is True
+    assert outcome.failed is True
+    assert outcome.downloaded == 0
+    assert config.card_data.last_auto_sync_date == ""

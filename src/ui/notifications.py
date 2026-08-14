@@ -98,8 +98,11 @@ class Notifications:
                 pass
 
             updater = DatasetUpdater(self.configuration)
-            updater.sync_datasets(silent_progress)
-            mark_auto_synced_today(self.configuration)
+            result = updater.sync_datasets(silent_progress)
+            # Stamp only on success so a failed day is retried on the next
+            # launch instead of locking out the once-per-day budget.
+            if result.succeeded:
+                mark_auto_synced_today(self.configuration)
 
         except Exception as e:
             logger.error(f"Notification error: {e}")

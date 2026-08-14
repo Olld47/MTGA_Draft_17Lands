@@ -32,6 +32,12 @@ class BootSyncOutcome:
     attempted: bool
     downloaded: int = 0
     already_synced_today: bool = False
+    # True when the boot-time sync ran but failed (network error, unreachable
+    # server). The once-per-day stamp is only written on success, so a failed
+    # day is retried on the next launch; the desktop notifier treats this like
+    # not-attempted and tries a fresh silent sync ~1.5s after boot (the short
+    # retry window), emitting datasets://syncFailed when that also fails.
+    failed: bool = False
 
 
 # The "boot never attempted a sync" state (auto-sync off and not an upgrade).

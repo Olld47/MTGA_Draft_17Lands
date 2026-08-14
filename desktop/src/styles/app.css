@@ -860,6 +860,13 @@
   font-size: var(--text-sm);
 }
 
+/* A stale dataset is a warning, not a missing-dataset prompt — amber/error
+   tint distinguishes it from the gold "download one below" banner. */
+.dataset-stale-banner {
+  background: color-mix(in srgb, var(--err) 10%, var(--felt));
+  border-color: var(--err);
+}
+
 .download-form {
   display: flex;
   align-items: flex-end;

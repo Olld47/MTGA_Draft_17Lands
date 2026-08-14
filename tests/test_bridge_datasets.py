@@ -15,6 +15,7 @@ FileExtractor is patched at its import site (datasets.py binds it with
 
 import os
 import sys
+import time
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -150,6 +151,73 @@ def test_listing_treats_a_blank_active_dataset_as_none(config, sets_folder):
 
     assert result.active_dataset is None
     assert result.datasets[0].is_active is False
+
+
+# --- staleness ----------------------------------------------------------------
+
+
+def test_listing_reports_no_staleness_without_datasets(config):
+    with _stub_set_list([]):
+        result = datasets.list_local_datasets(config)
+
+    assert result.newest_age_days == -1
+    assert result.stale is False
+    assert result.last_sync_date == ""
+
+
+def test_listing_is_fresh_when_the_newest_dataset_is_today(config, sets_folder):
+    path = sets_folder / "TEST_PremierDraft_All_Data.json"
+    path.write_text("{}")
+    now = time.time()
+    os.utime(path, (now, now))
+
+    with _stub_set_list([_row(str(path))]):
+        result = datasets.list_local_datasets(config)
+
+    assert result.newest_age_days == 0
+    assert result.stale is False
+
+
+def test_listing_flags_stale_when_the_newest_dataset_is_old(config, sets_folder):
+    """The core of issue05's staleness acceptance: a local dataset far older
+    than today must surface on the Datasets page, not stay silent."""
+    path = sets_folder / "TEST_PremierDraft_All_Data.json"
+    path.write_text("{}")
+    old = time.time() - 8 * 86400
+    os.utime(path, (old, old))
+
+    with _stub_set_list([_row(str(path))]):
+        result = datasets.list_local_datasets(config)
+
+    assert result.newest_age_days == 8
+    assert result.stale is True
+
+
+def test_listing_ignores_deleted_files_when_measuring_freshness(config, sets_folder):
+    """A row whose file vanished reports zeroes and must not drag the newest
+    age down to 'just now' — the deleted row's 0.0 mtime is not fresh data."""
+    missing = sets_folder / "GONE_PremierDraft_All_Data.json"
+    current = sets_folder / "TEST_PremierDraft_All_Data.json"
+    current.write_text("{}")
+    old = time.time() - 8 * 86400
+    os.utime(current, (old, old))
+
+    with _stub_set_list([_row(str(missing)), _row(str(current))]):
+        result = datasets.list_local_datasets(config)
+
+    assert result.newest_age_days == 8
+    assert result.stale is True
+
+
+def test_listing_surfaces_the_last_successful_sync_date(config, sets_folder):
+    config.card_data.last_auto_sync_date = "2026-08-13"
+    path = sets_folder / "TEST_PremierDraft_All_Data.json"
+    path.write_text("{}")
+
+    with _stub_set_list([_row(str(path))]):
+        result = datasets.list_local_datasets(config)
+
+    assert result.last_sync_date == "2026-08-13"
 
 
 # --- _resolve_start_date -----------------------------------------------------

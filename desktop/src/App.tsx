@@ -13,6 +13,7 @@ import {
 import { useDraftState } from "./state/useDraftState";
 import { DatasetSwitcher } from "./components/DatasetSwitcher";
 import { DatasetUpdateToast } from "./components/DatasetUpdateToast";
+import { DatasetSyncFailedToast } from "./components/DatasetSyncFailedToast";
 import { AppUpdateToast } from "./components/AppUpdateToast";
 import { useDatasetSwitcher } from "./state/useDatasetSwitcher";
 import { onNavigateTab } from "./state/navigation";
@@ -267,6 +268,7 @@ export default function App() {
 
       {appError && <div className="error-toast">{appError}</div>}
       <DatasetUpdateToast />
+      <DatasetSyncFailedToast />
       <AppUpdateToast />
     </div>
   );

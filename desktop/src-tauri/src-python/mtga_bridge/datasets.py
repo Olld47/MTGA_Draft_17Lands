@@ -9,7 +9,7 @@ import logging
 import os
 import re
 import threading
-from datetime import date
+from datetime import date, datetime
 from typing import Callable, Dict, Optional
 
 from src import constants
@@ -29,6 +29,25 @@ from mtga_bridge.viewmodels import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Datasets older than this many days are flagged stale on the Datasets page.
+# The ETL runs daily, so a week without fresh data means the server has been
+# serving old files (or the user's app has been offline) — worth surfacing.
+DATASET_STALE_DAYS = 7
+
+
+def _age_days(mtime: float, now: Optional[datetime] = None) -> int:
+    """Whole days since an epoch mtime (0 for anything touched today)."""
+    now = now or datetime.now()
+    return max(0, (now - datetime.fromtimestamp(mtime)).days)
+
+
+def _newest_age_days(mtimes, now: Optional[datetime] = None) -> int:
+    """Age in days of the most recently modified dataset file; -1 when empty.
+    Pass `now` in tests to make the staleness arithmetic deterministic."""
+    if not mtimes:
+        return -1
+    return min(_age_days(m, now) for m in mtimes)
 
 
 # --- Duck-typed shims that stand in for the tkinter widgets UIProgress drives ---
@@ -90,6 +109,7 @@ def list_local_datasets(config) -> DatasetListVM:
     file_list, _ = retrieve_local_set_list()
     active = config.card_data.latest_dataset or None
     datasets = []
+    mtimes = []
     for row in file_list or []:
         set_code, event_type, user_group, path = (
             row.set_name,
@@ -103,6 +123,8 @@ def list_local_datasets(config) -> DatasetListVM:
             size, mtime = stat.st_size, stat.st_mtime
         except OSError:
             size, mtime = 0, 0.0
+        if mtime > 0:
+            mtimes.append(mtime)
         datasets.append(
             DatasetInfoVM(
                 label=f"[{set_code}] {event_type} ({user_group})",
@@ -113,7 +135,14 @@ def list_local_datasets(config) -> DatasetListVM:
                 is_active=file_name == active,
             )
         )
-    return DatasetListVM(datasets=datasets, active_dataset=active)
+    newest = _newest_age_days(mtimes)
+    return DatasetListVM(
+        datasets=datasets,
+        active_dataset=active,
+        last_sync_date=config.card_data.last_auto_sync_date or "",
+        newest_age_days=newest,
+        stale=newest > DATASET_STALE_DAYS,
+    )
 
 
 def build_set_metrics_vm(scanner) -> SetMetricsVM:

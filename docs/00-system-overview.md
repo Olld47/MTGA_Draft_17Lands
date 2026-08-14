@@ -118,7 +118,7 @@ The application polls for file changes via a background thread every **100ms** t
 
 ## 5. Dataset Auto-Sync (Once per UTC Day)
 
-Dataset downloads are throttled to **at most once per natural UTC day** (UTC 00:00 boundary). `CardData.last_auto_sync_date` persists the UTC date; `DatasetUpdater.is_auto_synced_today()` gates every automatic trigger (bootstrap, the desktop notifier, and the tkinter post-boot check). Manual downloads (`FileExtractor` / 17Lands) and the post-upgrade migration bypass the gate. The date is stamped on *attempt* so a failed day is not retried.
+Dataset downloads are throttled to **at most once per natural UTC day** (UTC 00:00 boundary). `CardData.last_auto_sync_date` persists the UTC date; `DatasetUpdater.is_auto_synced_today()` gates every automatic trigger (bootstrap, the desktop notifier, and the tkinter post-boot check). Manual downloads (`FileExtractor` / 17Lands) bypass the gate. The date is stamped on *success* (issue05), not attempt: a failed sync leaves it unset, so the day is retried on the next launch instead of being locked out for 24 hours. The desktop notifier treats a failed boot sync as a short retry window — it runs one fresh silent sync ~1.5s later, and emits `datasets://syncFailed` (a toast) when that also fails. Dataset staleness is observable on the desktop Datasets page: it exposes the newest local dataset's age and the last successful sync date, and flags datasets older than 7 days (`mtga_bridge/datasets.py` `DATASET_STALE_DAYS`).
 
 ## 6. Boot Sequence & UI Dispatch
 

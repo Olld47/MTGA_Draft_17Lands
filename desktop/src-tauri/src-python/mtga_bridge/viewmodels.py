@@ -64,6 +64,15 @@ class DatasetsUpdatedVM(_VM):
     updated_count: int
 
 
+class DatasetSyncFailedVM(_VM):
+    """Payload for datasets://syncFailed — the background dataset sync failed
+    (network error, unreachable server). The once-per-day stamp was NOT written,
+    so the next launch retries; the frontend shows a localized toast to make the
+    failure visible instead of silently serving yesterday's data."""
+
+    pass
+
+
 class AppUpdateAvailableVM(_VM):
     """Payload for update://available — a newer desktop release exists. The
     frontend builds the localized toast and opens release_url in the OS browser
@@ -303,6 +312,14 @@ class DatasetInfoVM(_VM):
 class DatasetListVM(_VM):
     datasets: List[DatasetInfoVM] = []
     active_dataset: Optional[str] = None
+    # Dataset freshness for the Datasets-page staleness banner. newest_age_days
+    # is the age of the most recently written local dataset file (-1 when no
+    # datasets exist); stale is true when that exceeds the bridge's
+    # DATASET_STALE_DAYS. last_sync_date is the last SUCCESSFUL auto-sync date
+    # (YYYY-MM-DD) — empty when auto-sync never succeeded.
+    last_sync_date: str = ""
+    newest_age_days: int = -1
+    stale: bool = False
 
 
 class ColorMetricVM(_VM):

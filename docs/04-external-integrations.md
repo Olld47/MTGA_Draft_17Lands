@@ -25,7 +25,9 @@ into `.json.gz` files every day and publishes them to GitHub Pages.
   4. Writes with atomic file replacement.
 - **Auto-sync cadence:** at most **once per UTC day**, gated by
   `is_auto_synced_today()` (see `00-system-overview.md` §5). Manual downloads
-  are unaffected.
+  are unaffected. `sync_datasets` returns a typed `SyncResult`; the once-per-day
+  stamp is written only on success, so a failed day is retried on the next
+  launch, and a failed background sync surfaces as `datasets://syncFailed`.
 
 The datasets are also what the **server-side** `extract.py`/`transform.py`
 produce — the client never scrapes 17Lands directly in normal operation.

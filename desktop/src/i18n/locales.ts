@@ -256,6 +256,12 @@ export const messages: Record<Lang, Record<string, string>> = {
     "datasets.delete": "Delete",
     "datasets.empty": "No datasets downloaded yet",
     "datasets.updatedToast": "{n} datasets updated",
+    "datasets.staleBanner":
+      "Datasets may be out of date — newest data is {days} days old (last sync: {date}).",
+    "datasets.staleBannerNoSync":
+      "Datasets may be out of date — newest data is {days} days old (no successful auto-sync yet).",
+    "datasets.syncFailedToast":
+      "Dataset sync failed — will retry on next launch.",
 
     // App update
     "update.available": "New version {version} available",
@@ -612,6 +618,10 @@ export const messages: Record<Lang, Record<string, string>> = {
     "datasets.delete": "删除",
     "datasets.empty": "尚未下载数据集",
     "datasets.updatedToast": "已更新 {n} 个数据集",
+    "datasets.staleBanner": "数据集可能已过期——最新数据为 {days} 天前（上次同步：{date}）。",
+    "datasets.staleBannerNoSync":
+      "数据集可能已过期——最新数据为 {days} 天前（尚无成功的自动同步）。",
+    "datasets.syncFailedToast": "数据集同步失败——下次启动时将重试。",
 
     // App update
     "update.available": "发现新版本 {version}",

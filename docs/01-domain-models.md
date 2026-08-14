@@ -211,3 +211,4 @@ interface Settings {
 | `draft://heartbeat` | `{logMtime, logName}` | Feeds the live status dot |
 | `app://error` | `{message}` | Recoverable app error |
 | `datasets://updated` | `{updatedCount}` | Background dataset sync finished |
+| `datasets://syncFailed` | `{}` | Background dataset sync failed (retried next launch) |

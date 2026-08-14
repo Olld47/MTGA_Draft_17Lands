@@ -2,6 +2,7 @@ import pytest
 from unittest.mock import MagicMock, patch
 from src.ui.notifications import Notifications
 from src.configuration import Configuration
+from src.dataset_updater import SyncResult
 
 
 @pytest.fixture
@@ -102,10 +103,25 @@ def test_update_dataset_syncs_and_stamps_on_new_day(mock_updater_cls, notificati
     a later launch today skips. A dropped stamp leaves the date at yesterday."""
     notifications.configuration.card_data.last_auto_sync_date = "2026-08-12"
     mock_instance = mock_updater_cls.return_value
+    mock_instance.sync_datasets.return_value = SyncResult(succeeded=True, downloaded=0)
     with patch("src.dataset_updater.utc_date_today", return_value="2026-08-13"):
         notifications.update_dataset()
     mock_instance.sync_datasets.assert_called_once()
     assert notifications.configuration.card_data.last_auto_sync_date == "2026-08-13"
+
+
+@patch("src.dataset_updater.DatasetUpdater")
+def test_update_dataset_does_not_stamp_on_failure(mock_updater_cls, notifications):
+    """A failed sync must not consume the once-per-day budget: the date stays at
+    yesterday so the next launch retries (stamp-on-success). A failed sync that
+    stamped today would otherwise lock the day out."""
+    notifications.configuration.card_data.last_auto_sync_date = "2026-08-12"
+    mock_instance = mock_updater_cls.return_value
+    mock_instance.sync_datasets.return_value = SyncResult(succeeded=False)
+    with patch("src.dataset_updater.utc_date_today", return_value="2026-08-13"):
+        notifications.update_dataset()
+    mock_instance.sync_datasets.assert_called_once()
+    assert notifications.configuration.card_data.last_auto_sync_date == "2026-08-12"
 
 
 @patch("src.ui.notifications.tkinter.messagebox.askyesno", return_value=False)

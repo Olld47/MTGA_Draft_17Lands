@@ -133,6 +133,19 @@ export function DatasetsPage({ missingSet }: Props) {
         </div>
       )}
 
+      {list?.stale && (
+        <div className="dataset-banner dataset-stale-banner">
+          <span>
+            {list.lastSyncDate
+              ? t("datasets.staleBanner", {
+                  days: list.newestAgeDays,
+                  date: list.lastSyncDate,
+                })
+              : t("datasets.staleBannerNoSync", { days: list.newestAgeDays })}
+          </span>
+        </div>
+      )}
+
       <section className="panel">
         <h2>{t("datasets.downloadTitle")}</h2>
         <div className="download-form">

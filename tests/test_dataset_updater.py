@@ -70,7 +70,8 @@ def test_sync_datasets_downloads_new_files(mock_get, updater, tmp_path):
     assert local_manifest["datasets"]["MH3_PremierDraft_All"]["hash"] == "fake_hash_123"
 
     # One dataset was downloaded → the sync reports a count of 1
-    assert result == 1
+    assert result.succeeded is True
+    assert result.downloaded == 1
 
 
 @patch("src.dataset_updater.requests.get")
@@ -117,8 +118,9 @@ def test_sync_datasets_skips_existing_hashes(mock_get, updater, tmp_path):
     # Assert: Network was only hit three times (Health + Filters + Manifest),
     # meaning the file download was skipped
     assert mock_get.call_count == 3
-    # Nothing changed → the sync reports a count of 0
-    assert result == 0
+    # Nothing changed → the sync reports a count of 0 (and still succeeded)
+    assert result.succeeded is True
+    assert result.downloaded == 0
 
 
 def test_dataset_key_splitting():
@@ -336,6 +338,20 @@ def test_sync_datasets_counts_each_downloaded_set(mock_get, updater, tmp_path):
 
     result = updater.sync_datasets(MagicMock())
 
-    assert result == 2
+    assert result.succeeded is True
+    assert result.downloaded == 2
     assert (tmp_path / "MSH_PremierDraft_All_Data.json").exists()
     assert (tmp_path / "TMT_PremierDraft_All_Data.json").exists()
+
+
+@patch("src.dataset_updater.requests.get")
+def test_sync_datasets_reports_failure(mock_get, updater, tmp_path):
+    """A network failure must be distinguishable from 'synced, nothing new':
+    both report a download count of 0, but a failed sync must NOT count as a
+    successful once-per-day stamp. SyncResult.succeeded is the discriminator."""
+    mock_get.side_effect = Exception("network down")
+
+    result = updater.sync_datasets(MagicMock())
+
+    assert result.succeeded is False
+    assert result.downloaded == 0

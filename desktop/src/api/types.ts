@@ -147,6 +147,12 @@ export interface DatasetInfo {
 export interface DatasetList {
   datasets: DatasetInfo[];
   activeDataset: string | null;
+  /** Last SUCCESSFUL auto-sync date (YYYY-MM-DD), "" when never succeeded. */
+  lastSyncDate: string;
+  /** Age in days of the newest local dataset file, -1 when none exist. */
+  newestAgeDays: number;
+  /** True when newestAgeDays exceeds the backend's stale threshold. */
+  stale: boolean;
 }
 
 export interface ColorMetric {

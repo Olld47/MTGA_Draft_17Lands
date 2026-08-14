@@ -1,6 +1,7 @@
 import os
 import json
 import gzip
+from dataclasses import dataclass
 from datetime import datetime, timezone
 import requests
 import logging
@@ -8,6 +9,18 @@ from src import constants
 from src.configuration import write_configuration
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class SyncResult:
+    """What a sync run actually did. `succeeded` distinguishes 'the cloud is
+    unreachable' (False) from 'synced and found nothing new' (True with
+    downloaded=0) — the once-per-day stamp must only be written on success, so
+    a failed day is retried on the next launch instead of locking out until
+    tomorrow."""
+
+    succeeded: bool
+    downloaded: int = 0
 
 
 def utc_date_today() -> str:
@@ -87,9 +100,9 @@ class DatasetUpdater:
         playable (live_formats_by_expansion). If that endpoint is unreachable
         we fall back to the manifest's own active_sets, then to everything.
 
-        Returns the number of datasets actually downloaded (0 when nothing
-        changed or the sync failed). Existing callers ignore the return; the
-        count powers the desktop background update-notifier."""
+        Returns a SyncResult: succeeded=True with the number of datasets
+        actually downloaded (0 when nothing changed), or succeeded=False when
+        the sync failed. Callers stamp the once-per-day date only on success."""
         try:
             # Check pipeline health first to notify user if there are backend issues
             try:
@@ -172,9 +185,9 @@ class DatasetUpdater:
             if updates_made:
                 progress_callback("Datasets updated successfully.")
 
-            return updates_made
+            return SyncResult(succeeded=True, downloaded=updates_made)
 
         except Exception as e:
             logger.error(f"Failed to sync datasets: {e}")
             progress_callback("Skipped dataset sync (Network Error).")
-            return 0
+            return SyncResult(succeeded=False)
