@@ -204,7 +204,6 @@ def test_composition_bonus_heuristics(mock_metrics):
         "hard_removal_count": 1,
         "early_plays": 2,
     }
-    advisor.TOTAL_PICKS = 45
     advisor.pool = [1] * 20  # Simulate mid-draft (Pick 20)
 
     # 1. Heavy Drops Penalty
