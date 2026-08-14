@@ -65,7 +65,7 @@ graph TD
 | Module | Function | Criticality |
 | :--- | :--- | :--- |
 | **ArenaScanner** (`src/log_scanner.py`) | Tails `Player.log` on a background thread, executes normalized fuzzy matching, manages the state machine (Idle -> Drafting -> Sealed -> Game), persists draft state to `Temp/` for crash recovery. | **High** (app fails without it) |
-| **DraftOrchestrator** (`src/ui/orchestrator.py`) | Background thread that drains scanner events into an `update_queue`, triggers dataset load for the event, and pokes the UI on state changes. | **High** |
+| **DraftOrchestrator** (`src/orchestrator.py`) | Background thread that drains scanner events into an `update_queue`, triggers dataset load for the event, and pokes the UI on state changes. Shared by both UIs (tkinter `AppController` and the desktop bridge). | **High** |
 | **Advisor Engine** (`src/advisor/engine.py`) | The "Compositional Brain" (v5.5). Normalizes win-rates, calculates Z-Scores, applies Lane Commitment, tracks VOR, and measures pip-density. | **High** |
 | **DatasetUpdater** (`src/dataset_updater.py`) | Downloads pre-compiled `.json.gz` datasets + `manifest.json` from GitHub Pages. Auto-sync runs at most once per UTC day (see §5). | **High** |
 | **Dataset** (`src/dataset.py`) | Loads and merges 17Lands stats with the local card DB, resolves archetypes, normalizes WUBRG color keys. | **High** |

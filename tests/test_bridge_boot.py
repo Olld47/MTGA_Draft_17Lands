@@ -101,7 +101,7 @@ def booted(runtime, monkeypatch):
     with patch("src.bootstrap.cleanup_old_draft_logs") as cleanup, patch(
         "src.bootstrap.load_data", return_value={"scanner": scanner}
     ) as load_data, patch(
-        "src.ui.orchestrator.DraftOrchestrator"
+        "src.orchestrator.DraftOrchestrator"
     ) as orchestrator_cls, patch(
         "mtga_bridge.orchestrator_adapter.OrchestratorAdapter"
     ) as adapter_cls, patch(

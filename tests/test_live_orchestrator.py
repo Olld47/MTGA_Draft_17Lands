@@ -2,7 +2,7 @@ import pytest
 import os
 import queue
 from unittest.mock import patch, MagicMock
-from src.ui.orchestrator import DraftOrchestrator
+from src.orchestrator import DraftOrchestrator
 from src.configuration import Configuration
 
 
@@ -18,8 +18,8 @@ def orchestrator():
     return DraftOrchestrator(mock_scanner, config, MagicMock())
 
 
-@patch("src.ui.orchestrator.os.path.getsize")
-@patch("src.ui.orchestrator.os.path.exists")
+@patch("src.orchestrator.os.path.getsize")
+@patch("src.orchestrator.os.path.exists")
 @patch("builtins.open")
 def test_check_live_log_detects_draft(
     mock_open, mock_exists, mock_getsize, orchestrator
@@ -51,8 +51,8 @@ def test_check_live_log_detects_draft(
     assert orchestrator._last_live_file_size == 1000
 
 
-@patch("src.ui.orchestrator.os.path.getsize", return_value=500)
-@patch("src.ui.orchestrator.os.path.exists", return_value=True)
+@patch("src.orchestrator.os.path.getsize", return_value=500)
+@patch("src.orchestrator.os.path.exists", return_value=True)
 def test_check_live_log_ignores_static_file(mock_exists, mock_getsize, orchestrator):
     """Verifies we do not waste CPU cycles reading the log if the file size hasn't changed."""
 
@@ -81,7 +81,7 @@ def test_orchestrator_flags(orchestrator):
     assert orchestrator._force_math_event.is_set()
 
 
-@patch("src.ui.orchestrator.time.sleep", return_value=None)
+@patch("src.orchestrator.time.sleep", return_value=None)
 def test_orchestrator_run_loop(mock_sleep, orchestrator):
     """Verify the run loop correctly consumes events and file swaps."""
     # Trigger the flags

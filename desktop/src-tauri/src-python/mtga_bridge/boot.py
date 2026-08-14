@@ -32,7 +32,7 @@ def _boot_blocking(runtime, emit):
     """Runs on a worker thread. `emit(event, payload)` must be thread-safe."""
     from src.bootstrap import cleanup_old_draft_logs, load_data
     from src.boot_sync import BOOT_NOT_ATTEMPTED
-    from src.ui.orchestrator import DraftOrchestrator
+    from src.orchestrator import DraftOrchestrator
 
     from mtga_bridge.orchestrator_adapter import OrchestratorAdapter
     from mtga_bridge.snapshot import build_draft_state

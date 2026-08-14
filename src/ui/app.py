@@ -14,8 +14,8 @@ from src import constants
 from src.configuration import write_configuration
 from src.ui.styles import Theme
 
-from src.ui.orchestrator import DraftOrchestrator
-from src.notifications import Notifications
+from src.orchestrator import DraftOrchestrator
+from src.ui.notifications import Notifications
 
 # UI Components
 from src.ui.loading_overlay import LoadingOverlay

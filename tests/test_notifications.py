@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import MagicMock, patch
-from src.notifications import Notifications
+from src.ui.notifications import Notifications
 from src.configuration import Configuration
 
 
@@ -55,7 +55,7 @@ def test_prompt_missing_dataset(notifications):
 
 
 def test_update_latest_dataset(notifications):
-    with patch("src.notifications.write_configuration") as mock_write:
+    with patch("src.ui.notifications.write_configuration") as mock_write:
         notifications.update_latest_dataset("/path/to/New_Dataset.json")
         assert (
             notifications.configuration.card_data.latest_dataset == "New_Dataset.json"
@@ -108,7 +108,7 @@ def test_update_dataset_syncs_and_stamps_on_new_day(mock_updater_cls, notificati
     assert notifications.configuration.card_data.last_auto_sync_date == "2026-08-13"
 
 
-@patch("src.notifications.tkinter.messagebox.askyesno", return_value=False)
+@patch("src.ui.notifications.tkinter.messagebox.askyesno", return_value=False)
 def test_prompt_missing_dataset_declined(mock_ask, notifications):
     """Verify declining the prompt safely does nothing."""
     notifications.prompt_missing_dataset("OTJ", "PremierDraft")
