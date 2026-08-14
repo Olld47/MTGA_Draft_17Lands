@@ -421,7 +421,6 @@ export interface SealedState {
   poolSize: number;
   sessionId: string;
   variants: SealedVariant[];
-  activeVariant: string;
   deck: DeckRow[];
   sideboard: DeckRow[];
   stats: DeckStats;

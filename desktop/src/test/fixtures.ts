@@ -8,7 +8,6 @@ export const sealedState = (over: Partial<SealedState> = {}): SealedState => ({
   poolSize: 60,
   sessionId: "s1",
   variants: [{ name: "Build 1", isActive: true, mainCount: 0 }],
-  activeVariant: "Build 1",
   deck: [],
   sideboard: [],
   stats: {
