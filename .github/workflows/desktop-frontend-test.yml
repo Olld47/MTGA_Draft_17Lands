@@ -1,0 +1,39 @@
+# Runs the desktop frontend test suite (Vitest + TypeScript type-check) on an
+# Ubuntu runner. The desktop app targets macOS and Windows, not Linux, but these
+# are headless jsdom unit tests — they never launch the app, so a cheap Linux
+# runner is fine. The Python bridge tests run inside `pytest` in
+# python-macos.yml / python-windows.yml.
+
+name: Desktop Frontend Tests
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: ["main", "master"]
+    paths:
+      - "desktop/**"
+
+jobs:
+  desktop-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: desktop
+        run: npm ci
+
+      - name: Type-check
+        working-directory: desktop
+        run: npx tsc --noEmit
+
+      - name: Test with Vitest
+        working-directory: desktop
+        run: npm test

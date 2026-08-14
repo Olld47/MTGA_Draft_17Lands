@@ -62,6 +62,13 @@ These are the signals for Human drafts (Premier/Traditional/Cube).
   ```
   > **Pick-Two Drafts:** Certain events (like OM1 or TMT) allow picking 2 cards per pack. The payload handles this by returning a JSON array under `GrpIds` rather than a singular `GrpId`. The `cards_per_pick` logic dynamically tracks this to correctly compute the "Wheel Tracker" offsets.
 
+### D. Draft Completion (Terminal DeckSelect)
+
+The draft is considered finished when the log reports a `DeckSelect` module with a completed `DraftStatus`:
+
+- **Trigger:** A `DraftStatus` payload whose `CurrentModule` is `"DeckSelect"` (DraftStatus `"Completed"`).
+- **Action:** The scanner *retires* the live pack/pick and the UI transitions to the post-draft recap view instead of rendering an empty pack.
+
 ---
 
 ## 4. Event Catalog (Quick Draft / Bot Draft)
@@ -111,7 +118,26 @@ Sealed events dump the entire pool at once and skip pack-by-pack drafting.
 
 ---
 
-## 6. State Machine Diagram
+## 6. Crash Recovery & the Desktop Deep Scan
+
+Draft state is persisted to `Temp/active_draft_state.json` as it changes, so a
+restart mid-draft resumes exactly where the user left off.
+
+On boot, both UIs perform a **deep scan** of `Player.log` from the beginning
+before tailing:
+
+- The scanner replays `Event_Join` / `BotDraft_DraftStatus` / `"CardPool":[`
+  payloads to reconstruct the active event.
+- The desktop bridge's `snapshot.build_draft_state` (`mtga_bridge/snapshot.py`)
+  is the headless port of the tkinter `AppController.refresh_ui_data` — it feeds
+  the same reconstructed state to the React dashboard, so recovery is
+  byte-identical across UIs.
+- If the log file severely desyncs, the UI's **Rescan** action wipes the in-memory
+  state and re-runs the deep scan.
+
+---
+
+## 7. State Machine Diagram
 
 ```mermaid
 stateDiagram-v2
@@ -125,11 +151,13 @@ stateDiagram-v2
         WaitingForPack --> PackReview: Draft.Notify
         PackReview --> PickMade: MakePick
         PickMade --> WaitingForPack: (Next Pick)
-        PickMade --> [*]: Draft Complete
+        PickMade --> Done: Terminal DeckSelect (DraftStatus Completed)
     }
 
     state Sealed {
         [*] --> SealedStudio
-        SealedStudio --> [*]: Event End
+        SealedStudio --> Done: Event End
     }
+
+    Done --> [*]: Recap
 ```

@@ -1,7 +1,12 @@
 # AI Context: MTGA Draft Tool (Architecture Map)
 
-**Role:** You are an expert Systems Architect maintaining a sophisticated Python/Tkinter application.
-**Goal:** Understand the cross-threading, data normalization, and pro-level heuristics utilized throughout the MTGA Draft Tool.
+**Role:** You are an expert Systems Architect maintaining a dual-UI MTGA Draft Tool: a **PyTauri desktop app** (Tauri 2 + React, default) and a **legacy tkinter app**. Both share the same Python engine (`src/`).
+**Goal:** Understand the cross-threading, data normalization, desktop IPC bridge, and pro-level heuristics utilized throughout the MTGA Draft Tool.
+
+> Companion docs: `00-system-overview.md` (architecture), `01-domain-models.md`
+> (canonical + IPC data shapes), `02-log-parsing-rules.md` (parsing),
+> `03-business-logic.md` (scoring engine), `04-external-integrations.md` (APIs),
+> `05-server-etl-pipeline.md` (cloud datasets).
 
 ## 1. System Architecture
 
@@ -9,14 +14,19 @@ The application is a **Reactive Overlay & Data Warehouse** for Magic: The Gather
 
 - **Input:** Tails `Player.log` (UTF-8) on a background thread (`ArenaScanner`).
 - **Zero-Day Resolution:** Joins local MTGA SQLite DB tables to resolve internal `GrpId`s to English card names before 17Lands updates.
-- **State:** Tracks Draft Pack, Missing Wheel Cards, and Taken Pool via persistent JSON state memory.
-- **Output:** Renders a floating UI table ranking cards by a contextual "Score" (0-100), and provides a Monte Carlo simulation engine and Sealed Studio for deck optimization.
+- **State:** Tracks Draft Pack, Missing Wheel Cards, and Taken Pool via persistent JSON state memory (`Temp/active_draft_state.json`).
+- **Data:** Primary card stats come from pre-compiled cloud datasets (GitHub Pages) synced at most once per UTC day; direct 17Lands/Scryfall calls are the fallback.
+- **Output:**
+  - **Desktop (default):** a React + TypeScript frontend inside a Tauri 2 window, driven by the `mtga_bridge` Python package — `snapshot.py` builds state, `orchestrator_adapter.py` streams `draft://*` events, `viewmodels.py` defines camelCase IPC models.
+  - **Legacy:** a tkinter UI ranking cards by a contextual "Score" (0-100), with a Monte Carlo simulation engine and Sealed Studio.
 
 ## 2. Critical Constraints
 
-1. **Rate Limiting:** 17Lands and Scryfall API requests must be cached locally for **12-24 hours**.
+1. **Rate Limiting:** 17Lands and Scryfall API requests must be cached locally for **12-24 hours**. Direct calls are a fallback; prefer cloud datasets.
 2. **Color Normalization:** All color keys must be sorted **WUBRG** (e.g., convert "GW" to "WG"). Failure to do this breaks dictionary lookups.
-3. **Thread Safety:** The UI must never block. All intensive parsing and Monte Carlo logic runs on `ThreadPoolExecutors` and sends updates via queues/`after()` calls.
+3. **Thread Safety:** The UI must never block. All intensive parsing and Monte Carlo logic runs on `ThreadPoolExecutors` and sends updates via queues. The desktop app drains the scanner's `update_queue` into Tauri events from the adapter's worker thread.
+4. **IPC Serialization:** Every desktop bridge model derives from `_VM` with `serialize_by_alias=True` (camelCase wire format). Python code consuming `model_dump()` must pass `by_alias=False`.
+5. **UI Dispatch:** `main.py` prefers `--ui` flags, then the `default_ui` config key (default `desktop`); a missing desktop build falls back to tkinter (explicit `--ui desktop` exits with code 2 instead).
 
 ## 3. Data Schema (Types)
 
@@ -40,3 +50,7 @@ type Card = {
   }
 }
 ```
+
+For the desktop wire format (camelCase `CardVM`, `DraftStateVM`, `SettingsVM`,
+the `_VM` alias rules, and the `boot://` / `draft://` / `app://` event payloads),
+see `01-domain-models.md` §5–§6.

@@ -32,7 +32,9 @@ graph TD
 | `extract.py` | Handles all network requests. Responsible for downloading base card definitions, Scryfall community tags (`otags`), and 17Lands archetype-specific win rates. |
 | `transform.py` | The "Data Sanitizer." Merges Scryfall IDs with 17Lands `arena_id`s, guarantees all 26 archetypes are pre-initialized (even if data is missing), and formats the payload exactly to the desktop client's expectations. |
 | `load.py` | Writes the final `.json.gz` files using **Atomic Writes** (writing to a `.tmp` file, then utilizing OS-level replacement) to prevent dataset corruption. |
+| `validate.py` | Post-transform data-quality checks (§6). Runs on the fully assembled dataset with no extra network calls to catch *silent* extraction failures. A check is `WARNING` (surfaced in the report) or `CRITICAL` (the caller skips saving so the previous good file keeps serving). |
 | `report.py` | Generates a highly detailed, professional execution summary detailing pipeline intent, data sizes, network errors, and warehouse state. |
+| `mock_ui.py` | Local preview server that serves the built datasets plus the calendar / releases / docs pages from `templates/` — a full offline stand-in for GitHub Pages during development. |
 
 ## 4. Caching & Etiquette (Critical)
 
@@ -61,7 +63,23 @@ Add an object to the `events` array. The pipeline will automatically fetch data 
 }
 ```
 
-## 6. Transform Constraints (The "All Decks" Fallback)
+## 6. Data-Quality Validation (`validate.py`)
+
+The pipeline runs sanity checks on the **fully assembled dataset** before
+publishing. They catch *silent* failures where the pipeline "succeeds" but the
+numbers are wrong — e.g. hitting an endpoint that ignores the date range or the
+colors filter, which collapses every archetype into a tiny copy of the
+`"All Decks"` baseline.
+
+- **Sample size guard:** the most-played card must appear in at least a minimum
+  fraction of all games (`MIN_TOP_SAMPLE_RATIO`); a real staple covers tens of
+  percent, while the wrong-endpoint bug produced ~0.1%.
+- **Per-card checks:** the top sample cards must have plausible `All Decks`
+  sample counts; a date-range or filter leak drives them to zero.
+- **Outcome:** `WARNING` is surfaced in the report; `CRITICAL` causes the caller
+  to **skip saving**, so the previously published good file keeps serving.
+
+## 7. Transform Constraints (The "All Decks" Fallback)
 
 Because 17Lands does not immediately have data for every color pair on Day 1 of a new format, the `transform.py` module strictly enforces a data contract for the Desktop UI:
 
@@ -70,10 +88,12 @@ Because 17Lands does not immediately have data for every color pair on Day 1 of 
 3. If 17Lands did not return data for an archetype, `transform.py` injects a placeholder object with `0.0` values. This prevents the Desktop App from throwing fatal `KeyError` exceptions when a user changes their deck filter in the UI. 
 4. The pipeline combines mtga_id (from 17Lands) and arena_ids (from Scryfall) into a single array to ensure Showcase, Retro, and Alternate Art card styles are successfully matched by the local MTG Arena log scanner.
 
-## 7. Local Development
+## 8. Local Development
 
 To run the ETL pipeline locally for testing:
 
 1. Ensure your dependencies are installed via `poetry install`.
 2. Run the pipeline module: `poetry run python -m server.main`.
 3. The compressed datasets and manifest will be output to the local `build/` directory.
+4. Preview the result as if it were deployed to GitHub Pages with the mock UI:
+   `poetry run python -m server.mock_ui` (serves the built datasets plus the calendar / releases / docs pages).
