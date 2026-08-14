@@ -11,9 +11,16 @@ The app ships **two UIs that share one Python engine**:
 | UI | Tech | Platforms | Distribution |
 |---|---|---|---|
 | **Desktop app** (default) | Tauri 2 + PyO3 (pytauri); React + TypeScript frontend | macOS (arm64) · Windows (x86_64) | `.dmg` / `.app` · `.msi` / `.exe` |
-| **Legacy tkinter** | ttkbootstrap themed tkinter | Windows · macOS · Linux | PyInstaller, on demand |
+| **Legacy tkinter** (frozen) | ttkbootstrap themed tkinter | Windows · macOS · Linux | PyInstaller, on demand — **frozen**: bug fixes only, no new features |
 
 Both UIs read the same `config.json`, the same downloaded datasets, and the same `src/` engine. The desktop app is the default entry point; `main.py` dispatches to it when a build is present and falls back to tkinter otherwise (see [Boot Sequence](#6-boot-sequence--ui-dispatch)).
+
+**tkinter is frozen** (decision 2026-08-14, architecture-review issue 01 — Option B):
+the desktop app is the sole evolution line. New features land only in the
+desktop app + `mtga_bridge`; the tkinter UI receives bug fixes only and must not
+gain windows or tabs. `tests/test_tkinter_freeze.py` enforces the frozen surface
+(window-module allowlist, notebook-tab allowlist, per-view line budgets) as a
+policy tripwire — crossing it requires a conscious, reviewed baseline bump.
 
 ## 2. Core Architecture
 
