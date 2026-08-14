@@ -257,6 +257,10 @@ export const messages: Record<Lang, Record<string, string>> = {
     "datasets.empty": "No datasets downloaded yet",
     "datasets.updatedToast": "{n} datasets updated",
 
+    // App update
+    "update.available": "New version {version} available",
+    "update.openReleases": "Open Releases",
+
     // Recap
     "recap.empty": "Finish a draft to see your pool recap and grade.",
     "recap.top23": "Top-23 avg GIHWR",
@@ -608,6 +612,10 @@ export const messages: Record<Lang, Record<string, string>> = {
     "datasets.delete": "删除",
     "datasets.empty": "尚未下载数据集",
     "datasets.updatedToast": "已更新 {n} 个数据集",
+
+    // App update
+    "update.available": "发现新版本 {version}",
+    "update.openReleases": "打开发布页",
 
     // Recap
     "recap.empty": "完成一次轮抓后即可查看卡池回顾与评分。",

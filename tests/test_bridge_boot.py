@@ -16,7 +16,7 @@ import os
 import sys
 import threading
 from types import SimpleNamespace
-from unittest.mock import ANY, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import anyio
 import pytest
@@ -92,8 +92,9 @@ def booted(runtime, monkeypatch):
     # holds test paths. parse_known_args tolerates them, but pin it anyway.
     monkeypatch.setattr(sys, "argv", ["mtga-draft-desktop"])
 
-    # _boot_blocking now spawns a real daemon thread for the post-boot dataset
-    # notifier — stub it so no test leaks a thread that later hits the network.
+    # _boot_blocking now spawns real daemon threads for the post-boot dataset
+    # notifier and the app-update check — stub them so no test leaks a thread
+    # that later hits the network.
     thread_cls = MagicMock()
     monkeypatch.setattr(threading, "Thread", thread_cls)
 
@@ -349,31 +350,41 @@ def test_run_boot_survives_a_failing_emitter(runtime):
     assert runtime.boot_error == "boom"
 
 
-# --- Post-boot dataset notifier thread ----------------------------------------
+# --- Post-boot background notifier threads -----------------------------------
 
 
-def test_boot_spawns_the_dataset_notifier_thread(booted):
-    """_boot_blocking hands the post-boot dataset refresh to a daemon thread
-    (the legacy Notifications.check_dataset() mirror). It must be daemon so
-    boot never blocks on it and shutdown never joins it. When load_data's
-    return carries no outcome key, boot defaults to the not-attempted state."""
+def test_boot_spawns_the_background_notifier_threads(booted):
+    """_boot_blocking hands the post-boot dataset refresh AND the per-launch
+    app-update check to daemon threads (the legacy Notifications.check_dataset()
+    and AppUpdate mirrors). Both must be daemon so boot never blocks on them and
+    shutdown never joins them. When load_data's return carries no outcome key,
+    boot defaults the dataset notifier to the not-attempted state."""
     boot._boot_blocking(booted.runtime, booted.emit)
 
-    booted.thread_cls.assert_called_once_with(
-        target=ANY,
-        args=(booted.runtime, booted.emit),
-        kwargs={"boot_outcome": BOOT_NOT_ATTEMPTED},
-        daemon=True,
+    calls = booted.thread_cls.call_args_list
+    assert len(calls) == 2
+
+    dataset_call = next(
+        c for c in calls if c.kwargs["target"].__name__ == "check_dataset_updates"
     )
-    target = booted.thread_cls.call_args.kwargs["target"]
-    assert target.__name__ == "check_dataset_updates"
-    assert booted.thread_cls.return_value.start.call_count == 1
+    assert dataset_call.kwargs["args"] == (booted.runtime, booted.emit)
+    assert dataset_call.kwargs["kwargs"] == {"boot_outcome": BOOT_NOT_ATTEMPTED}
+    assert dataset_call.kwargs["daemon"] is True
+
+    update_call = next(
+        c for c in calls if c.kwargs["target"].__name__ == "check_app_update"
+    )
+    assert update_call.kwargs["args"] == (booted.runtime, booted.emit)
+    assert "kwargs" not in update_call.kwargs
+    assert update_call.kwargs["daemon"] is True
+
+    assert booted.thread_cls.return_value.start.call_count == 2
 
 
 def test_boot_forwards_the_boot_sync_outcome_to_the_notifier(booted):
     """load_data's return now carries a BootSyncOutcome describing what the
-    boot-time sync did; boot passes it to the notifier so the toast reports
-    those downloads instead of triggering a redundant re-sync."""
+    boot-time sync did; boot passes it to the dataset notifier so the toast
+    reports those downloads instead of triggering a redundant re-sync."""
     booted.load_data.return_value = {
         "scanner": booted.scanner,
         "boot_sync_outcome": BootSyncOutcome(attempted=True, downloaded=4),
@@ -381,6 +392,11 @@ def test_boot_forwards_the_boot_sync_outcome_to_the_notifier(booted):
 
     boot._boot_blocking(booted.runtime, booted.emit)
 
-    assert booted.thread_cls.call_args.kwargs["kwargs"] == {
+    dataset_call = next(
+        c
+        for c in booted.thread_cls.call_args_list
+        if c.kwargs["target"].__name__ == "check_dataset_updates"
+    )
+    assert dataset_call.kwargs["kwargs"] == {
         "boot_outcome": BootSyncOutcome(attempted=True, downloaded=4)
     }

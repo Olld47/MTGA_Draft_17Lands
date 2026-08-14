@@ -64,6 +64,15 @@ class DatasetsUpdatedVM(_VM):
     updated_count: int
 
 
+class AppUpdateAvailableVM(_VM):
+    """Payload for update://available — a newer desktop release exists. The
+    frontend builds the localized toast and opens release_url in the OS browser
+    (no auto-download)."""
+
+    latest_version: str
+    release_url: str
+
+
 class StatusEvent(_VM):
     text: str
 

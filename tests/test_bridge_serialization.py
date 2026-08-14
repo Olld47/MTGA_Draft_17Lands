@@ -208,7 +208,13 @@ def test_every_command_returns_a_vm_model():
 
 EMIT_SOURCES = [
     os.path.join(BRIDGE_PATH, "mtga_bridge", name)
-    for name in ("boot.py", "orchestrator_adapter.py", "__init__.py", "dataset_notifier.py")
+    for name in (
+        "boot.py",
+        "orchestrator_adapter.py",
+        "__init__.py",
+        "dataset_notifier.py",
+        "app_update_notifier.py",
+    )
 ]
 
 _EMIT_NAMES = {"emit", "_emit_safe"}

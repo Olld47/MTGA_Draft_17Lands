@@ -938,7 +938,8 @@
 }
 
 .error-toast,
-.dataset-toast {
+.dataset-toast,
+.update-toast {
   position: fixed;
   bottom: 16px;
   right: 16px;
@@ -955,6 +956,22 @@
    distinguishes it from the error path while sharing the fixed-toast chrome. */
 .dataset-toast {
   border-color: var(--ok);
+}
+
+/* The app-update toast is informational news — gold border and link set it
+   apart from both the error path and the dataset-success notice. */
+.update-toast {
+  border-color: var(--gold-foil);
+}
+
+.update-toast a {
+  color: var(--gold-foil);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.update-toast a:hover {
+  text-decoration: underline;
 }
 
 /* --- Shared helpers (recap / deck / sealed / compare / tiers) ------------- */

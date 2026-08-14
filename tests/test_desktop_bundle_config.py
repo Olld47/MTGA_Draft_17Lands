@@ -43,9 +43,10 @@ TARGET_DIRS = {"app": "macos", "dmg": "dmg", "msi": "msi", "nsis": "nsis"}
 PUBLISH_WORKFLOW = os.path.join(WORKFLOWS, "publish-release.yml")
 CHANGELOG = os.path.join(REPO_ROOT, "CHANGELOG.md")
 
-# Every place the desktop version is written, as (path, regex, count). Seven
-# files, eight literals: package-lock.json repeats it for the root package
-# entry. Dependency version keys follow in the same files, so only the leading
+# Every place the desktop version is written, as (path, regex, count). Eight
+# files, nine literals: package-lock.json repeats it for the root package
+# entry, and mtga_bridge/version.py is the literal the app-update check reads.
+# Dependency version keys follow in the same files, so only the leading
 # `count` matches belong to the app. desktop/Cargo.toml is absent on purpose —
 # its [workspace.package] version is 0.1.0 and src-tauri does not inherit it.
 DESKTOP_VERSION_SITES = [
@@ -67,7 +68,22 @@ DESKTOP_VERSION_SITES = [
         r'name = "mtga-draft-desktop"\nversion = "([^"]+)"',
         1,
     ),
-    (TAURI_CONF, r'"version":\s*"([^"]+)"', 1),
+    (
+        TAURI_CONF,
+        r'"version":\s*"([^"]+)"',
+        1,
+    ),
+    (
+        os.path.join(
+            DESKTOP,
+            "src-tauri",
+            "src-python",
+            "mtga_bridge",
+            "version.py",
+        ),
+        r'DESKTOP_VERSION\s*=\s*"([^"]+)"',
+        1,
+    ),
 ]
 
 
@@ -302,14 +318,14 @@ def test_icons_are_not_the_tauri_template_defaults():
 
 def test_desktop_version_is_consistent_across_manifests():
     """
-    The desktop app carries its version in eight literals across seven files,
+    The desktop app carries its version in nine literals across eight files,
     and only tauri.conf.json reaches a user — it names the .dmg/.msi and fills
-    Info.plist. The other seven exist to be consistent with it, so a stale one
+    Info.plist. The other eight exist to be consistent with it, so a stale one
     is invisible until someone reads it and believes it.
 
     Pinned to the topmost CHANGELOG heading rather than only to each other,
     because agreeing-but-stale is the failure that actually happened: the
-    changelog reached v0.12 while all eight sat at 0.7.0 from v0.7, and CI
+    changelog reached v0.12 while all nine sat at 0.7.0 from v0.7, and CI
     published bundles named 0.7.0 five releases running. A manifests-only check
     passes happily through that.
     """

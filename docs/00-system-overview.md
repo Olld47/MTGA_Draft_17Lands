@@ -65,7 +65,7 @@ graph TD
 | **FileExtractor** (`src/file_extractor.py`) | Queries the local MTGA SQLite database to resolve `GrpId` -> card name/CMC/types/colors; discovers the log and data folder across platforms. | **High** |
 | **ScryfallTagger** (`src/scryfall_tagger.py`) | Harvests Scryfall community tags (`otags`) for semantic role classification. | Medium |
 | **17Lands client** (`src/seventeenlands.py`) | Direct `card_ratings` fallback client with caching/rate limiting (used when no cloud dataset exists). | Medium |
-| **mtga_bridge** (`desktop/src-tauri/src-python/mtga_bridge/`) | The desktop bridge: `paths.py` (env pinning), `snapshot.py` (headless `AppController` port), `orchestrator_adapter.py` (queue -> Tauri events), `viewmodels.py` (IPC models), `commands.py` (command surface), `services.py` / `datasets.py` (pure implementations). | **High** (desktop) |
+| **mtga_bridge** (`desktop/src-tauri/src-python/mtga_bridge/`) | The desktop bridge: `paths.py` (env pinning), `snapshot.py` (headless `AppController` port), `orchestrator_adapter.py` (queue -> Tauri events), `viewmodels.py` (IPC models), `commands.py` (command surface), `services.py` / `datasets.py` (pure implementations), `dataset_notifier.py` / `app_update_notifier.py` (post-boot background threads), `version.py` (the desktop app's own version literal). | **High** (desktop) |
 | **React frontend** (`desktop/src/`) | Vite + React + TypeScript tabbed UI: Draft dashboard, Taken, Custom Deck, Suggest, Sealed, Compare, Tiers, Datasets, Settings. | Medium |
 | **AppController** (`src/ui/app.py`) | Legacy tkinter application controller. | Legacy |
 
@@ -123,6 +123,13 @@ Dataset downloads are throttled to **at most once per natural UTC day** (UTC 00:
 4. If no build exists: an explicit `--ui desktop` prints build guidance and exits with code 2; the auto/config path warns and **falls back to tkinter** so a source checkout always launches.
 
 `--version` short-circuits before dispatch and prints the tkinter `APPLICATION_VERSION` (used as the CI smoke test).
+
+After launch, the desktop bridge runs two background daemon threads: the
+dataset notifier (~1.5s, §5) reports what the boot-time sync downloaded, and
+the app-update notifier (~3s, `04-external-integrations.md` §5.B) checks the
+latest GitHub release tag against the desktop's own version. Both emit Tauri
+events (`datasets://updated`, `update://available`) that the frontend surfaces
+as bottom-right toasts.
 
 ## 7. Constraints & Invariants
 

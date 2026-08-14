@@ -96,12 +96,17 @@ Releases now ship the **desktop bundles** first (tag `v<desktop-version>` from `
 
 ### B. Desktop app
 
-The desktop app has its **own version series** (v0.x). Its bundles
+The desktop app has its **own version series** (v0.x, pinned in
+`desktop/src-tauri/src-python/mtga_bridge/version.py`). Its bundles
 (`.dmg`/`.app` on macOS, `.msi`/`.exe` on Windows) are attached to the same
-release by `publish-release.yml`, with SHA-256 checksums. There is **no in-app
-app updater** in the desktop app — users grab new bundles from the Releases
-page. The desktop `dataset_notifier.py` handles *dataset-sync* notifications
-only (`datasets://updated`).
+release by `publish-release.yml`, with SHA-256 checksums.
+
+On every launch, `app_update_notifier.py` fetches the latest release tag
+~3s after boot on a daemon thread. When the tag is newer than the desktop's own
+version it emits `update://available`, and the frontend shows a bottom-right
+toast with an "Open Releases" link that opens the Releases page in the OS
+browser. There is **no auto-download or in-place install** — users grab the new
+bundle from the Releases page themselves.
 
 ## 6. Security & Compliance Checklist
 

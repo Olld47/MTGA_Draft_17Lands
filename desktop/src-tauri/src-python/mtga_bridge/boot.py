@@ -100,6 +100,17 @@ def _boot_blocking(runtime, emit):
         daemon=True,
     ).start()
 
+    # Once per launch, check whether a newer desktop release exists. Same daemon
+    # pattern as the dataset notifier: boot never blocks on the HTTP round-trip
+    # and shutdown never joins it.
+    from mtga_bridge.app_update_notifier import check_app_update
+
+    threading.Thread(
+        target=check_app_update,
+        args=(runtime, emit),
+        daemon=True,
+    ).start()
+
 
 async def run_boot(runtime, emit):
     """Portal task: executes the blocking boot on a thread, surfacing errors."""
