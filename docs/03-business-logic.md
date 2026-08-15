@@ -50,6 +50,14 @@ To prevent the engine from suggesting off-color cards too late in the draft, it 
 | **Pack 2**        | Soft Lock                      | Disciplined  | Off-color cards drop to `ENGINE_PARAMS.castability.off_color_mult_p2` unless they are massive bombs (splash rules in §8). |
 | **Pack 3**        | Hard Lock                      | Committed    | Off-color cards drop to `ENGINE_PARAMS.castability.off_color_mult_p3` to ensure the final pool is playable.               |
 
+**Late-Signal Capitalization (pack 1):** once the draft reaches pick
+`ENGINE_PARAMS.bomb.signal_min_pick` (and only when the card has a recorded
+ALSA > 0), a card falling later than its average pick position is a signal that
+its lane may be open. Cards whose lateness (`safe_pick − ALSA`) is at least
+`ENGINE_PARAMS.bomb.lateness_threshold` picks and whose Z-Score clears
+`ENGINE_PARAMS.bomb.power_bonus_min_z` gain a power bonus of `lateness × Z ×
+ENGINE_PARAMS.bomb.lateness_scale` on top of the §8 power-bonus math.
+
 ---
 
 ## 5. Compositional Math & Dynamic Needs
