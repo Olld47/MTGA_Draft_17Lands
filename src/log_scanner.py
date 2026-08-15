@@ -16,6 +16,7 @@ from typing import List, Optional
 import src.constants as constants
 from src.card_data import CardData
 from src.card_logic import format_filter_label
+from src.draft_session import DraftSession, LogOffset
 from src.logger import create_logger
 from src.set_metrics import SetMetrics
 from src.dataset import Dataset
@@ -48,18 +49,6 @@ _dataset_selector = DatasetSelector()
 class Source(Enum):
     REFRESH = 1
     UPDATE = 2
-
-
-class LogOffset:
-    """A mutable log-cursor position passed by object reference to the scan
-    helpers. Replaces the old offset_attr string reflection: renaming a scanner
-    offset attribute now raises AttributeError at the call site instead of
-    silently breaking a getattr/setattr round-trip."""
-
-    __slots__ = ("position",)
-
-    def __init__(self, position: int = 0):
-        self.position = position
 
 
 class ArenaScanner:
@@ -96,39 +85,15 @@ class ArenaScanner:
         self.step_through = step_through
         self.set_data = Dataset(retrieve_unknown, db_path)
         self.tier_list = TierList()
-        self.draft_type = constants.LIMITED_TYPE_UNKNOWN
 
-        # File Pointers
-        self.pick_offset = LogOffset()
-        self.pack_offset = LogOffset()
-        self.pool_offset = LogOffset()
-        self.search_offset = 0
-        self.draft_start_offset = 0
-        self.file_size = 0
-
-        # State Trackers
-        self.draft_sets = []
-        self.current_pick = 0
-        self.current_pack = 0
-        self.number_of_players = 8
-
-        self.picked_cards = [[] for _ in range(self.number_of_players)]
-        self.pack_cards = [[] for _ in range(self.number_of_players)]
-        self.initial_pack = [[] for _ in range(self.number_of_players)]
-        self.taken_cards = []
-        self.sideboard = []
-
-        self.previous_scanned_pack = 0
-        self.previous_picked_pack = 0
-        self.current_picked_pick = 0
+        # Persisted draft state (ticket 12): DraftSession is the single
+        # authority for identity, pack/pick, pools/history and the log cursors.
+        # The scanner exposes the same field names as adapter properties below
+        # (no second copy) and keeps the non-persisted runtime bits it owns
+        # (data_source, _last_seen_timestamp, _phase, lock, logging, Dataset).
+        self.session = DraftSession(self.state_file)
 
         self.data_source = "None"
-        self.event_string = ""
-        self.current_transaction_id = ""
-        self.draft_label = ""
-        self.draft_history = []
-        self.current_draft_id = ""
-        self.draft_start_time = ""
         self._last_seen_timestamp = "Unknown"
         self._load_state()
         self._phase = derive_scanner_phase(
@@ -149,6 +114,213 @@ class ArenaScanner:
         behavior, and this property is what the state-walkthrough tests pin.
         """
         return self._phase
+
+    # --- DraftSession adapter properties (ticket 12) --------------------------
+    # Every persisted field lives on DraftSession (src/draft_session.py); these
+    # same-name accessors keep the pre-refactor scanner surface — direct field
+    # reads/writes by the UIs, orchestrator, bridge, and the internal scan
+    # code — intact without a second copy of the state. Both directions
+    # delegate to self.session; there is no independent backing field.
+
+    @property
+    def draft_type(self):
+        return self.session.draft_type
+
+    @draft_type.setter
+    def draft_type(self, value):
+        self.session.draft_type = value
+
+    @property
+    def draft_label(self):
+        return self.session.draft_label
+
+    @draft_label.setter
+    def draft_label(self, value):
+        self.session.draft_label = value
+
+    @property
+    def draft_sets(self):
+        return self.session.draft_sets
+
+    @draft_sets.setter
+    def draft_sets(self, value):
+        self.session.draft_sets = value
+
+    @property
+    def event_string(self):
+        return self.session.event_string
+
+    @event_string.setter
+    def event_string(self, value):
+        self.session.event_string = value
+
+    @property
+    def current_draft_id(self):
+        return self.session.current_draft_id
+
+    @current_draft_id.setter
+    def current_draft_id(self, value):
+        self.session.current_draft_id = value
+
+    @property
+    def current_transaction_id(self):
+        return self.session.current_transaction_id
+
+    @current_transaction_id.setter
+    def current_transaction_id(self, value):
+        self.session.current_transaction_id = value
+
+    @property
+    def draft_start_time(self):
+        return self.session.draft_start_time
+
+    @draft_start_time.setter
+    def draft_start_time(self, value):
+        self.session.draft_start_time = value
+
+    @property
+    def number_of_players(self):
+        return self.session.number_of_players
+
+    @number_of_players.setter
+    def number_of_players(self, value):
+        self.session.number_of_players = value
+
+    @property
+    def current_pack(self):
+        return self.session.current_pack
+
+    @current_pack.setter
+    def current_pack(self, value):
+        self.session.current_pack = value
+
+    @property
+    def current_pick(self):
+        return self.session.current_pick
+
+    @current_pick.setter
+    def current_pick(self, value):
+        self.session.current_pick = value
+
+    @property
+    def current_picked_pick(self):
+        return self.session.current_picked_pick
+
+    @current_picked_pick.setter
+    def current_picked_pick(self, value):
+        self.session.current_picked_pick = value
+
+    @property
+    def previous_scanned_pack(self):
+        return self.session.previous_scanned_pack
+
+    @previous_scanned_pack.setter
+    def previous_scanned_pack(self, value):
+        self.session.previous_scanned_pack = value
+
+    @property
+    def previous_picked_pack(self):
+        return self.session.previous_picked_pack
+
+    @previous_picked_pack.setter
+    def previous_picked_pack(self, value):
+        self.session.previous_picked_pack = value
+
+    @property
+    def taken_cards(self):
+        return self.session.taken_cards
+
+    @taken_cards.setter
+    def taken_cards(self, value):
+        self.session.taken_cards = value
+
+    @property
+    def picked_cards(self):
+        return self.session.picked_cards
+
+    @picked_cards.setter
+    def picked_cards(self, value):
+        self.session.picked_cards = value
+
+    @property
+    def pack_cards(self):
+        return self.session.pack_cards
+
+    @pack_cards.setter
+    def pack_cards(self, value):
+        self.session.pack_cards = value
+
+    @property
+    def initial_pack(self):
+        return self.session.initial_pack
+
+    @initial_pack.setter
+    def initial_pack(self, value):
+        self.session.initial_pack = value
+
+    @property
+    def sideboard(self):
+        return self.session.sideboard
+
+    @sideboard.setter
+    def sideboard(self, value):
+        self.session.sideboard = value
+
+    @property
+    def draft_history(self):
+        return self.session.draft_history
+
+    @draft_history.setter
+    def draft_history(self, value):
+        self.session.draft_history = value
+
+    @property
+    def search_offset(self):
+        return self.session.search_offset
+
+    @search_offset.setter
+    def search_offset(self, value):
+        self.session.search_offset = value
+
+    @property
+    def pick_offset(self):
+        return self.session.pick_offset
+
+    @pick_offset.setter
+    def pick_offset(self, value):
+        self.session.pick_offset = value
+
+    @property
+    def pack_offset(self):
+        return self.session.pack_offset
+
+    @pack_offset.setter
+    def pack_offset(self, value):
+        self.session.pack_offset = value
+
+    @property
+    def pool_offset(self):
+        return self.session.pool_offset
+
+    @pool_offset.setter
+    def pool_offset(self, value):
+        self.session.pool_offset = value
+
+    @property
+    def draft_start_offset(self):
+        return self.session.draft_start_offset
+
+    @draft_start_offset.setter
+    def draft_start_offset(self, value):
+        self.session.draft_start_offset = value
+
+    @property
+    def file_size(self):
+        return self.session.file_size
+
+    @file_size.setter
+    def file_size(self, value):
+        self.session.file_size = value
 
     def set_arena_file(self, filename):
         """Updates the log path and resets pointers for a clean scan."""
@@ -207,141 +379,28 @@ class ArenaScanner:
             logger.error(error)
 
     def _load_state(self, target_draft_id=None):
-        """Recovers the active draft state if the app was closed mid-draft."""
-        try:
-            if os.path.exists(self.state_file):
-                with open(self.state_file, "r", encoding="utf-8") as f:
-                    state = json.load(f)
+        """Recovers the active draft state if the app was closed mid-draft.
 
-                # If an ID is provided, strictly match it.
-                if target_draft_id is not None and str(
-                    state.get("current_draft_id", "")
-                ) != str(target_draft_id):
-                    return False
-
-                self.draft_type = state.get(
-                    "draft_type", constants.LIMITED_TYPE_UNKNOWN
-                )
-                # States saved before v4.19 could hold an event-name string
-                # (e.g. "ContenderDraft"), which matches no parser dispatch.
-                if not isinstance(self.draft_type, int):
-                    self.draft_type = constants.LIMITED_TYPES_DICT.get(
-                        self.draft_type, constants.LIMITED_TYPE_UNKNOWN
-                    )
-                self.draft_sets = state.get("draft_sets", [])
-                self.draft_label = state.get("draft_label", "")
-                self.event_string = state.get("event_string", "")
-                self.current_draft_id = state.get("current_draft_id", "")
-                self.current_transaction_id = state.get("current_transaction_id", "")
-                self.number_of_players = state.get("number_of_players", 8)
-                self.taken_cards = state.get("taken_cards", [])
-                self.picked_cards = state.get(
-                    "picked_cards", [[] for _ in range(self.number_of_players)]
-                )
-                self.initial_pack = state.get(
-                    "initial_pack", [[] for _ in range(self.number_of_players)]
-                )
-                self.pack_cards = state.get(
-                    "pack_cards", [[] for _ in range(self.number_of_players)]
-                )
-                self.current_pack = state.get("current_pack", 0)
-                self.current_pick = state.get("current_pick", 0)
-                self.previous_scanned_pack = state.get("previous_scanned_pack", 0)
-                self.previous_picked_pack = state.get("previous_picked_pack", 0)
-                self.current_picked_pick = state.get("current_picked_pick", 0)
-                self.draft_history = state.get("draft_history", [])
-                self.draft_start_time = state.get("draft_start_time", "")
-
-                # Scan pointers resume where the app left off so a reopened
-                # mid-draft never re-scans old EventJoins and wipes the
-                # restored pool. file_size makes the truncation check in
-                # draft_start_search work across restarts (a recreated log is
-                # smaller than the saved size → full clear_draft(True)).
-                self.search_offset = state.get("search_offset", 0)
-                self.pick_offset.position = state.get("pick_offset", 0)
-                self.pack_offset.position = state.get("pack_offset", 0)
-                self.pool_offset.position = state.get("pool_offset", 0)
-                self.file_size = state.get("file_size", 0)
-
-                if self.draft_type != constants.LIMITED_TYPE_UNKNOWN:
-                    logger.info(
-                        f"Restored previous draft state: {self.event_string} (Pack {self.current_pack}, Pick {self.current_pick})"
-                    )
-
-                return True
-        except Exception as e:
-            logger.error(f"Failed to load draft state: {e}")
-        return False
+        Thin adapter for DraftSession.load (ticket 12) — kept as a private
+        compatibility entry point (tests and _check_and_wipe_stale_pool call
+        it); all JSON logic lives in src/draft_session.py.
+        """
+        return self.session.load(target_draft_id)
 
     def _save_state(self):
-        """Persists the memory state to disk to survive application crashes."""
-        try:
-            state = {
-                "draft_type": self.draft_type,
-                "draft_sets": self.draft_sets,
-                "draft_label": self.draft_label,
-                "event_string": self.event_string,
-                "current_draft_id": self.current_draft_id,
-                "current_transaction_id": getattr(self, "current_transaction_id", ""),
-                "number_of_players": self.number_of_players,
-                "taken_cards": self.taken_cards,
-                "picked_cards": self.picked_cards,
-                "initial_pack": self.initial_pack,
-                "pack_cards": self.pack_cards,
-                "current_pack": self.current_pack,
-                "current_pick": self.current_pick,
-                "previous_scanned_pack": self.previous_scanned_pack,
-                "previous_picked_pack": self.previous_picked_pack,
-                "current_picked_pick": self.current_picked_pick,
-                "draft_history": self.draft_history,
-                "draft_start_time": self.draft_start_time,
-                "search_offset": self.search_offset,
-                "pick_offset": self.pick_offset.position,
-                "pack_offset": self.pack_offset.position,
-                "pool_offset": self.pool_offset.position,
-                "file_size": self.file_size,
-            }
-            with open(self.state_file, "w", encoding="utf-8") as f:
-                json.dump(state, f)
-        except Exception as e:
-            logger.error(f"Failed to save draft state: {e}")
+        """Persists the memory state to disk to survive application crashes.
+
+        Thin adapter for DraftSession.save (ticket 12) — kept as a private
+        compatibility entry point; all JSON logic lives in src/draft_session.py.
+        """
+        self.session.save()
 
     def clear_draft(self, full_clear):
         with self.lock:
             if full_clear:
-                self.search_offset = 0
-                self.draft_start_offset = 0
-                self.file_size = 0
-                self.current_transaction_id = ""
-                if os.path.exists(self.state_file):
-                    try:
-                        os.remove(self.state_file)
-                    except:
-                        pass
                 self.set_data.clear()
-
-            self.draft_type = constants.LIMITED_TYPE_UNKNOWN
-            self.pick_offset.position = 0
-            self.pack_offset.position = 0
-            self.pool_offset.position = 0
-            self.draft_sets = None
-            self.current_pick = 0
-            self.current_pack = 0
-            self.previous_scanned_pack = 0
-            self.previous_picked_pack = 0
-            self.current_picked_pick = 0
-            self.number_of_players = 8
-            self.picked_cards = [[] for _ in range(self.number_of_players)]
-            self.pack_cards = [[] for _ in range(self.number_of_players)]
-            self.initial_pack = [[] for _ in range(self.number_of_players)]
-            self.taken_cards = []
-            self.sideboard = []
+            self.session.clear(full_clear)
             self.data_source = "None"
-            self.draft_label = ""
-            self.draft_history = []
-            self.current_draft_id = ""
-            self.event_string = ""
-            self.draft_start_time = ""
             self._phase = derive_scanner_phase(
                 draft_type=self.draft_type,
                 draft_label=self.draft_label,
@@ -350,8 +409,6 @@ class ArenaScanner:
                 current_pick=self.current_pick,
                 current_picked_pick=self.current_picked_pick,
             )
-            if not full_clear:
-                self._save_state()
 
     def _mark_draft_complete(self):
         """Retires the live pack/pick when a draft's terminal DeckSelect is seen.
@@ -368,15 +425,7 @@ class ArenaScanner:
         """
         with self.lock:
             was_active = self.draft_type != constants.LIMITED_TYPE_UNKNOWN
-            self.draft_type = constants.LIMITED_TYPE_UNKNOWN
-            self.current_pack = 0
-            self.current_pick = 0
-            self.previous_scanned_pack = 0
-            self.previous_picked_pack = 0
-            self.current_picked_pick = 0
-            self.picked_cards = [[] for _ in range(self.number_of_players)]
-            self.pack_cards = [[] for _ in range(self.number_of_players)]
-            self.initial_pack = [[] for _ in range(self.number_of_players)]
+            self.session.complete()
             self._phase = derive_scanner_phase(
                 draft_type=self.draft_type,
                 draft_label=self.draft_label,
@@ -385,7 +434,6 @@ class ArenaScanner:
                 current_pick=self.current_pick,
                 current_picked_pick=self.current_picked_pick,
             )
-            self._save_state()
         if was_active:
             logger.info("Draft completed; cleared active state")
 

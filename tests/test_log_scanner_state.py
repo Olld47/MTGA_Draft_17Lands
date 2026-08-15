@@ -287,7 +287,7 @@ def test_mark_draft_complete_retires_live_state_keeps_pool(scanner):
     scanner.draft_label = "PremierDraft"
     scanner.draft_sets = ["MSH"]
     scanner.draft_start_time = "2026-07-31T12:00:00"
-    scanner._save_state = MagicMock()
+    scanner.session.save = MagicMock()
 
     scanner._mark_draft_complete()
 
@@ -304,18 +304,22 @@ def test_mark_draft_complete_retires_live_state_keeps_pool(scanner):
     # The drafted pool and history survive — recap of the finished draft needs them.
     assert scanner.taken_cards == ["1", "2", "3"]
     assert scanner.draft_history == [{"Pack": 1, "Pick": 1, "Cards": ["1"]}]
-    scanner._save_state.assert_called_once()
+    # UNKNOWN + preserved recap payload → Done, not cold Idle.
+    from src.scanner_state import ScannerPhase
+
+    assert scanner.phase == ScannerPhase.DONE
+    scanner.session.save.assert_called_once()
 
 
 def test_mark_draft_complete_treats_no_active_draft_as_noop(scanner):
     scanner.draft_type = 0
     scanner.taken_cards = ["1", "2"]
-    scanner._save_state = MagicMock()
+    scanner.session.save = MagicMock()
 
     scanner._mark_draft_complete()
 
     assert scanner.taken_cards == ["1", "2"]
-    scanner._save_state.assert_called_once()
+    scanner.session.save.assert_called_once()
 
 
 # --- CardPool recovery vs. reopened drafts -----------------------------------
@@ -494,6 +498,11 @@ def test_reopened_scanner_detects_truncated_log_and_resets(tmp_path):
     assert fresh.taken_cards == []
     assert fresh.search_offset < 5000  # stale offset past the end is gone
     assert fresh.draft_type == constants.LIMITED_TYPE_UNKNOWN
+    # Full clear zeroed the scan cursors and deleted the state file.
+    assert fresh.pick_offset.position == 0
+    assert fresh.pack_offset.position == 0
+    assert fresh.pool_offset.position == 0
+    assert not (tmp_path / "active_draft_state.json").exists()
 
 
 def test_new_event_after_completion_starts_fresh(scanner):
