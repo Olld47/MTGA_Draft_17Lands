@@ -200,12 +200,13 @@ jobs:
               return h.hexdigest()
 
           def assets(platform, suffixes):
-              d = os.path.join('release_assets', platform)
-              if not os.path.isdir(d):
+              root = os.path.join('release_assets', platform)
+              if not os.path.isdir(root):
                   return []
               return sorted(
-                  os.path.join(d, name)
-                  for name in os.listdir(d)
+                  os.path.join(dirpath, name)
+                  for dirpath, _dirnames, filenames in os.walk(root)
+                  for name in filenames
                   if name.endswith(suffixes)
               )
 
@@ -234,6 +235,16 @@ jobs:
               'run \`CertUtil -hashfile <file> SHA256\` in a Command Prompt.*'
           )
 
+          # The upload step strips the common workspace prefix, so downloaded
+          # artifacts land under nested dirs (macos/dmg/*.dmg, windows/msi/*.msi).
+          # Recursive globs above must not silently publish an empty release:
+          # fail loud if no bundle survived the leg builds.
+          if not (assets('macos', ('.dmg',)) or assets('windows', ('.msi', '.exe'))):
+              raise SystemExit(
+                  'no bundle assets found under release_assets/ — refusing to '
+                  'publish an empty release'
+              )
+
           with open('release_body.md', 'w', encoding='utf-8') as f:
               f.write('\n'.join(lines))
           "
@@ -243,9 +254,9 @@ jobs:
           tag_name: ${{ steps.prep_release.outputs.tag_name }}
           target_commitish: ${{ github.sha }}
           files: |
-            release_assets/macos/*.dmg
-            release_assets/windows/*.msi
-            release_assets/windows/*.exe
+            release_assets/macos/**/*.dmg
+            release_assets/windows/**/*.msi
+            release_assets/windows/**/*.exe
           body_path: release_body.md
           generate_release_notes: true
           overwrite_files: true

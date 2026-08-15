@@ -364,13 +364,25 @@ def test_release_artifacts_include_the_desktop_bundles():
     )
 
     for pattern in (
-        "release_assets/macos/*.dmg",
-        "release_assets/windows/*.msi",
-        "release_assets/windows/*.exe",
+        "release_assets/macos/**/*.dmg",
+        "release_assets/windows/**/*.msi",
+        "release_assets/windows/**/*.exe",
     ):
         assert pattern in publish, f"publish-release.yml does not attach {pattern}"
 
     assert "merge-multiple" not in publish, "publish downloads must use explicit name:"
+
+    # upload-artifact@v4 strips the common workspace prefix but keeps the
+    # bundle subdirs (bundle/dmg/*.dmg -> dmg/*.dmg), so the publish step must
+    # collect assets recursively — a top-level-only glob silently publishes an
+    # empty release (v1.0.0-pre shipped with zero assets this way).
+    assert "os.walk" in publish, (
+        "publish-release.yml must collect release assets recursively (os.walk)"
+    )
+    assert "raise SystemExit" in publish, (
+        "publish-release.yml must fail loud when no bundle assets are found, "
+        "instead of publishing an empty release"
+    )
 
     # The tag derives from the desktop version (tauri.conf.json), not the
     # tkinter APPLICATION_VERSION-derived MTGA_Draft_Tool_Vxxxx scheme.
