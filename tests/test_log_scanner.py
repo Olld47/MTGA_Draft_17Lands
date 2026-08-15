@@ -30,17 +30,16 @@ from tests.test_log_scanner_data import (
     OTJ_PREMIER_SNAPSHOT,
 )
 
-TEST_LOG_DIRECTORY = os.path.join(os.getcwd(), "tests")
-TEST_LOG_FILE_LOCATION = os.path.join(os.getcwd(), "tests", "Player.log")
 TEST_SETS_DIRECTORY = os.path.join(os.getcwd(), "tests", "data")
 
 
 @pytest.fixture(name="session_scanner", scope="session")
 def fixture_session_scanner(tmp_path_factory):
+    log_file = tmp_path_factory.mktemp("session_scanner_log") / "Player.log"
     scanner = ArenaScanner(
-        TEST_LOG_FILE_LOCATION,
+        str(log_file),
         TEST_SETS,
-        sets_location=TEST_LOG_DIRECTORY,
+        sets_location=TEST_SETS_DIRECTORY,
         retrieve_unknown=True,
         state_file=str(
             tmp_path_factory.mktemp("session_scanner_state")
@@ -49,16 +48,13 @@ def fixture_session_scanner(tmp_path_factory):
     )
     scanner.log_enable(False)
     yield scanner
-    if os.path.exists(TEST_LOG_FILE_LOCATION):
-        os.remove(TEST_LOG_FILE_LOCATION)
 
 
 @pytest.fixture(name="function_scanner", scope="function")
 def fixture_function_scanner(tmp_path):
-    if os.path.exists(TEST_LOG_FILE_LOCATION):
-        os.remove(TEST_LOG_FILE_LOCATION)
+    log_file = tmp_path / "Player.log"
     scanner = ArenaScanner(
-        TEST_LOG_FILE_LOCATION,
+        str(log_file),
         TEST_SETS,
         sets_location=TEST_SETS_DIRECTORY,
         retrieve_unknown=False,
@@ -66,15 +62,13 @@ def fixture_function_scanner(tmp_path):
     )
     scanner.log_enable(False)
     yield scanner
-    if os.path.exists(TEST_LOG_FILE_LOCATION):
-        os.remove(TEST_LOG_FILE_LOCATION)
 
 
 def event_test_cases(input_scanner, event_label, entry_label, expected, entry_string):
     """Generic test cases for verifying the log events"""
-    # Write the entry to the fake Player.log file
+    # Write the entry to the scanner's own fake Player.log file (tmp_path)
     with open(
-        TEST_LOG_FILE_LOCATION, "a", encoding="utf-8", errors="replace"
+        input_scanner.arena_file, "a", encoding="utf-8", errors="replace"
     ) as log_file:
         log_file.write(f"{entry_string}\n")
 
@@ -376,14 +370,14 @@ def test_draft_history_recording(function_scanner):
     """
     # 1. Simulate Event Start
     with open(
-        TEST_LOG_FILE_LOCATION, "a", encoding="utf-8", errors="replace"
+        function_scanner.arena_file, "a", encoding="utf-8", errors="replace"
     ) as log_file:
         log_file.write(f"{OTJ_EVENT_ENTRY}\n")
     function_scanner.draft_start_search()
 
     # 2. Simulate P1P1 (Pack Data)
     with open(
-        TEST_LOG_FILE_LOCATION, "a", encoding="utf-8", errors="replace"
+        function_scanner.arena_file, "a", encoding="utf-8", errors="replace"
     ) as log_file:
         log_file.write(f"{OTJ_P1P1_ENTRY}\n")
     function_scanner.draft_data_search()
@@ -399,7 +393,7 @@ def test_draft_history_recording(function_scanner):
     P1P2_VALID_ENTRY = r'[UnityCrossThreadLogger]Draft.Notify {"draftId":"87b408d1-43e0-4fb5-8c74-a1257fde087c","SelfPick":2,"SelfPack":1,"PackCards":"90701,90416,90606,90524,90481,90588,90440,90418,90353,90494,90360,90609,90548"}'
 
     with open(
-        TEST_LOG_FILE_LOCATION, "a", encoding="utf-8", errors="replace"
+        function_scanner.arena_file, "a", encoding="utf-8", errors="replace"
     ) as log_file:
         log_file.write(f"{P1P2_VALID_ENTRY}\n")
     function_scanner.draft_data_search()
@@ -443,14 +437,14 @@ def test_draft_state_recovery(function_scanner):
 
     # 1. Start a draft
     with open(
-        TEST_LOG_FILE_LOCATION, "a", encoding="utf-8", errors="replace"
+        function_scanner.arena_file, "a", encoding="utf-8", errors="replace"
     ) as log_file:
         log_file.write(f"{OTJ_EVENT_ENTRY}\n")
     function_scanner.draft_start_search()
 
     # 2. See P1P1
     with open(
-        TEST_LOG_FILE_LOCATION, "a", encoding="utf-8", errors="replace"
+        function_scanner.arena_file, "a", encoding="utf-8", errors="replace"
     ) as log_file:
         log_file.write(f"{OTJ_P1P1_ENTRY}\n")
     function_scanner.draft_data_search()
@@ -463,7 +457,7 @@ def test_draft_state_recovery(function_scanner):
     # 3. Create a NEW scanner instance, simulating an app restart.
     # It should automatically call _load_state() in __init__
     new_scanner = ArenaScanner(
-        TEST_LOG_FILE_LOCATION,
+        function_scanner.arena_file,
         TEST_SETS,
         sets_location=TEST_SETS_DIRECTORY,
         retrieve_unknown=True,

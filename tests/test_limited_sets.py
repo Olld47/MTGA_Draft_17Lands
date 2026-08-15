@@ -13,7 +13,6 @@ from src.limited_sets import (
 )
 
 # Test data
-SETS_FILE_LOCATION = os.path.join(os.getcwd(), "Temp", "unit_test_sets.json")
 CHECKED_SETS_COMBINED = {
     "Through the Omenpaths": SetInfo(
         arena=["ALL"],
@@ -750,9 +749,15 @@ MOCK_URL_RESPONSE_SCRYFALL_SETS = b"""{
 }"""
 
 
-@pytest.fixture(name="limited_sets", scope="function")
-def fixture_limited_sets():
-    return LimitedSets(SETS_FILE_LOCATION)
+@pytest.fixture
+def sets_file(tmp_path):
+    """Per-test sets-file location — a tmp_path, never the repo's real Temp/."""
+    return tmp_path / "unit_test_sets.json"
+
+
+@pytest.fixture(name="limited_sets")
+def fixture_limited_sets(sets_file):
+    return LimitedSets(sets_file)
 
 
 def check_for_sets(sets_data, check_data):
@@ -763,13 +768,11 @@ def check_for_sets(sets_data, check_data):
 
 @patch("src.limited_sets.urllib.request.urlopen")
 @patch("src.limited_sets.LimitedSets._is_cache_valid", return_value=False)
-def test_retrieve_limited_sets_success(mock_cache, mock_urlopen, limited_sets):
+def test_retrieve_limited_sets_success(mock_cache, mock_urlopen, limited_sets, sets_file):
     mock_urlopen.return_value.read.side_effect = [
         MOCK_URL_RESPONSE_17LANDS_FILTERS,
         MOCK_URL_RESPONSE_SCRYFALL_SETS,
     ]
-    if os.path.exists(SETS_FILE_LOCATION):
-        os.remove(SETS_FILE_LOCATION)
 
     output_sets = limited_sets.retrieve_limited_sets()
     assert type(output_sets) == SetDictionary
@@ -807,21 +810,23 @@ def test_retrieve_17lands_sets_success(mock_urlopen, limited_sets):
     check_for_sets(output_sets.data, CHECKED_SETS_17LANDS)
 
 
-def test_write_sets_file_success(limited_sets):
-    if os.path.exists(SETS_FILE_LOCATION):
-        os.remove(SETS_FILE_LOCATION)
-        assert os.path.exists(SETS_FILE_LOCATION) == False
+def test_write_sets_file_success(limited_sets, sets_file):
+    assert os.path.exists(sets_file) == False
 
     test_data = SetDictionary(data=CHECKED_SETS_COMBINED, version=LIMITED_SETS_VERSION)
 
     result = limited_sets.write_sets_file(test_data)
 
     assert result == True
-    assert os.path.exists(SETS_FILE_LOCATION) == True
+    assert os.path.exists(sets_file) == True
 
 
-def test_read_sets_file_success(limited_sets):
-    assert os.path.exists(SETS_FILE_LOCATION) == True
+def test_read_sets_file_success(limited_sets, sets_file):
+    # Self-contained: writes the fixture first. The old module-level path
+    # relied on a prior test's leftover file — order-dependent (ticket 10).
+    test_data = SetDictionary(data=CHECKED_SETS_COMBINED, version=LIMITED_SETS_VERSION)
+    assert limited_sets.write_sets_file(test_data) == True
+    assert os.path.exists(sets_file) == True
 
     output_sets, result = limited_sets.read_sets_file()
 
@@ -840,9 +845,6 @@ def test_write_sets_file_append_success(mock_cache, mock_urlopen, limited_sets):
         MOCK_URL_RESPONSE_SCRYFALL_SETS,
     ]
 
-    if os.path.exists(SETS_FILE_LOCATION):
-        os.remove(SETS_FILE_LOCATION)
-
     test_data = SetDictionary(data=CHECKED_SETS_COMBINED, version=LIMITED_SETS_VERSION)
     del test_data.data["March of the Machine"]
 
@@ -856,29 +858,25 @@ def test_write_sets_file_append_success(mock_cache, mock_urlopen, limited_sets):
     assert len(output_sets.data) > 0
 
 
-def test_write_sets_file_fail_wrong_type(limited_sets):
-    if os.path.exists(SETS_FILE_LOCATION):
-        os.remove(SETS_FILE_LOCATION)
-        assert os.path.exists(SETS_FILE_LOCATION) == False
+def test_write_sets_file_fail_wrong_type(limited_sets, sets_file):
+    assert os.path.exists(sets_file) == False
 
     test_data = {}
 
     result = limited_sets.write_sets_file(test_data)
 
     assert result == False
-    assert os.path.exists(SETS_FILE_LOCATION) == False
+    assert os.path.exists(sets_file) == False
 
 
-def test_read_sets_file_fail_invalid_fields(limited_sets):
-    if os.path.exists(SETS_FILE_LOCATION):
-        os.remove(SETS_FILE_LOCATION)
-        assert os.path.exists(SETS_FILE_LOCATION) == False
+def test_read_sets_file_fail_invalid_fields(limited_sets, sets_file):
+    assert os.path.exists(sets_file) == False
 
     test_data = INVALID_SETS
 
     expected_result = SetDictionary(version=LIMITED_SETS_VERSION)
 
-    with open(SETS_FILE_LOCATION, "w", encoding="utf-8", errors="replace") as file:
+    with open(sets_file, "w", encoding="utf-8", errors="replace") as file:
         json.dump(test_data, file, ensure_ascii=False, indent=4)
 
     output_sets, result = limited_sets.read_sets_file()
