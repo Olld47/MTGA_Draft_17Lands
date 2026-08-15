@@ -1,6 +1,6 @@
 [package]
 name = "mtga-draft-desktop"
-version = "0.39.0"
+version = "1.0.0"
 description = "A Tauri App"
 authors = ["you"]
 edition = "2021"

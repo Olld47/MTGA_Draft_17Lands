@@ -30,7 +30,20 @@ from mtga_bridge.app_update_notifier import (
     _parse_version,
     check_app_update,
 )
+from mtga_bridge.version import DESKTOP_VERSION
 from mtga_bridge.viewmodels import AppUpdateAvailableVM, _VM
+
+
+def _current_tag():
+    """The app's own release tag (e.g. 'v1.0.0')."""
+    return f"v{DESKTOP_VERSION}"
+
+
+def _newer_tag():
+    """A tag one patch above the app's own version — guaranteed newer than
+    _CURRENT for any current version, so these tests survive version bumps."""
+    major, minor, patch = _parse_version(DESKTOP_VERSION)
+    return f"v{major}.{minor}.{patch + 1}"
 
 
 class Recorder:
@@ -100,19 +113,23 @@ def test_parse_version_normalizes_for_comparison():
 
 
 def test_a_newer_release_emits_the_update_event(emit, requests_mock):
-    requests_mock(FakeResponse(payload=_release("v0.40.0")))
+    tag = _newer_tag()
+    requests_mock(FakeResponse(payload=_release(tag)))
 
     check_app_update(object(), emit)
 
     assert emit.events == [
-        (EVENT_APP_UPDATE_AVAILABLE, AppUpdateAvailableVM(latest_version="v0.40.0", release_url=_release("v0.40.0")["html_url"]))
+        (
+            EVENT_APP_UPDATE_AVAILABLE,
+            AppUpdateAvailableVM(latest_version=tag, release_url=_release(tag)["html_url"]),
+        )
     ]
     payload = emit.events[0][1]
     assert isinstance(payload, _VM)
 
 
 def test_the_current_version_emits_nothing(emit, requests_mock):
-    requests_mock(FakeResponse(payload=_release("v0.39.0")))
+    requests_mock(FakeResponse(payload=_release(_current_tag())))
 
     check_app_update(object(), emit)
 
@@ -154,7 +171,7 @@ def test_a_missing_or_malformed_tag_is_silent(emit, requests_mock):
 
 
 def test_a_missing_html_url_falls_back_to_the_releases_page(emit, requests_mock):
-    requests_mock(FakeResponse(payload={"tag_name": "v0.40.0"}))
+    requests_mock(FakeResponse(payload={"tag_name": _newer_tag()}))
 
     check_app_update(object(), emit)
 
@@ -162,10 +179,10 @@ def test_a_missing_html_url_falls_back_to_the_releases_page(emit, requests_mock)
 
 
 def test_the_request_uses_a_descriptive_user_agent(emit, requests_mock):
-    stub = requests_mock(FakeResponse(payload=_release("v0.40.0")))
+    stub = requests_mock(FakeResponse(payload=_release(_newer_tag())))
 
     check_app_update(object(), emit)
 
     headers = stub.call_args.kwargs["headers"]["User-Agent"]
-    assert headers.startswith("MTGADraftTool/0.39.0")
+    assert headers.startswith(f"MTGADraftTool/{DESKTOP_VERSION}")
     assert "unrealities/MTGA_Draft_17Lands" in headers
