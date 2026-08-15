@@ -24,7 +24,7 @@ class TestCustomDeckPanel:
         panel.sim_executor.submit = lambda fn, *args, **kwargs: fn(*args, **kwargs)
 
         panel.deck_list = []
-        panel._run_monte_carlo_task(panel.deck_list)
+        panel._run_monte_carlo_task()
         root.update()
 
         # Should display warning instead of crashing

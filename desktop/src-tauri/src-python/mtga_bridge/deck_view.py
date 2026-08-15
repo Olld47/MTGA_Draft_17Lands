@@ -18,6 +18,7 @@ from src.card_logic import (
     get_functional_cmc,
     row_color_tag,
 )
+from src.deck_actions import card_sort_key
 
 from mtga_bridge.viewmodels import (
     DeckColorVM,
@@ -42,10 +43,6 @@ SUPERTYPES = {
     "Creature", "Instant", "Sorcery", "Enchantment", "Artifact", "Planeswalker",
     "Land", "Legendary", "Basic", "Snow", "World", "Tribal", "Kindred", "Ongoing",
 }
-
-
-def card_sort_key(card: dict):
-    return (card.get(constants.DATA_FIELD_CMC, 0), card.get(constants.DATA_FIELD_NAME, ""))
 
 
 def _clean_float(value) -> Optional[float]:
