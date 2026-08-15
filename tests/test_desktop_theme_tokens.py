@@ -1,5 +1,5 @@
 """
-Contrast guard for the desktop UI's two palettes.
+Contrast guard for the desktop UI's two palettes, plus app.css token discipline.
 
 Deliberately narrow: it re-derives WCAG ratios for the pairings `app.css`
 actually renders, using the hexes declared in `tokens.css`. It cannot evaluate
@@ -7,6 +7,10 @@ actually renders, using the hexes declared in `tokens.css`. It cannot evaluate
 `app.css` — the pair table below is hand-written. What it does catch is a token
 value edited into illegibility, and a token added to one palette but forgotten
 in the other.
+
+The discipline tests are broader: `app.css` must never hand-write a color
+(`rgb(`/`rgba(`) — every color goes through a token — and must never reference
+the nonexistent `--mono` font token.
 """
 
 import os
@@ -21,6 +25,14 @@ TOKENS_CSS = os.path.join(
     "src",
     "styles",
     "tokens.css",
+)
+
+APP_CSS = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    "desktop",
+    "src",
+    "styles",
+    "app.css",
 )
 
 # WCAG 2.1: 4.5:1 for body text, 3:1 for large text and non-text UI shapes.
@@ -179,3 +191,20 @@ def test_white_mana_is_vivid_yellow_distinct_from_gold(palette):
     assert w_sat - g_sat >= 0.15, (
         f"{palette}: white sat {w_sat:.2f} vs gold sat {g_sat:.2f} — too close"
     )
+
+
+def test_app_css_never_uses_mono_token():
+    """The mono font token is --font-mono; var(--mono) does not exist, so the
+    fallback monospace silently replaces the brand IBM Plex Mono."""
+    with open(APP_CSS, encoding="utf-8") as handle:
+        css = handle.read()
+    assert "var(--mono" not in css
+
+
+def test_app_css_has_no_color_literals():
+    """Every color in app.css comes from a token; a hard-coded rgb()/rgba()
+    here would silently diverge from the palettes tokens.css defines."""
+    with open(APP_CSS, encoding="utf-8") as handle:
+        css = handle.read()
+    assert "rgba(" not in css
+    assert "rgb(" not in css

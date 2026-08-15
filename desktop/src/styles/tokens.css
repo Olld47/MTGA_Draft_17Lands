@@ -116,6 +116,11 @@
 
   --radius: 6px;
   --gap: 12px;
+
+  /* Shadows — elevation for floating chrome. Shared across palettes: the
+     translucency sits over arbitrary content, same as --scrim. */
+  --shadow-pop: 0 6px 24px rgb(0 0 0 / 35%); /* .context-menu, .mini-gear */
+  --shadow-hover: 0 8px 24px rgb(0 0 0 / 50%); /* .card-hover preview */
 }
 
 * {
