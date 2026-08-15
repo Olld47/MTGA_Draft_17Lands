@@ -378,8 +378,8 @@ def test_release_artifacts_include_the_desktop_bundles():
         "instead of publishing an empty release"
     )
 
-    # The tag derives from the desktop version (tauri.conf.json), not the
-    # tkinter APPLICATION_VERSION-derived MTGA_Draft_Tool_Vxxxx scheme.
+    # The tag derives from the desktop version (tauri.conf.json), not a
+# legacy APPLICATION_VERSION-derived scheme.
     assert "tauri.conf.json" in publish
     assert "MTGA_Draft_Tool_V" not in publish
 

@@ -1,10 +1,8 @@
 """
 src/sealed_actions.py
-Shared action orchestration for the Sealed Studio, consumed by both the
-desktop bridge (mtga_bridge.sealed_session) and the legacy tkinter view
-(src/ui/windows/sealed_studio.py). Operates on a src.sealed_logic.SealedSession
+Shared action orchestration for the Sealed Studio, consumed by the desktop bridge (mtga_bridge.sealed_session). Operates on a src.sealed_logic.SealedSession
 through pure methods: every action mutates the session and returns an
-(ok, message) pair. No tkinter, no pytauri, no viewmodels — presentation,
+(ok, message) pair. Pure — no pytauri, no viewmodels — presentation,
 pool loading, and persistence timing stay in the adapters.
 
 Ticket 09 convergence: the action handlers were previously duplicated verbatim

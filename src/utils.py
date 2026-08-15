@@ -87,7 +87,7 @@ def json_find(key, obj):
 class LocalSetInfo(NamedTuple):
     """One row of retrieve_local_set_list's file list — the parsed meta of a
     local dataset file. Indexing and unpacking still work (a NamedTuple is a
-    tuple), so the legacy tkinter consumers are untouched; new code should read
+    tuple), so existing positional consumers are untouched; new code should read
     the named fields instead of a positional f[6] for the file path."""
 
     set_name: str

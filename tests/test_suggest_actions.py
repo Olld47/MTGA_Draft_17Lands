@@ -3,8 +3,8 @@ tests/test_suggest_actions.py
 Tests for the shared AI-deck-builder action layer (src.suggest_actions).
 Ticket 09 convergence: the build pipeline (spell-count guard, engine call,
 error/empty settling, snap-to-strongest, stale tracking) previously lived
-twice — verbatim in mtga_bridge.suggest_session and in the tkinter
-SuggestDeckPanel — and drifted. SuggestActions is the single implementation
+twice — verbatim in mtga_bridge.suggest_session and in the
+pre-convergence SuggestDeckPanel — and drifted. SuggestActions is the single implementation
 both adapters delegate to; these tests pin its observable behavior at that
 seam. src.advisor.deck_builder.suggest_deck is stubbed so no Monte Carlo runs.
 """

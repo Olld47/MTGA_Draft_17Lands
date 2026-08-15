@@ -2,7 +2,7 @@
 mtga_bridge.datasets
 Headless dataset management: listing, selecting, deleting, and downloading
 17Lands datasets. Reuses FileExtractor via duck-typed UIProgress shims so the
-existing download pipeline runs unchanged without tkinter.
+existing download pipeline runs unchanged.
 """
 
 import logging
@@ -50,11 +50,11 @@ def _newest_age_days(mtimes, now: Optional[datetime] = None) -> int:
     return min(_age_days(m, now) for m in mtimes)
 
 
-# --- Duck-typed shims that stand in for the tkinter widgets UIProgress drives ---
+# --- Duck-typed shims that stand in for the widgets UIProgress drives ---
 
 
 class ChannelStatus:
-    """Duck-types tkinter.StringVar for UIProgress.status."""
+    """Duck-types the StringVar protocol UIProgress drives."""
 
     def __init__(self, send: Callable[[str, float, str], None]):
         self._send = send

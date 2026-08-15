@@ -3,7 +3,7 @@
 
 #### 桌面版正式发布
 
-MTGA 轮抓工具桌面版（React + TypeScript + Tauri 2 + 内嵌 Python）正式发布，成为默认入口：`main.py` 自动分派，`--ui desktop` / `--ui tkinter` 可显式切换。legacy tkinter 界面冻结为 bug-fix-only（architecture-review 01 决策），桌面为唯一演进线，守护测试强制。
+MTGA 轮抓工具桌面版（React + TypeScript + Tauri 2 + 内嵌 Python）正式发布，是**唯一客户端**：`main.py` 是已构建桌面版的便捷启动器（透传 `-f`/`-d`），旧版 tkinter 界面已随本版本**移除**，不再存在 `--ui` / `default_ui` 切换或源码回退。桌面为唯一演进线。
 
 #### 完整功能对齐
 
@@ -22,7 +22,7 @@ ArenaScanner 显式状态机与持久化抽取（DraftSession）、引擎参数�
 
 #### Desktop Release
 
-The desktop app (React + TypeScript + Tauri 2 + embedded Python) is now the default UI. `main.py` dispatches automatically; `--ui desktop` / `--ui tkinter` switch explicitly. The legacy tkinter UI is frozen to bug-fix-only (architecture-review 01); the desktop is the sole evolution line, enforced by guardrail tests.
+The desktop app (React + TypeScript + Tauri 2 + embedded Python) is now the **only client**. `main.py` is a convenience launcher for the built binary (forwarding `-f`/`-d`); the legacy tkinter UI was **removed** with this release — no `--ui` / `default_ui` switching, no source fallback. The desktop is the sole evolution line.
 
 #### Full Feature Parity
 
@@ -46,7 +46,7 @@ All 12 architecture-review items resolved: explicit scanner state machine and pe
 
 ### 新增 | New
 
-- 桌面版（PyTauri）成为默认 UI，双 UI 决策落地（architecture-review 01）
+- 桌面版（PyTauri）成为唯一客户端，旧版 tkinter 界面移除（architecture-review 01 收尾）
 - 全站中文界面：菜单 / 页面汉化、设置页语言切换（v0.34），轮抓建议 reason 提示汉化（v0.39）
 - 数据集自动同步：每日云端 ETL 编译最新 17Lands 遥测，启动后台同步；同步失败次日自动重试并 toast 提示（architecture-review 05）
 - 现开工作室（Sealed Studio）与 AI 框架生成器、AI 蒙特卡洛套牌优化、赛后复盘（Draft 整合 Recap）
@@ -72,7 +72,7 @@ All 12 architecture-review items resolved: explicit scanner state machine and pe
 - ArenaScanner 显式状态机：相位枚举 + 单点迁移表 + fail-loud 未注册迁移（architecture-review 11）
 - 持久化状态抽取：DraftSession 成为轮抓状态与 state-file 契约的唯一权威，load/save/clear/complete 迁移与 v4.19 兼容转换逐字保留（architecture-review 12）
 - 引擎参数单源：ENGINE_PARAMS frozen 配置，docs 引用字段名不再复写数值（architecture-review 06）
-- 七个模块收敛到 src 纯层共享（sealed / suggest / deck / compare / recap / snapshot / practice），双 UI 不再双实现漂移（architecture-review 09）
+- 七个模块收敛到 src 纯层共享（sealed / suggest / deck / compare / recap / snapshot / practice），桌面 bridge 直接消费（architecture-review 09）
 - 进程级可变状态收敛：state_file / session_dir 构造注入，测试不再触碰 repo Temp/（architecture-review 08）
 - 常量与命令拆分：src/constants 域包 + mtga_bridge/commands 包（architecture-review 07）；桌面版本单源 bump_desktop_version.py（03）；内部线程协议 typed + 游标去字符串反射（04）
 - 全套 Python 测试 1924 passing，前端 vitest / tsc 干净

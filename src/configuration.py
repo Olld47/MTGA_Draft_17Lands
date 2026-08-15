@@ -14,9 +14,7 @@ from src.constants import BASE_DIR
 logger = create_logger()
 CONFIG_LOCK = threading.RLock()
 
-# Pluggable UI-agnostic error notifier. The tkinter entry point registers a
-# messagebox here; the pytauri entry point registers an event emitter. When
-# unset, errors are only logged.
+# Pluggable UI-agnostic error notifier; unset, errors are only logged.
 _error_notifier: Optional[Callable[[str, str], None]] = None
 
 
@@ -68,14 +66,7 @@ class DeckType(BaseModel):
 class Settings(BaseModel):
     """This class holds UI settings"""
 
-    table_width: int = 270
     overlay_geometry: str = "300x600+50+50"
-
-    main_window_geometry: str = "600x1080"
-    paned_window_sash: int = 500
-    dashboard_sash: int = 800
-
-    collapsible_states: Dict[str, bool] = Field(default_factory=dict)
 
     column_configs: Dict[str, List[str]] = Field(
         default_factory=lambda: {
@@ -94,21 +85,12 @@ class Settings(BaseModel):
     filter_format: str = constants.DECK_FILTER_FORMAT_COLORS
     result_format: str = constants.RESULT_FORMAT_WIN_RATE
     ui_size: str = constants.UI_SIZE_DEFAULT
-    theme: str = "Dark"
-    theme_base: str = "clam"  # aqua, vista, clam, etc.
-    theme_palette: str = "Neutral"  # Forest, Island, etc.
-    theme_custom_path: str = ""  # Path to user's .tcl file
-    # The pytauri desktop UI themes independently of the fields above: `theme`
-    # is a ttkbootstrap palette name the React UI has no equivalent for, and
-    # narrowing it here would strip a tkinter user's choice.
+    # The pytauri desktop UI's appearance; the React frontend maps this to its
+    # light/dark/system themes.
     desktop_theme: str = constants.DESKTOP_THEME_DEFAULT
     # UI language for the pytauri desktop (frontend picks the locale dict from
-    # this); the tkinter app has no localization and ignores it.
+    # this).
     language: str = constants.LANGUAGE_DEFAULT
-    # Which UI the default entry point (`main.py`) launches. "desktop" is the
-    # pytauri app; "tkinter" is the legacy fallback for source checkouts
-    # without a built desktop binary.
-    default_ui: str = constants.DEFAULT_UI_DEFAULT
 
     # Core Feature Toggles
     always_on_top: bool = False
@@ -117,7 +99,6 @@ class Settings(BaseModel):
     update_notifications_enabled: bool = True
     missing_notifications_enabled: bool = True
     auto_sync_datasets: bool = True
-    show_splash_screen: bool = True
 
     # System Paths (Restored)
     arena_log_location: str = ""
@@ -171,14 +152,6 @@ class Settings(BaseModel):
     @classmethod
     def validate_language(cls, value, info):
         allowed_values = constants.LANGUAGE_LIST
-        if value not in allowed_values:
-            return cls.model_fields[info.field_name].default
-        return value
-
-    @field_validator("default_ui")
-    @classmethod
-    def validate_default_ui(cls, value, info):
-        allowed_values = constants.DEFAULT_UI_LIST
         if value not in allowed_values:
             return cls.model_fields[info.field_name].default
         return value

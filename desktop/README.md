@@ -1,14 +1,14 @@
 # MTGA Draft Tool — pytauri desktop app
 
-New Tauri 2 + PyO3 (pytauri) UI for the MTGA Draft Tool. Reuses all draft
-logic from the repo-root `src/` package — only the UI layer is new. The
-legacy tkinter app (`poetry run python main.py` at the repo root) keeps
-working unchanged.
+Tauri 2 + PyO3 (pytauri) desktop UI for the MTGA Draft Tool — the **only**
+client. Reuses all draft logic from the repo-root `src/` package. The legacy
+tkinter app was removed (2026-08-15); the root `main.py` is a convenience
+launcher for the built binary, not a second UI.
 
 ## Architecture
 
 ```
-Player.log → ArenaScanner ─┐ (src/, shared with tkinter app)
+Player.log → ArenaScanner ─┐ (src/, shared engine)
                            │
         DraftOrchestrator ─┤ update_queue
                            ▼
@@ -21,7 +21,8 @@ Player.log → ArenaScanner ─┐ (src/, shared with tkinter app)
   - `paths.py` — pins cwd and `src` importability **before** importing `src.*`.
     In a source checkout it chdirs to the repo root; in a bundle (no repo root
     above the file) it points `MTGA_DRAFT_BASE_DIR` at the per-user data dir.
-  - `snapshot.py` — headless port of `AppController.refresh_ui_data`
+  - `snapshot.py` — draft state serialization (headless `AppController`
+    replacement)
   - `orchestrator_adapter.py` — drains `update_queue` → `draft://*` events
   - `viewmodels.py` — pydantic IPC models (camelCase aliases)
   - `commands/` — per-feature pytauri command packages (thin wrappers only),
@@ -78,7 +79,7 @@ streams per-archetype build progress over a Channel).
       pack table updates (Emitter.emit is called from the adapter's worker
       thread — verify no thread-safety warnings in the console)
 - [ ] Dataset download shows streaming progress and activates the dataset
-- [ ] Settings changes persist to the same config.json the tkinter app reads
+- [ ] Settings changes persist to `config.json`
 - [ ] Suggest tab: "Build decks" streams progress, the dropdown fills with
       archetypes, switching one re-renders the deck/stats/simulation, "Sample
       hand" shows Scryfall art, and "Send to builder" lands the deck on the
@@ -95,11 +96,11 @@ scripts/macos/build.sh                # → target/bundle-release/bundle/
 ```
 
 `build.sh` installs `mtga-bridge` **and** the repo-root `mtga-draft-tool`
-package (`--no-deps`, so ttkbootstrap/pynput/pywin32 stay out) into the
-embedded interpreter, then runs `tauri build` with `src-tauri/tauri.bundle.json`
-overlaid — that overlay is what flips `bundle.active` and maps `pyembed/python`
-into Resources, so it must never move into `tauri.conf.json` (it would poison
-`tauri dev`).
+package (`--no-deps`, so the engine's heavy deps stay out of the embedded
+interpreter) into the embedded interpreter, then runs `tauri build` with
+`src-tauri/tauri.bundle.json` overlaid — that overlay is what flips
+`bundle.active` and maps `pyembed/python` into Resources, so it must never move
+into `tauri.conf.json` (it would poison `tauri dev`).
 
 Windows has the same script pair (`scripts/windows/download-py.ps1`,
 `build.ps1`), taking the target triple as an optional first argument. CI:
@@ -127,19 +128,21 @@ scripts were removed in v0.10, before they were ever built.
 
 ## Versioning
 
-The desktop app has its own version series, independent of the tkinter app's
-`APPLICATION_VERSION` (`src/constants/versions.py`). It is written in **eight literals
-across seven files** — `package.json`, `package-lock.json` (twice),
-`pyproject.toml`, `src-tauri/pyproject.toml`, `src-tauri/Cargo.toml`,
-`Cargo.lock`, and `src-tauri/tauri.conf.json`.
+The desktop app has its own version series, independent of the root
+`APPLICATION_VERSION` (`src/constants/versions.py`), which is retained only as
+the bootstrap migration marker for `last_run_version`. The desktop version is
+written in **eight literals across seven files** — `package.json`,
+`package-lock.json` (twice), `pyproject.toml`, `src-tauri/pyproject.toml`,
+`src-tauri/Cargo.toml`, `Cargo.lock`, and `src-tauri/tauri.conf.json`.
 
 Only `tauri.conf.json` reaches a user: it names the `.dmg`/`.msi` and fills
 Info.plist. The other seven exist to agree with it. `Cargo.toml`'s
 `[workspace.package] version` is **not** one of them — `src-tauri` does not
 inherit it, and it stays at `0.1.0`.
 
-Bumping is by hand; `bump_version.py` is tkinter-only. Edit all eight, then
-add the matching `## [vX.Y]` heading to `CHANGELOG.md` —
+Bumping is a single command: `poetry run python bump_desktop_version.py <ver>`
+rewrites all eight literals and the topmost `CHANGELOG.md` heading from
+`tauri.conf.json` — never hand-edit the manifests.
 `test_desktop_version_is_consistent_across_manifests` pins the literals to that
 heading. Agreeing-but-stale is the failure it exists to catch: the eight sat at
 `0.7.0` for five releases while the changelog moved on, and CI published
@@ -160,7 +163,7 @@ download scripts pin the same interpreter, and the upload globs cover exactly
 the configured bundle targets.
 
 A bundled app writes `Sets/`, `Logs/`, `Temp/`, `Debug/` and `config.json` to
-the same per-user directory the tkinter build uses, so both share datasets and
+the same per-user directory across installs, so re-installs share datasets and
 settings. Override with `MTGA_DRAFT_BASE_DIR`.
 
 ## Icons
@@ -187,10 +190,7 @@ System / Dark / Light, chosen on the Settings page. `state/theme.ts` sets
 and a shared type/metrics block. Everything in `app.css` resolves through those
 tokens, so a new palette is a third block and nothing else.
 
-The preference lives in `Settings.desktop_theme`, **not** the legacy `theme`
-field — that one is the tkinter app's ttkbootstrap palette name (Forest, Vapor,
-…), both apps share one `config.json`, and narrowing it here would strip a
-tkinter user's choice. Custom `.tcl` themes stay tkinter-only.
+The preference lives in `Settings.desktop_theme` in the shared `config.json`.
 
 `tests/test_desktop_theme_tokens.py` asserts WCAG AA over the pairings `app.css`
 renders and that both palettes declare the same tokens. It cannot evaluate
@@ -199,9 +199,9 @@ values, not the CSS.
 
 ## Entry point
 
-The desktop app is now the default entry point. `poetry run python main.py` at
-the repo root dispatches to the desktop app when a build is present (via
-`MTGA_DRAFT_DESKTOP`, the bundled `.app`, or a cargo build under `desktop/target/`),
-and falls back to the tkinter UI otherwise. `--ui desktop` / `--ui tkinter`
-force a choice; the config key `default_ui` (in the shared `config.json`) sets
-the non-CLI default. Set `default_ui` to `"tkinter"` to stay on the legacy UI.
+`poetry run python main.py` at the repo root is a convenience launcher for the
+built binary. It locates it via `MTGA_DRAFT_DESKTOP`, the bundled `.app`, or a
+cargo build under `desktop/target/`, forwards `-f`/`-d` verbatim, and hands
+control over. Without a build it prints build/dev guidance and exits 2 — there
+is no fallback UI and no `--ui`/`default_ui` routing. For source development
+use `npm run tauri dev` in this directory.

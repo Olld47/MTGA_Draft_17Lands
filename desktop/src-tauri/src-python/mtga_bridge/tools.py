@@ -1,9 +1,10 @@
 """
 mtga_bridge.tools
 Pure command implementations for the legacy File menu's tools
-(src/ui/menu_bar.py::AppMenuBar): draft export and MTGA_Data folder location.
-No pytauri, no tkinter — the native file/directory dialogs live on the
-frontend (Tauri dialog plugin), so these take and return plain values.
+Ports of the legacy app's file-menu tools: draft export and MTGA_Data
+folder location. Pure — no pytauri; the native file/directory dialogs
+live on the frontend (Tauri dialog plugin), so these take and return
+plain values.
 """
 
 import logging

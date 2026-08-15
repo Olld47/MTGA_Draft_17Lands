@@ -1,6 +1,6 @@
 """
 src/bootstrap.py
-Headless application bootstrap shared by every UI entry point (tkinter, pytauri).
+Headless application bootstrap for the desktop app's BootScreen.
 Contains the robust log/database discovery and dataset sync logic that used to
 live in main.py, with progress reported through a plain callback.
 """

@@ -1,11 +1,11 @@
 """
 tests/test_sealed_actions.py
 Pure tests for src.sealed_actions.SealedStudioActions — the shared action
-orchestration consumed by both the desktop bridge (mtga_bridge.sealed_session)
-and the legacy tkinter Sealed Studio. No tkinter, no bridge, no viewmodels:
+orchestration consumed by the desktop bridge (mtga_bridge.sealed_session).
+No bridge, no viewmodels:
 a SealedSession is built directly against a tmp_path.
 
-Ticket 09 convergence: these tests pin the shared behavior so the two UIs can
+Ticket 09 convergence: these tests pin the shared behavior so the bridge and the legacy UI could
 delegate without drifting (the actions were previously duplicated verbatim in
 mtga_bridge/sealed_session.py and src/ui/windows/sealed_studio.py).
 """

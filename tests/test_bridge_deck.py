@@ -2,8 +2,8 @@
 tests/test_bridge_deck.py
 Bridge-layer tests for the custom-deck port (mtga_bridge.deck_session).
 Exercises DeckSession against a real ArenaScanner with a mock pool — the
-tkinter panel it replaces is covered by tests/test_custom_deck.py, but that
-coverage did not carry over when the logic moved into the bridge.
+legacy panel's coverage did not carry over when the logic moved into the
+bridge.
 No pytauri, no tkinter.
 """
 
@@ -385,8 +385,7 @@ def test_apply_auto_lands_replaces_previous_basics(env):
 def test_apply_auto_lands_counts_copies_not_rows(env):
     """The land count is `40 - spells`, and deck_list is *stacked* — each row
     can be several cards. Counting rows overshot by one land per duplicate, so
-    a pool with any repeats produced a deck larger than 40. The tkinter handler
-    (custom_deck.py:1186) still has the row-counting form.
+    a pool with any repeats produced a deck larger than 40. The legacy handler (since removed) had the row-counting form.
     """
     session = _session(env)
     session.import_deck(

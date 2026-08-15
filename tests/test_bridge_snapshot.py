@@ -347,8 +347,8 @@ def test_draft_complete_recognizes_bot_draft(env):
 
 
 def test_draft_state_filter_label_carries_the_name_and_rate(env):
-    """The masthead's `filterLabel`. Before this it read "Auto (WU)" where the
-    tkinter top bar read "(Auto: Azorius 56.3%)"."""
+    """The masthead's `filterLabel`. Before this it read "Auto (WU)" where the legacy top bar read
+"(Auto: Azorius 56.3%)"."""
     scanner = env["scanner"]
     scanner.set_data._dataset["color_ratings"] = {"All Decks": 54.0}
     env["config"].settings.deck_filter = constants.FILTER_OPTION_AUTO
@@ -534,27 +534,6 @@ def test_settings_vm_includes_deck_mid_distribution(env):
     assert vm.deck_mid_distribution == []
 
 
-def test_desktop_theme_patch_leaves_tkinter_theme_alone(env):
-    """The desktop themes independently of the tkinter app: both read the same
-    config.json, and `theme` is a ttkbootstrap palette name (Forest, Vapor, ...)
-    that the React UI cannot represent. Narrowing it here would silently strip
-    a tkinter user's choice with nothing to restore it."""
-    s = env["config"].settings
-    s.theme = "Forest"
-    runtime = AppRuntime(config=env["config"])
-
-    with patch("mtga_bridge.services.write_configuration"):
-        vm = services.apply_settings_patch(
-            runtime, SettingsPatch(desktop_theme=constants.DESKTOP_THEME_LIGHT)
-        )
-
-    assert vm.desktop_theme == constants.DESKTOP_THEME_LIGHT
-    assert s.desktop_theme == constants.DESKTOP_THEME_LIGHT
-    assert s.theme == "Forest"
-    assert s.theme_base == "clam"
-    assert s.theme_custom_path == ""
-
-
 def test_desktop_theme_does_not_trigger_recompute(env):
     """Appearance is display-only — it must not land in apply_settings_patch's
     math_keys, or every toggle would invalidate the cached draft state."""
@@ -712,8 +691,7 @@ def test_filter_options_label_under_the_names_format(env):
 
 
 def test_filter_options_carry_the_archetype_win_rate(env):
-    """The gap this closes: FilterOptionsVM shipped no winrate, so the desktop
-    dropdown read `WU` where the tkinter one read `WU (56.3%)`."""
+    """The gap this closes: FilterOptionsVM shipped no winrate, so the desktop dropdown read `WU` where the legacy one read `WU (56.3%)`."""
     _patch_color_ratings(env["scanner"], {"WU": 56.3})
     runtime = AppRuntime(config=env["config"], scanner=env["scanner"])
 

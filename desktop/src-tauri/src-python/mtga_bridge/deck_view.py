@@ -4,8 +4,7 @@ Shared deck row / stats / simulation view-model builders used by the
 custom-deck (deck_session.py), sealed-studio (sealed_session.py) and
 suggest-deck (suggest_session.py) sessions. These port the arithmetic from
 custom_deck.py::_render_deck_stats and the ADVISOR SUMMARY heuristics from
-_show_sim_results once so every caller stays identical. Pure — no tkinter,
-no pytauri.
+_show_sim_results once so every caller stays identical. Pure — no pytauri.
 """
 
 import random

@@ -1,5 +1,5 @@
-# Builds the PyTauri desktop app (desktop/) with an embedded CPython.
-# Separate from build-macos-app.yml, which builds the tkinter app via PyInstaller.
+# Builds the PyTauri desktop app (desktop/) with an embedded CPython — the
+# only client (the tkinter/PyInstaller build workflows were removed).
 #
 # macOS arm64 only. Windows x86_64 lives in build-desktop-windows.yml. The
 # remaining two template legs — macOS x86_64 and Windows arm64 — are

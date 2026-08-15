@@ -2,14 +2,13 @@
 mtga_bridge.sealed_session
 Sealed Studio adapter for the desktop bridge. Loads the sealed pool from the
 scanner, delegates every action to the shared src.sealed_actions.SealedStudioActions
-(the single implementation both this bridge and the legacy tkinter studio
-consume — ticket 09 convergence), and maps results to view-models for the
+(the single implementation both this bridge and the pre-convergence studio consumed — ticket 09), and maps results to view-models for the
 frontend.
 
-No tkinter, no pytauri. Pool loading is scanner-driven, clipboard text arrives
+Pure — no pytauri. Pool loading is scanner-driven, clipboard text arrives
 as an argument, and every mutation returns a SealedStateVM the frontend
 re-renders from. Persistence is an adapter policy: the bridge saves best-effort
-after each mutation (the tkinter studio saves on close); the shared actions
+after each mutation (the pre-convergence studio saved on close); the shared actions
 layer mutates only.
 """
 

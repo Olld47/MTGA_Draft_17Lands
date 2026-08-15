@@ -1,7 +1,9 @@
-"""Application version literals (tkinter series).
+"""Application version literals.
 
-Single point of edit for the frozen tkinter 4.x series. `bump_version.py`
-rewrites these with regexes — keep the assignment shapes stable.
+`APPLICATION_VERSION` is retained as the bootstrap migration marker for
+`config.settings.last_run_version` (src.bootstrap); it is not a release
+version — the desktop series is single-sourced from tauri.conf.json.
+Keep the assignment shapes stable (test_constants_package pins them).
 """
 
 APPLICATION_VERSION = "4.19"

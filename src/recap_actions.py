@@ -1,14 +1,11 @@
 """
 src/recap_actions.py
-Shared post-draft recap computation for the Recap screen, consumed by both
-the desktop bridge (mtga_bridge.recap) and the legacy tkinter view
-(src/ui/dashboard_recap.py). Pure: grades the pool, extracts steals/reaches,
-synergy/roles, card lists and charts into a plain RecapData dataclass — no
-tkinter, no pytauri, no viewmodels. Widget rendering, view-model mapping,
+Shared post-draft recap computation for the Recap screen, consumed by the desktop bridge (mtga_bridge.recap). Pure: grades the pool, extracts steals/reaches,
+synergy/roles, card lists and charts into a plain RecapData dataclass — Pure — no pytauri, no viewmodels. Widget rendering, view-model mapping,
 and threading stay in the adapters.
 
 Ticket 09 convergence: the whole analysis was duplicated verbatim between the
-bridge's build_recap and the tkinter screen's update_summary (and had drifted
+bridge's build_recap and the pre-convergence recap screen (and had drifted
 in formatting details). This module is the single implementation both sides
 delegate to.
 """

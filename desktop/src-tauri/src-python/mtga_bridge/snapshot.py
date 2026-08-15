@@ -2,8 +2,7 @@
 mtga_bridge.snapshot
 Draft-state adapter for the desktop bridge. Snapshots scanner state under its
 lock, delegates the signal/advisor/filter math to the shared
-src.snapshot_actions (the single implementation both this bridge and the
-legacy tkinter controller/dashboard consume — ticket 09 convergence), and
+src.snapshot_actions (the single implementation both this bridge and the pre-convergence controller/dashboard consumed — ticket 09), and
 serializes everything into IPC view-models.
 
 This module deliberately avoids importing pytauri so it can be unit-tested

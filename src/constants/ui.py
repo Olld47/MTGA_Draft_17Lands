@@ -1,6 +1,6 @@
 """UI presentation constants: fonts, themes, defaults, tables, grades.
 
-Shared by the frozen tkinter UI and the desktop frontend defaults.
+Shared by the desktop frontend defaults and shared display logic.
 """
 
 FONT_SANS_SERIF = "Arial"
@@ -33,8 +33,7 @@ UI_SIZE_DICT = {
     "250%": 2.5,
 }
 
-# Appearance of the pytauri desktop UI. Kept separate from `Settings.theme`,
-# which is the tkinter app's ttkbootstrap palette name and has 10 legal values.
+# Appearance of the pytauri desktop UI (Settings.desktop_theme).
 DESKTOP_THEME_SYSTEM = "System"
 DESKTOP_THEME_DARK = "Dark"
 DESKTOP_THEME_LIGHT = "Light"
@@ -43,17 +42,9 @@ DESKTOP_THEME_LIST = [DESKTOP_THEME_SYSTEM, DESKTOP_THEME_DARK, DESKTOP_THEME_LI
 DESKTOP_THEME_DEFAULT = DESKTOP_THEME_SYSTEM
 
 # UI language for the pytauri desktop UI. Only the frontend reads this (it picks
-# the locale dictionary); the tkinter app has no localization.
+# the locale dictionary).
 LANGUAGE_DEFAULT = "en"
 LANGUAGE_LIST = ["en", "zh"]
-
-# Which UI the default entry point (`main.py`) dispatches to. "desktop" is the
-# pytauri app; "tkinter" is the legacy fallback, reachable via `--ui tkinter`
-# or by setting `default_ui` to "tkinter".
-DEFAULT_UI_DESKTOP = "desktop"
-DEFAULT_UI_TKINTER = "tkinter"
-DEFAULT_UI_LIST = [DEFAULT_UI_DESKTOP, DEFAULT_UI_TKINTER]
-DEFAULT_UI_DEFAULT = DEFAULT_UI_DESKTOP
 
 DECK_FILTER_FORMAT_NAMES = "Names"
 DECK_FILTER_FORMAT_COLORS = "Colors"
@@ -170,10 +161,6 @@ __all__ = [
     "DESKTOP_THEME_DEFAULT",
     "LANGUAGE_DEFAULT",
     "LANGUAGE_LIST",
-    "DEFAULT_UI_DESKTOP",
-    "DEFAULT_UI_TKINTER",
-    "DEFAULT_UI_LIST",
-    "DEFAULT_UI_DEFAULT",
     "DECK_FILTER_FORMAT_NAMES",
     "DECK_FILTER_FORMAT_COLORS",
     "DECK_FILTER_FORMAT_SET_NAMES",

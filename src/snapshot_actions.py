@@ -1,15 +1,10 @@
 """
 src/snapshot_actions.py
-Shared draft-state computation for the dashboard/recap pipeline, consumed by
-both the desktop bridge (mtga_bridge.snapshot) and the legacy tkinter app
-(src/ui/app_controller.refresh_ui_data, src/ui/dashboard.py's completion
-gate). Pure: open-lane signals, advisor evaluation, color resolution, the
-draft-completion gate, taken-card merging, and the filter label — no tkinter,
-no pytauri, no viewmodels. Scanner locking, thread marshalling, and
+Shared draft-state computation for the dashboard/recap pipeline, consumed by the desktop bridge (mtga_bridge.snapshot). Pure: open-lane signals, advisor evaluation, color resolution, the
+draft-completion gate, taken-card merging, and the filter label — Pure — no pytauri, no viewmodels. Scanner locking, thread marshalling, and
 presentation stay in the adapters.
 
-Ticket 09 convergence: this math was duplicated verbatim between the bridge's
-snapshot module and the tkinter controller/dashboard (the signal loop, the
+Ticket 09 convergence: this math was duplicated verbatim between the bridge's snapshot module and the pre-convergence controller/dashboard (the signal loop, the
 DraftAdvisor construction, the is_human/is_bot arms of the completion gate,
 the expected-total heuristic). This module is the single implementation both
 sides delegate to.

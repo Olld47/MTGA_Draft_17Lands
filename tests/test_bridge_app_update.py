@@ -1,7 +1,7 @@
 """
 tests/test_bridge_app_update.py
 Behavioural tests for mtga_bridge.app_update_notifier — the per-launch check
-for a newer desktop release that mirrors the legacy tkinter AppUpdate poller.
+for a newer desktop release (the per-launch update check).
 
 Every test runs check_app_update synchronously (time.sleep patched), so the 3s
 delay never blocks the suite. Network access is mocked at requests.get, so no

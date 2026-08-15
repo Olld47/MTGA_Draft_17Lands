@@ -12,7 +12,6 @@
 
 ## 目录
 
-- [桌面版与旧版界面](#桌面版与旧版界面)
 - [安全、校验与 macOS Gatekeeper](#安全校验与-macos-gatekeeper)
 - [独立应用运行步骤（Windows / macOS）](#独立应用运行步骤windows--macos)
 - [通过 Python 运行（Windows / macOS）](#通过-python-运行windows--macos)
@@ -27,25 +26,18 @@
 
 ---
 
-## 桌面版与旧版界面
+## 桌面应用
 
-**PyTauri 桌面应用** —— 在 [Tauri 2](https://tauri.app/) 原生窗口内，以 React + TypeScript 前端运行共享的 Python 轮抓引擎 —— 现已是**默认界面**。旧版 **tkinter 界面**仍然完整支持；当源码目录没有桌面版构建产物时，直接运行源码会回退到 tkinter 界面。
+**PyTauri 桌面应用** —— 在 [Tauri 2](https://tauri.app/) 原生窗口内，以 React + TypeScript 前端运行共享的 Python 轮抓引擎 —— 是**唯一客户端**。旧版 tkinter 界面已移除，不存在源码回退。
 
-|  | 桌面版（默认） | 旧版 tkinter |
-|---|---|---|
-| 平台 | macOS（arm64）· Windows（x86_64） | Windows · macOS · Linux |
-| 界面 | Tauri 2 内的 React + TypeScript | ttkbootstrap 主题 tkinter |
-| 版本序列 | v1.x（`desktop/`） | v4.x（`src/constants.py`） |
-| 分发方式 | Releases 页提供 `.dmg` / `.app` · `.msi` / `.exe` | PyInstaller 按需构建 |
+|  | 桌面版 |
+|---|---|
+| 平台 | macOS（arm64）· Windows（x86_64） |
+| 界面 | Tauri 2 内的 React + TypeScript |
+| 版本序列 | v1.x（`desktop/src-tauri/tauri.conf.json` —— 单一来源） |
+| 分发方式 | Releases 页提供 `.dmg` / `.app` · `.msi` / `.exe` |
 
-入口的分派方式（`main.py`）：
-
-1. 显式的 `--ui desktop` / `--ui tkinter` 参数永远优先。
-2. 否则由 `config.json` 中的 `default_ui` 设置决定（默认 `desktop`）。
-3. 目标为 `desktop` 时，按顺序查找已构建的二进制：`MTGA_DRAFT_DESKTOP` 环境变量、macOS 下的打包 `.app`、`desktop/target/` 下的 cargo 构建产物；找到即启动。
-4. 若不存在构建产物：显式 `--ui desktop` 会打印构建指引并以退出码 2 结束；auto/config 路径则记录警告并**回退到 tkinter**，保证源码目录总能启动某个界面。
-
-如需停留在旧版界面，可将 `config.json` 中的 `default_ui` 设为 `"tkinter"`，或始终传入 `--ui tkinter`。
+根目录 `main.py` 是便捷启动器：它按顺序查找已构建的桌面版二进制（`MTGA_DRAFT_DESKTOP` 环境变量、macOS 下的打包 `.app`、`desktop/target/` 下的 cargo 构建产物），透传 `-f`/`-d` 后把控制权交给桌面版。若不存在构建产物，则打印构建指引并以退出码 2 结束——绝不回退到其他界面。桌面源码开发请使用 `cd desktop && npm run tauri dev`。
 
 ---
 
@@ -94,7 +86,7 @@ macOS 会主动隔离从网络下载的未签名应用。如需安全运行本�
   ```bash
   poetry run python main.py
   ```
-  存在构建产物时默认启动 PyTauri 桌面版；纯源码目录则回退到 tkinter 界面。`--ui desktop` 强制桌面版（需先构建），`--ui tkinter` 强制旧版界面。开发时如需从源码运行桌面版界面，请参见[本地构建](#本地构建)。
+  这是已构建桌面版的启动器：它会定位桌面版二进制并把 `-f`/`-d` 透传给它。开发时如需从源码运行桌面版界面，请参见[本地构建](#本地构建)。
 - **第 9 步：** 如果应用提示你提供 Arena 玩家日志的位置，请打开**设置**标签页 -> **位置**，选择你的 MTGA `Player.log` 文件。
 - **第 10 步：** 应用会在后台自动下载当前活跃系列的 17Lands 数据。
 - **第 11 步：** 在 Arena 中开始你的轮抓。
@@ -166,7 +158,7 @@ macOS 会主动隔离从网络下载的未签名应用。如需安全运行本�
    - **Windows：** `%APPDATA%\MTGA_Draft_Tool\config.json`
    - **Mac：** `~/Library/Application Support/MTGA_Draft_Tool/config.json`
 
-桌面版与旧版应用共用同一用户目录，因此读取相同的数据集与设置。可通过 `MTGA_DRAFT_BASE_DIR` 环境变量覆盖。
+桌面版在不同安装间共用同一用户目录存储设置，因此重装后仍能读取相同的数据集与设置。可通过 `MTGA_DRAFT_BASE_DIR` 环境变量覆盖。
 
 ### 数据集与日志
 - 下载的卡牌数据存放在 `Sets` 文件夹。
@@ -225,7 +217,7 @@ MTGA_Draft_17Lands 支持直接在应用内下载与使用 17Lands 分级表。
 
 ### 环境搭建
 
-**旧版 tkinter 应用：**
+**根目录 Python 依赖**（共享引擎、启动器与测试套件）：
 
 1. **安装 Python 3.12**
 2. **安装 Poetry：** `pip install poetry`
@@ -265,16 +257,10 @@ cd desktop && npm test
 
 发布通过 GitHub Actions 全自动完成。流水线会在代码**合并到 `master` 或 `main` 分支时自动触发。** 它从 `desktop/src-tauri/tauri.conf.json` 读取桌面版版本号，以 `v<版本>` 打标签，构建**桌面版安装包**（macOS arm64 `.dmg` / `.app`，Windows x86_64 `.msi` / `.exe`），并连同 SHA-256 校验和与 macOS Gatekeeper 提示发布到 [Releases](https://github.com/Olld47/MTGA_Draft_17Lands/releases) 页面。
 
-桌面版使用**独立的版本序列**（v1.x），与旧版应用的 `src/constants.py` 中的 `APPLICATION_VERSION`（v4.x）相互独立。**桌面版版本号提升是一键命令：** `bump_desktop_version.py <版本>` 以 `desktop/src-tauri/tauri.conf.json` 为单一来源，从一个输入改写全部桌面版清单字面量（`desktop/package.json`、`desktop/package-lock.json`、`desktop/pyproject.toml`、`desktop/src-tauri/pyproject.toml`、`desktop/src-tauri/Cargo.toml`、`desktop/Cargo.lock` 与 `mtga_bridge/version.py`）以及 `CHANGELOG.md` 最顶部的 `## [vX.Y]` 标题——切勿手改清单。`bump_version.py` 脚本仅服务于旧版 tkinter 应用。
+桌面版的版本序列（v1.x）从 `desktop/src-tauri/tauri.conf.json` 读取——这是单一来源。**桌面版版本号提升是一键命令：** `bump_desktop_version.py <版本>` 以 `desktop/src-tauri/tauri.conf.json` 为单一来源，从一个输入改写全部桌面版清单字面量（`desktop/package.json`、`desktop/package-lock.json`、`desktop/pyproject.toml`、`desktop/src-tauri/pyproject.toml`、`desktop/src-tauri/Cargo.toml`、`desktop/Cargo.lock` 与 `mtga_bridge/version.py`）以及 `CHANGELOG.md` 最顶部的 `## [vX.Y]` 标题——切勿手改清单。根目录的 `APPLICATION_VERSION`（`src/constants/versions.py`）仅作为 `last_run_version` 的 bootstrap 迁移标记保留，不属于桌面版发布序列。
 
 *（若在未提升版本号的情况下合并代码到 main，流水线只会重建并重新上传已有发布标签上的安装包——适合热修复。）*
 
 ### 本地构建
 
-- **桌面版（默认界面）：** 在仓库根目录运行 `./build_desktop.sh`。需要 `uv`、Node.js/npm 与 Rust 工具链，构建产物位于 `desktop/target/bundle-release/bundle/`。支持的目标为 macOS arm64 与 Windows x86_64——其余组合因缺少 `numba` 轮包而不支持，且 **Linux 不是桌面版目标平台**（旧版 tkinter 应用可在 Linux 上运行）。
-- **旧版 tkinter 应用：**
-  - **macOS/Linux：**
-    ```bash
-    poetry run pyinstaller main.spec --clean
-    ```
-  - **Windows：** 使用 `poetry run pyinstaller main.spec --clean` 编译源码，然后用 [Inno Setup](https://jrsoftware.org/isdl.php#stable) 打开 `builder/Installer.iss`，点击 **Build -> Compile**。
+- **桌面版：** 在仓库根目录运行 `./build_desktop.sh`。需要 `uv`、Node.js/npm 与 Rust 工具链，构建产物位于 `desktop/target/bundle-release/bundle/`。支持的目标为 macOS arm64 与 Windows x86_64——其余组合因缺少 `numba` 轮包而不支持，且 **Linux 不是桌面版目标平台**。日常开发请使用 `cd desktop && npm run tauri dev`。

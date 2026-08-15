@@ -1,11 +1,9 @@
 """
 mtga_bridge.recap
 Post-draft recap adapter for the desktop bridge. Computes the recap through
-the shared src.recap_actions.build_recap_data (the single implementation both
-this bridge and the legacy tkinter screen consume — ticket 09 convergence)
+the shared src.recap_actions.build_recap_data (the single implementation both this bridge and the pre-convergence screen consumed — ticket 09)
 and maps the plain result to view-models for the frontend. The 17Lands
-draft-record fetch is likewise delegated. No tkinter, no pytauri —
-unit-testable from the root poetry environment.
+draft-record fetch is likewise delegated. Pure — no pytauri; unit-testable from the root poetry environment.
 """
 
 import logging

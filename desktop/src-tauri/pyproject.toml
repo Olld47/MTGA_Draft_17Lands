@@ -1,7 +1,7 @@
 [project]
 name = "mtga-bridge"
 version = "1.0.0"
-description = "pytauri bridge for the MTGA Draft Tool (shares src/ logic with the tkinter app)"
+description = "pytauri bridge for the MTGA Draft Tool (the desktop client over the shared src/ engine)"
 readme = "README.md"
 authors = [
     { name = "unrealities" }

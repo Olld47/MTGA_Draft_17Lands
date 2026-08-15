@@ -1,4 +1,4 @@
-"""Card colors, color-pair names, deck filters, and tkinter row-tag styling.
+"""Card colors, color-pair names, and deck filters.
 
 Colors must stay WUBRG-sorted: dictionary lookups and the WUBRG event-string
 normalization both depend on it.

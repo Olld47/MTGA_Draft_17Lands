@@ -182,8 +182,7 @@ def settings_vm(config) -> SettingsVM:
 
 
 def apply_settings_patch(runtime, patch: SettingsPatch) -> SettingsVM:
-    """Applies a partial settings update, persists, and wires side effects the
-    tkinter app handled in DraftApp._open_settings._on_settings_changed."""
+    """Applies a partial settings update, persists, and wires side effects."""
     config = runtime.config
     s = config.settings
     # by_alias=False — these keys are setattr'd onto the snake_case Settings
@@ -234,9 +233,8 @@ def apply_settings_patch(runtime, patch: SettingsPatch) -> SettingsVM:
 
 
 def reset_settings(runtime) -> SettingsVM:
-    """Restores the baseline config — the legacy settings window's "Restore
-    Defaults" (settings.py:245) wrote a fresh Configuration via
-    reset_configuration(), re-read it, and refreshed the UI."""
+    """Restores the baseline config — writes a fresh Configuration via
+reset_configuration() and re-reads it."""
     from src.configuration import read_configuration, reset_configuration
 
     reset_configuration()

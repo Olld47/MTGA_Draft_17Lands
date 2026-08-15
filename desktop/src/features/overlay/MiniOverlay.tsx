@@ -20,10 +20,9 @@ import { navigateTab } from "../../state/navigation";
 import { useLanguage } from "../../i18n/useLanguage";
 
 // The compact Mini Mode overlay — a dense, tabbed re-display of the live
-// `DraftState` (Pack / Advisor / Stats / Pool), matching the four notebook
-// tabs of the tkinter `CompactOverlay`. It renders the exact same data the
-// full Dashboard consumes, so no extra bridge round-trip is needed. The ⚙ gear
-// in the header is the port of the legacy `_show_settings_menu`: Colors
+// `DraftState` (Pack / Advisor / Stats / Pool). It renders the exact same data
+// the full Dashboard consumes, so no extra bridge round-trip is needed. The ⚙
+// gear in the header is the port of the legacy `_show_settings_menu`: Colors
 // (Filter), Event Type / User Group (via the shared DatasetSwitcher), and
 // Preferences (which restores the full window onto the Settings tab).
 
@@ -66,7 +65,7 @@ export function MiniOverlay({
     .map((c) => c.recommendation)
     .filter((r): r is NonNullable<typeof r> => r != null);
 
-  // Close the gear popover on outside-click or Escape (the tkinter Menu
+  // Close the gear popover on outside-click or Escape (the legacy Menu
   // grabbed the app while open; a mousedown outside is the close equivalent).
   const gearRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {

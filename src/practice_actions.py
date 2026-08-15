@@ -1,15 +1,12 @@
 """
 src/practice_actions.py
-Shared practice-pool construction for the Sealed Practice dialog, consumed by
-both the desktop bridge (mtga_bridge.practice) and the legacy tkinter view
-(src/ui/windows/practice_dialog.py). Pure: random-pack generation, MTGA
+Shared practice-pool construction for the Sealed Practice dialog, consumed by the desktop bridge (mtga_bridge.practice). Pure: random-pack generation, MTGA
 decklist import, set-dropdown assembly, dataset priority ranking, session-id
-generation — no tkinter, no pytauri, no viewmodels. Scanner access, manifest
+generation — Pure — no pytauri, no viewmodels. Scanner access, manifest
 reads, dataset switching, clipboard access, and presentation stay in the
 adapters.
 
-Ticket 09 convergence: the pool-building and set-ranking code was duplicated
-verbatim between the bridge and the tkinter dialog (with the pack-size
+Ticket 09 convergence: the pool-building and set-ranking code was duplicated verbatim between the bridge and the pre-convergence dialog (with the pack-size
 constants inlined in the dialog as 6/1/3/10). This module is the single
 implementation both sides delegate to.
 """

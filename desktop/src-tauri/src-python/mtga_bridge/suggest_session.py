@@ -2,13 +2,12 @@
 mtga_bridge.suggest_session
 Suggest Deck adapter for the desktop bridge. Loads the pool/metrics/event-type
 snapshot from the scanner and delegates the build pipeline to the shared
-src.suggest_actions.SuggestActions (the single implementation both this bridge
-and the legacy tkinter panel consume — ticket 09 convergence), then maps the
+src.suggest_actions.SuggestActions (the single implementation both this bridge and the pre-convergence panel consumed — ticket 09), then maps the
 resulting state to view-models for the frontend. Image loading stays in the
 frontend: it reads the Scryfall URLs on DeckRowVM directly instead of
 downloading and resizing in Python.
 
-No tkinter, no pytauri. calculate() runs on the caller's thread (a pytauri
+Pure — no pytauri. calculate() runs on the caller's thread (a pytauri
 worker thread); the scanner is only locked while snapshotting its inputs, and
 progress is streamed through a callback the command forwards over a Channel.
 """

@@ -1,6 +1,6 @@
-# Builds the PyTauri desktop app (desktop/) with an embedded CPython for Windows.
-# Separate from build-windows-exe.yml, which builds the tkinter app via
-# PyInstaller + Inno Setup.
+# Builds the PyTauri desktop app (desktop/) with an embedded CPython for Windows
+# — the only client (the tkinter/PyInstaller + Inno Setup build workflow was
+# removed).
 #
 # x86_64 only. The arm64 leg from the pytauri template is deliberately absent:
 # numba 0.65.1 (a hard dependency via src/advisor/simulator.py, and JIT-warmed

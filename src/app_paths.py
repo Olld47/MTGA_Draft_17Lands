@@ -1,7 +1,6 @@
 """
 src.app_paths
-Resolves the writable base directory shared by every entry point (tkinter,
-pytauri dev, pytauri bundle). Imported before `constants` and `logger` run
+Resolves the writable base directory shared by every entry point (desktop dev, desktop bundle). Imported before `constants` and `logger` run
 their module-level side effects, so it must stay stdlib-only and must not
 import anything else from `src`.
 """

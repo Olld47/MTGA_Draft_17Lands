@@ -1,16 +1,15 @@
 """
 src/deck_actions.py
 Shared custom-deck model and action orchestration for the Deck Builder,
-consumed by both the desktop bridge (mtga_bridge.deck_session) and the
-legacy tkinter view (src/ui/windows/custom_deck.py). Pure: owns the mutable
+consumed by the desktop bridge (mtga_bridge.deck_session). Pure: owns the mutable
 deck_list / sb_list / known_pool_size state and every mutation / engine
 operation (move, clear, basics, simulate, optimize, auto-lands, export)
 through explicit parameters — raw pool rows come in as arguments, no
-scanner/config access. No tkinter, no pytauri, no viewmodels; scanner
+scanner/config access. Pure — no pytauri, no viewmodels; scanner
 locking, thread marshalling, and presentation stay in the adapters.
 
 Ticket 09 convergence: the handlers were previously duplicated verbatim
-between the bridge DeckSession and the tkinter CustomDeckPanel (and had
+between the bridge DeckSession and the pre-convergence panel (and had
 drifted: the panel's simulate handler lacked the 40-card guard and handed
 None to the results renderer, and its basic-land color map was a second
 inline copy). This module is the single implementation both sides delegate

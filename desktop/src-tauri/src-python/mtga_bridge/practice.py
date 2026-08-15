@@ -3,11 +3,10 @@ mtga_bridge.practice
 Practice-pool adapter for the desktop bridge. Builds a practice Sealed pool —
 either six randomly generated packs or an MTGA decklist pasted by the user —
 delegating the pure construction to src.practice_actions (the single
-implementation both this bridge and the legacy tkinter dialog consume —
-ticket 09 convergence), and hands the pool to SealedStudioSession.
+implementation both this bridge and the pre-convergence dialog consumed — ticket 09), and hands the pool to SealedStudioSession.
 
-No tkinter, no pytauri. The dialog reads the set list from the app context
-and the decklist from the tkinter clipboard; here the set list comes from the
+Pure — no pytauri. The dialog read the set list from the app context
+and the decklist from the clipboard; here the set list comes from the
 scanner and the decklist text arrives as an argument.
 """
 

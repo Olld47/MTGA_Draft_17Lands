@@ -1,6 +1,6 @@
 """
 mtga_bridge.dataset_notifier
-Mirrors the legacy tkinter app's silent post-boot dataset refresh: ~1.5s after
+Silent post-boot dataset refresh: ~1.5s after
 launch, when update_notifications_enabled is set, report what the boot-time
 sync (bootstrap.load_data) downloaded — or run a fresh silent sync when boot
 didn't attempt one (auto-sync off) or its sync failed (the short retry

@@ -2,8 +2,7 @@
 mtga_bridge.tier_service
 Pure command implementations for tier-list management, ported from
 src/ui/windows/tier_list_panel.py::TierListWindow. Wraps the stateless
-file-based src.tier_list.TierList classmethods (list / import / delete). No
-pytauri, no tkinter — the commands package wraps these with the IPC glue and
+file-based src.tier_list.TierList classmethods (list / import / delete). Pure — no pytauri; the commands package wraps these with the IPC glue and
 handles the post-mutation scanner refresh.
 """
 

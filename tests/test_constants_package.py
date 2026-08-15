@@ -67,8 +67,9 @@ def test_aggregator_reexports_every_domain_name():
 
 
 def test_version_single_source_matches_pyproject():
-    """AGENTS.md: tkinter APPLICATION_VERSION is edited in constants AND
-    pyproject.toml. The split must keep them coupled."""
+    """APPLICATION_VERSION (constants/versions.py) and pyproject.toml must
+    stay coupled: the root launcher's --version and the bootstrap migration
+    marker both read the constant."""
     from src.constants.versions import APPLICATION_VERSION
 
     with open(REPO_ROOT / "pyproject.toml", "rb") as handle:
@@ -119,7 +120,6 @@ def test_version_single_source_matches_pyproject():
         # ui defaults
         ("ui", "DESKTOP_THEME_DEFAULT", "System"),
         ("ui", "UI_SIZE_DEFAULT", "100%"),
-        ("ui", "DEFAULT_UI_DEFAULT", "desktop"),
         ("ui", "LETTER_GRADE_A_PLUS", "A+"),
         # dataset / remote
         ("datasets", "SEVENTEENLANDS_DATA_FILTERS_URL", "https://www.17lands.com/data/filters"),

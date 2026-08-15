@@ -123,15 +123,14 @@ Sealed events dump the entire pool at once and skip pack-by-pack drafting.
 Draft state is persisted to `Temp/active_draft_state.json` as it changes, so a
 restart mid-draft resumes exactly where the user left off.
 
-On boot, both UIs perform a **deep scan** of `Player.log` from the beginning
-before tailing:
+On boot, the desktop app performs a **deep scan** of `Player.log` from the
+beginning before tailing:
 
 - The scanner replays `Event_Join` / `BotDraft_DraftStatus` / `"CardPool":[`
   payloads to reconstruct the active event.
 - The desktop bridge's `snapshot.build_draft_state` (`mtga_bridge/snapshot.py`)
-  is the headless port of the tkinter `AppController.refresh_ui_data` — it feeds
-  the same reconstructed state to the React dashboard, so recovery is
-  byte-identical across UIs.
+  serializes the reconstructed state for the React dashboard, so recovery is
+  byte-identical to the live scan.
 - If the log file severely desyncs, the UI's **Rescan** action wipes the in-memory
   state and re-runs the deep scan.
 

@@ -5,7 +5,7 @@ selection and deletion.
 
 This module looked covered: tests/test_bridge_snapshot.py imports from it. But
 that import only reaches ChannelStatus / ChannelProgress / ImmediateUI, the
-three duck-typed shims that stand in for tkinter widgets. All four functions
+three duck-typed shims that stand in for UI widgets. All four functions
 that actually do something were untested, which is how a by-filename search for
 coverage misleads.
 

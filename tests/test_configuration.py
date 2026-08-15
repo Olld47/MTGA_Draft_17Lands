@@ -155,14 +155,77 @@ def test_language_validator_accepts_listed_and_falls_back():
     assert Settings(language="fr").language == constants.LANGUAGE_DEFAULT
 
 
-def test_default_ui_validator_accepts_listed_and_falls_back():
-    """Settings.default_ui accepts the constants.DEFAULT_UI_LIST values and falls
-    back to the desktop default on anything else."""
-    from src import constants
+def test_read_configuration_ignores_removed_tk_fields(tmp_path):
+    """Old configs carrying the removed tkinter settings still load: unknown
+    keys are ignored by Pydantic, so no migration or compatibility alias is
+    needed for the legacy fields."""
+    file_location = tmp_path / "config.json"
+    legacy = {
+        "settings": {
+            "default_ui": "tkinter",
+            "theme": "Dark",
+            "theme_base": "clam",
+            "theme_palette": "Neutral",
+            "theme_custom_path": "",
+            "show_splash_screen": True,
+            "table_width": 270,
+            "main_window_geometry": "600x1080",
+            "paned_window_sash": 500,
+            "dashboard_sash": 800,
+            "collapsible_states": {"sidebar_panel": True},
+            "ui_size": "100%",
+        }
+    }
+    with open(file_location, "w") as f:
+        json.dump(legacy, f)
 
-    assert Settings().default_ui == constants.DEFAULT_UI_DEFAULT
-    assert Settings(default_ui=constants.DEFAULT_UI_TKINTER).default_ui == "tkinter"
-    assert Settings(default_ui="browser").default_ui == constants.DEFAULT_UI_DEFAULT
+    config, success = read_configuration(file_location)
+
+    assert success is True
+    assert config.settings.ui_size == "100%"
+
+
+def test_write_configuration_drops_removed_tk_fields(tmp_path):
+    """Reserializing an old config strips the removed keys: the next save
+    permanently cleans them out without a migration pass, while kept desktop
+    fields survive untouched."""
+    file_location = tmp_path / "config.json"
+    legacy = {
+        "settings": {
+            "default_ui": "tkinter",
+            "theme": "Dark",
+            "table_width": 270,
+            "ui_size": "120%",
+            "desktop_theme": "Dark",
+            "language": "zh",
+        }
+    }
+    with open(file_location, "w") as f:
+        json.dump(legacy, f)
+    config, _ = read_configuration(file_location)
+
+    success = write_configuration(config, file_location)
+
+    assert success is True
+    with open(file_location, "r") as f:
+        written = json.load(f)
+    removed = {
+        "default_ui",
+        "theme",
+        "theme_base",
+        "theme_palette",
+        "theme_custom_path",
+        "show_splash_screen",
+        "table_width",
+        "main_window_geometry",
+        "paned_window_sash",
+        "dashboard_sash",
+        "collapsible_states",
+    }
+    assert not removed & set(written["settings"])
+    assert written["settings"]["ui_size"] == "120%"
+    assert written["settings"]["desktop_theme"] == "Dark"
+    assert written["settings"]["language"] == "zh"
 
 
 def test_write_configuration_error_notifier(tmp_path, example_configuration):

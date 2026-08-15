@@ -1,12 +1,10 @@
 """
 tests/test_recap_actions.py
 Tests for the shared post-draft recap computation (src.recap_actions), the
-single implementation both the desktop bridge (mtga_bridge.recap) and the
-legacy tkinter screen (src/ui/dashboard_recap.py) delegate to — ticket 09
-convergence. The behaviors here are the ones the bridge port
+single implementation the desktop bridge (mtga_bridge.recap) and the
+pre-convergence screen delegate to — ticket 09 convergence. The behaviors here are the ones the bridge port
 (`tests/test_bridge_recap.py`) already pinned, re-expressed against the pure
-layer: no tkinter, no viewmodels, raw computed values in a RecapData
-dataclass.
+layer: no viewmodels, raw computed values in a RecapData dataclass.
 """
 
 from unittest.mock import MagicMock, patch

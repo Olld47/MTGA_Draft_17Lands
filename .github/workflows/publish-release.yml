@@ -1,6 +1,6 @@
-# Builds & publishes the desktop (PyTauri) bundles, which are now the default
-# entry point (plan.md Priority 5). The tkinter PyInstaller app is legacy,
-# still built on demand by build-macos-app.yml / build-windows-exe.yml.
+# Builds & publishes the desktop (PyTauri) bundles — the only client. The
+# tkinter/PyInstaller app was removed (2026-08-15); the macOS/Windows exe
+# build workflows no longer exist.
 #
 # The two desktop legs are inline jobs, not reusable-workflow calls, so that
 # `continue-on-error` is a legal keyword: a red desktop build must not mark an

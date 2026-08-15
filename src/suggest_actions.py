@@ -1,16 +1,13 @@
 """
 src/suggest_actions.py
 Shared action orchestration for the AI Deck Builder suggestion engine,
-consumed by both the desktop bridge (mtga_bridge.suggest_session) and the
-legacy tkinter view (src/ui/windows/suggest_deck.py). Pure: owns the build
+consumed by the desktop bridge (mtga_bridge.suggest_session). Pure: owns the build
 state (suggestions / selection / status / building flag / built-pool key) and
 the calculate pipeline — pool guard, engine invocation, error/empty settling,
-snap-to-strongest — through explicit parameters. No tkinter, no pytauri, no
-viewmodels; the adapters own scanner locking, thread marshalling, progress
+snap-to-strongest — through explicit parameters. Pure — no pytauri, no viewmodels; the adapters own scanner locking, thread marshalling, progress
 formatting, and presentation.
 
-Ticket 09 convergence: the pipeline was previously duplicated verbatim between
-the bridge and the tkinter panel (and had drifted: the panel hardcoded the
+Ticket 09 convergence: the pipeline was previously duplicated verbatim between the bridge and the pre-convergence panel (and had drifted: the panel hardcoded the
 22-spell threshold and the "Builder Error" label while the bridge had a
 constant and a different message). This module is the single implementation
 both sides delegate to.
@@ -43,7 +40,7 @@ def pool_key(pool) -> tuple:
 
 def playable_spell_message(pool) -> Optional[str]:
     """None when the pool clears the minimum-spell guard, else the user-facing
-    message. The tkinter panel calls this synchronously for instant feedback;
+    message. The desktop bridge calls this synchronously for instant feedback;
     ``SuggestActions.calculate`` re-checks it as the authoritative guard."""
     playable = [c for c in pool or [] if "Land" not in c.get("types", [])]
     if len(playable) < MIN_PLAYABLE_SPELLS:

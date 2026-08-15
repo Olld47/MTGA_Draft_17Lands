@@ -1,9 +1,8 @@
 """
 mtga_bridge.orchestrator_adapter
-Drains DraftOrchestrator.update_queue (the same thread-safe protocol the
-tkinter AppController polls with .after) and forwards each message to the
-webview as a Tauri event. Replaces the 100ms tkinter poll loop with a
-blocking-get daemon thread.
+Drains DraftOrchestrator.update_queue and forwards each message to the
+webview as a Tauri event — a blocking-get daemon thread in place of a
+poll loop.
 """
 
 import logging

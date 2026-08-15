@@ -1,11 +1,10 @@
 """
 tests/test_deck_actions.py
 Tests for the shared custom-deck action layer (src.deck_actions.DeckActions),
-the single implementation both the desktop bridge (mtga_bridge.deck_session)
-and the legacy tkinter panel (src/ui/windows/custom_deck.py) delegate to —
-ticket 09 convergence. The behaviors here are the ones the bridge port
+the single implementation the desktop bridge (mtga_bridge.deck_session)
+and the pre-convergence panel delegate to — ticket 09 convergence. The behaviors here are the ones the bridge port
 (`tests/test_bridge_deck.py`) already pinned, re-expressed against the pure
-layer: no scanner, no tkinter, explicit parameters.
+layer: no scanner, explicit parameters.
 """
 
 from unittest.mock import patch

@@ -1,12 +1,10 @@
 """
 tests/test_compare_actions.py
 Tests for the shared comparison-workspace action layer
-(src.compare_actions), the single implementation both the desktop bridge
-(mtga_bridge.compare_session) and the legacy tkinter panel
-(src/ui/windows/compare.py) delegate to — ticket 09 convergence. The
+(src.compare_actions), the single implementation the desktop bridge (mtga_bridge.compare_session)
+and the pre-convergence panel delegate to — ticket 09 convergence. The
 behaviors here are the ones the bridge port (`tests/test_bridge_compare.py`)
-already pinned, re-expressed against the pure layer: no scanner, no tkinter,
-explicit card-map parameters.
+already pinned, re-expressed against the pure layer: no scanner, explicit card-map parameters.
 """
 
 from unittest.mock import patch

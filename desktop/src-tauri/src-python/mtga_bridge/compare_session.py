@@ -2,11 +2,10 @@
 mtga_bridge.compare_session
 Comparison-workspace adapter for the desktop bridge. Loads the card database
 and display context from the scanner/config, delegates every mutation and
-lookup to the shared src.compare_actions (the single implementation both this
-bridge and the legacy tkinter panel consume — ticket 09 convergence), and
+lookup to the shared src.compare_actions (the single implementation both this bridge and the pre-convergence panel consumed — ticket 09), and
 maps the list to view-models for the frontend.
 
-No tkinter, no pytauri. The mutable compare_list lives in CompareActions;
+Pure — no pytauri. The mutable compare_list lives in CompareActions;
 this session owns only the scanner/config context and the view-model mapping.
 The list stays readable as an instance attribute (delegating property) so the
 command surface and existing callers are unchanged.

@@ -19,7 +19,7 @@ commands = Commands()
 
 def _refresh_tier_views(runtime: AppRuntime) -> None:
     """Tier data feeds the draft-state math, so a change must recompute it —
-    mirrors the tkinter panel's on_update_callback."""
+    mirrors the settings page's update flow."""
     if runtime.orchestrator is not None:
         runtime.orchestrator.request_math_update()
     runtime.invalidate_state()

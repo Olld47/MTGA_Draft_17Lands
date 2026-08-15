@@ -1,7 +1,7 @@
 """
 tests/test_bridge_paths.py
-Covers the base-directory resolution shared by the tkinter and pytauri entry
-points (src/app_paths.py) and the dev-vs-bundled dispatch in
+Covers the base-directory resolution shared by the desktop entry points
+(src/app_paths.py) and the dev-vs-bundled dispatch in
 mtga_bridge.paths. Both are import-time load-bearing: constants.BASE_DIR is
 read at module import by nearly every module, so a regression here silently
 relocates Sets/, Logs/, Temp/ and config.json.

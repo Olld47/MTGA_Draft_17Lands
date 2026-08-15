@@ -20,8 +20,7 @@ event-type/user-group ranking — as a small, state-free module:
 Loading the chosen file stays with the scanner: `retrieve_set_data` mutates
 the scanner-owned `Dataset` instance (clear + open_file + metrics cache), so
 the Dataset memory state is not moved. ArenaScanner keeps same-signature
-proxies, so callers (bootstrap, orchestrator, tkinter UI, tests) are
-untouched.
+proxies, so callers (bootstrap, orchestrator, bridge, tests) are untouched.
 """
 
 import re

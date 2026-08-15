@@ -1,14 +1,11 @@
 """
 src/compare_actions.py
-Shared comparison-workspace logic for the Card Compare tab, consumed by both
-the desktop bridge (mtga_bridge.compare_session) and the legacy tkinter view
-(src/ui/windows/compare.py). Pure: owns the mutable compare_list and the
-card-database lookups, dedup, and deck-color resolution — no tkinter, no
-pytauri, no viewmodels. Scanner/config access and presentation stay in the
+Shared comparison-workspace logic for the Card Compare tab, consumed by the desktop bridge (mtga_bridge.compare_session). Pure: owns the mutable compare_list and the
+card-database lookups, dedup, and deck-color resolution — Pure — no pytauri, no viewmodels. Scanner/config access and presentation stay in the
 adapters.
 
 Ticket 09 convergence: the lookup/dedup and color-resolution code was
-duplicated verbatim between the bridge session and the tkinter panel (and had
+duplicated verbatim between the bridge session and the pre-convergence panel (and had
 drifted: the panel's completion list included blanks and unsorted names, and
 its duplicate check compared dict objects instead of names). This module is
 the single implementation both sides delegate to.

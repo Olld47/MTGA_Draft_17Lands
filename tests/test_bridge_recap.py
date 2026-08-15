@@ -3,8 +3,8 @@ tests/test_bridge_recap.py
 Bridge-layer tests for the post-draft recap port (mtga_bridge.recap).
 `build_recap` is pure — it takes the four values snapshot_recap_inputs returns
 and needs no scanner — so these exercise it directly against hand-built pools.
-The tkinter screen it replaces is covered by tests/test_dashboard_recap.py, but
-that coverage did not carry over when the logic moved into the bridge.
+The legacy screen's coverage did not carry over when the logic moved into
+the bridge.
 No pytauri, no tkinter.
 """
 

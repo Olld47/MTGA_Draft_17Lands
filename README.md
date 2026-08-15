@@ -12,7 +12,6 @@ Magic: The Gathering Arena draft tool that utilizes 17Lands data.
 
 ## Table of Contents
 
-- [Which Interface: Desktop vs. Legacy](#which-interface-desktop-vs-legacy)
 - [Security, Verification & macOS Gatekeeper](#security-verification--macos-gatekeeper)
 - [Run Steps: Standalone App (Windows / macOS)](#run-steps-standalone-app-windows--macos)
 - [Run Steps: Python (Windows / macOS)](#run-steps-python-windows--macos)
@@ -27,25 +26,18 @@ Magic: The Gathering Arena draft tool that utilizes 17Lands data.
 
 ---
 
-## Which Interface: Desktop vs. Legacy
+## The Desktop App
 
-The **PyTauri desktop app** — a native [Tauri 2](https://tauri.app/) window running a React + TypeScript frontend over the shared Python draft engine — is now the **default interface**. The legacy **tkinter UI** remains fully supported and is what a plain source checkout runs when no desktop build is present.
+The **PyTauri desktop app** — a native [Tauri 2](https://tauri.app/) window running a React + TypeScript frontend over the shared Python draft engine — is the **only client**. The legacy tkinter UI was removed; there is no source fallback.
 
-|  | Desktop (default) | Legacy tkinter |
-|---|---|---|
-| Platforms | macOS (arm64) · Windows (x86_64) | Windows · macOS · Linux |
-| UI | React + TypeScript inside Tauri 2 | ttkbootstrap themed tkinter |
-| Version series | v1.x (`desktop/`) | v4.x (`src/constants.py`) |
-| Distribution | `.dmg` / `.app` · `.msi` / `.exe` on Releases | PyInstaller, built on demand |
+|  | Desktop |
+|---|---|
+| Platforms | macOS (arm64) · Windows (x86_64) |
+| UI | React + TypeScript inside Tauri 2 |
+| Version series | v1.x (`desktop/src-tauri/tauri.conf.json` — single source) |
+| Distribution | `.dmg` / `.app` · `.msi` / `.exe` on Releases |
 
-How the entry point is chosen (`main.py`):
-
-1. An explicit `--ui desktop` / `--ui tkinter` flag always wins.
-2. Otherwise the `default_ui` setting in `config.json` decides (default `desktop`).
-3. When the target is `desktop`, a built binary is located via the `MTGA_DRAFT_DESKTOP` env var, the bundled `.app` on macOS, or a cargo build under `desktop/target/`, and launched.
-4. If no build exists: an explicit `--ui desktop` prints build guidance and exits with code 2; the auto/config path logs a warning and **falls back to tkinter** so a source checkout always launches something.
-
-To stay on the legacy UI, set `default_ui` to `"tkinter"` in `config.json` or always pass `--ui tkinter`.
+The root `main.py` is a convenience launcher: it locates the built desktop binary (via the `MTGA_DRAFT_DESKTOP` env var, the bundled `.app` on macOS, or a cargo build under `desktop/target/`), forwards `-f`/`-d`, and hands control over. If no build exists it prints build guidance and exits with code 2 — it never falls back to another UI. For desktop source development use `cd desktop && npm run tauri dev`.
 
 ---
 
@@ -94,7 +86,7 @@ macOS actively quarantines unsigned apps downloaded from the internet. To run th
   ```bash
   poetry run python main.py
   ```
-  The PyTauri desktop app is the default UI when a build is present; a plain source checkout falls back to the tkinter UI. `--ui desktop` forces the desktop app (once built), `--ui tkinter` forces the legacy UI. To run the desktop UI from source during development, see [Building Locally](#building-locally).
+  This is a launcher for the built desktop app: it locates the desktop binary and forwards `-f`/`-d` to it. To run the desktop UI from source during development, see [Building Locally](#building-locally).
 - **Step 9:** If the application asks you for the location of the Arena player log, open the **Settings** tab -> **Locations** and select your MTGA `Player.log` file.
 - **Step 10:** The app will automatically download 17Lands data for currently active sets in the background.
 - **Step 11:** Start your draft in Arena.
@@ -166,7 +158,7 @@ The application looks for the configuration file in the following order:
    - **Windows:** `%APPDATA%\MTGA_Draft_Tool\config.json`
    - **Mac:** `~/Library/Application Support/MTGA_Draft_Tool/config.json`
 
-The desktop and legacy apps share the same per-user directory, so they read the same datasets and settings. Override it with the `MTGA_DRAFT_BASE_DIR` environment variable.
+The desktop app stores settings in the same per-user directory across installs, so re-installs read the same datasets and settings. Override it with the `MTGA_DRAFT_BASE_DIR` environment variable.
 
 ### Datasets & Logs
 - Downloaded card data is stored in the `Sets` folder.
@@ -225,7 +217,7 @@ For developers looking to contribute, fork, or understand the architecture of th
 
 ### Environment Setup
 
-**Legacy tkinter app:**
+**Root Python dependencies** (the shared engine, the launcher, and the test suite):
 
 1. **Install Python 3.12**
 2. **Install Poetry:** `pip install poetry`
@@ -265,16 +257,10 @@ cd desktop && npm test
 
 Releases are fully automated via GitHub Actions. The pipeline triggers **automatically whenever code is merged into the `master` or `main` branch.** It reads the desktop version from `desktop/src-tauri/tauri.conf.json`, tags the release `v<version>`, builds the **desktop bundles** (macOS arm64 `.dmg` / `.app`, Windows x86_64 `.msi` / `.exe`), and publishes them to the [Releases](https://github.com/Olld47/MTGA_Draft_17Lands/releases) page with SHA-256 checksums and a macOS Gatekeeper note.
 
-The desktop app uses its **own version series** (v1.x), independent of the legacy app's `APPLICATION_VERSION` in `src/constants.py` (v4.x). **Bumping the desktop version is a single command:** `bump_desktop_version.py <version>` takes `desktop/src-tauri/tauri.conf.json` as the single source and rewrites every desktop manifest literal (`desktop/package.json`, `desktop/package-lock.json`, `desktop/pyproject.toml`, `desktop/src-tauri/pyproject.toml`, `desktop/src-tauri/Cargo.toml`, `desktop/Cargo.lock`, and `mtga_bridge/version.py`) plus the topmost `CHANGELOG.md` heading from that one input — never hand-edit the manifests. The `bump_version.py` script drives only the legacy tkinter app.
+The desktop app's version series (v1.x) is read from `desktop/src-tauri/tauri.conf.json` — the single source. **Bumping the desktop version is a single command:** `bump_desktop_version.py <version>` takes `desktop/src-tauri/tauri.conf.json` as the single source and rewrites every desktop manifest literal (`desktop/package.json`, `desktop/package-lock.json`, `desktop/pyproject.toml`, `desktop/src-tauri/pyproject.toml`, `desktop/src-tauri/Cargo.toml`, `desktop/Cargo.lock`, and `mtga_bridge/version.py`) plus the topmost `CHANGELOG.md` heading from that one input — never hand-edit the manifests. The root `APPLICATION_VERSION` (`src/constants/versions.py`) is retained only as the bootstrap migration marker for `last_run_version` and is not part of the desktop release series.
 
 *(If you merge code into main without bumping the version, the pipeline simply rebuilds and re-uploads the bundles on the existing release — perfect for hotfixes.)*
 
 ### Building Locally
 
-- **Desktop app (default UI):** from the repo root, run `./build_desktop.sh`. It requires `uv`, Node.js/npm, and the Rust toolchain, and produces the bundles under `desktop/target/bundle-release/bundle/`. Supported targets are macOS arm64 and Windows x86_64 — the other combos have no `numba` wheel, and **Linux is not a desktop target** (the legacy tkinter app runs there).
-- **Legacy tkinter app:**
-  - **macOS/Linux:**
-    ```bash
-    poetry run pyinstaller main.spec --clean
-    ```
-  - **Windows:** Compile the source code using `poetry run pyinstaller main.spec --clean`, then open `builder/Installer.iss` with [Inno Setup](https://jrsoftware.org/isdl.php#stable) and click **Build -> Compile**.
+- **Desktop app:** from the repo root, run `./build_desktop.sh`. It requires `uv`, Node.js/npm, and the Rust toolchain, and produces the bundles under `desktop/target/bundle-release/bundle/`. Supported targets are macOS arm64 and Windows x86_64 — the other combos have no `numba` wheel, and **Linux is not a desktop target**. For day-to-day development use `cd desktop && npm run tauri dev`.

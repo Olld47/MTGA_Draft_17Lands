@@ -2,7 +2,7 @@ import type { Lang } from "../../i18n/locales";
 
 /** Localizes the advisor's reasoning chips (Recommendation.reasoning, emitted
  *  as English by the shared src/advisor engine) for the Chinese UI. The engine
- *  is shared with the English-only tkinter app, so the translation lives here:
+ *  emits English regardless of UI language, so the translation lives here:
  *  each known template matches a regex and maps to a Chinese string, keeping
  *  the interpolated numbers/colors/roles. Unknown templates pass through
  *  untouched (English) rather than ever dropping a reason. */

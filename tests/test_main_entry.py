@@ -1,9 +1,11 @@
 """
 tests/test_main_entry.py
-Entry-point dispatch: --ui / default_ui routing in main.py.
+Entry-point launcher behavior: desktop binary resolution, `-f/-d` forwarding,
+and exit codes in main.py. There is no UI routing anymore — the desktop app
+is the only client, so the launcher never consults default_ui and never falls
+through to a fallback UI.
 """
 
-import logging
 import os
 import subprocess
 import sys
@@ -11,26 +13,6 @@ import sys
 import pytest
 
 import main as entry
-
-
-# --- resolve_target_ui -------------------------------------------------------
-
-
-def test_resolve_target_ui_explicit_cli_wins():
-    assert entry.resolve_target_ui("desktop", "tkinter") == "desktop"
-    assert entry.resolve_target_ui("tkinter", "desktop") == "tkinter"
-
-
-def test_resolve_target_ui_auto_reads_configured():
-    assert entry.resolve_target_ui("auto", "tkinter") == "tkinter"
-    assert entry.resolve_target_ui("auto", "desktop") == "desktop"
-
-
-def test_resolve_target_ui_invalid_falls_back():
-    from src import constants
-
-    assert entry.resolve_target_ui("browser", "tkinter") == "tkinter"
-    assert entry.resolve_target_ui("auto", "browser") == constants.DEFAULT_UI_DEFAULT
 
 
 # --- find_desktop_launcher ---------------------------------------------------
@@ -121,50 +103,10 @@ def test_launch_desktop_minimal_argv(monkeypatch):
     assert captured["argv"] == ["/opt/bin"]
 
 
-# --- dispatch_ui -------------------------------------------------------------
-
-
-def test_dispatch_ui_launches_desktop_and_exits_zero(monkeypatch):
-    captured = {}
-    monkeypatch.setattr(entry, "find_desktop_launcher", lambda: "/fake/bin")
-
-    def fake_popen(argv, **kwargs):
-        captured["argv"] = argv
-
-    monkeypatch.setattr(entry.subprocess, "Popen", fake_popen)
-    with pytest.raises(SystemExit) as exc:
-        entry.dispatch_ui("auto", "desktop", file="/logs/Player.log")
-    assert exc.value.code == 0
-    assert captured["argv"] == ["/fake/bin", "-f", "/logs/Player.log"]
-
-
-def test_dispatch_ui_explicit_desktop_without_build_exits_two(monkeypatch, capsys):
-    monkeypatch.setattr(entry, "find_desktop_launcher", lambda: None)
-    with pytest.raises(SystemExit) as exc:
-        entry.dispatch_ui("desktop", "desktop")
-    assert exc.value.code == 2
-    assert "No desktop build found" in capsys.readouterr().out
-
-
-def test_dispatch_ui_auto_desktop_without_build_falls_back(monkeypatch, caplog):
-    monkeypatch.setattr(entry, "find_desktop_launcher", lambda: None)
-    with caplog.at_level(logging.WARNING):
-        assert entry.dispatch_ui("auto", "desktop") is None
-    assert any("falling back to the tkinter UI" in r.message for r in caplog.records)
-
-
-def test_dispatch_ui_tkinter_never_probes(monkeypatch):
-    def boom():
-        raise AssertionError("find_desktop_launcher must not be called")
-
-    monkeypatch.setattr(entry, "find_desktop_launcher", boom)
-    assert entry.dispatch_ui("tkinter", "desktop") is None
-
-
 # --- main() wiring -----------------------------------------------------------
 
 
-def test_main_version_exits_before_dispatch(monkeypatch, capsys):
+def test_main_version_exits_zero(monkeypatch, capsys):
     monkeypatch.setattr(entry.sys, "argv", ["main.py", "--version"])
     monkeypatch.setattr(entry, "cleanup_old_draft_logs", lambda: None)
     with pytest.raises(SystemExit) as exc:
@@ -173,14 +115,77 @@ def test_main_version_exits_before_dispatch(monkeypatch, capsys):
     assert "v" in capsys.readouterr().out
 
 
-def test_main_explicit_desktop_without_build_exits_two(monkeypatch, capsys):
+def test_main_launches_desktop_and_forwards_args(monkeypatch):
     from src.configuration import Configuration
 
-    monkeypatch.setattr(entry.sys, "argv", ["main.py", "--ui", "desktop"])
+    captured = {}
+    monkeypatch.setattr(
+        entry.sys,
+        "argv",
+        ["main.py", "-f", "/logs/Player.log", "-d", "/mtga/data"],
+    )
+    monkeypatch.setattr(entry, "cleanup_old_draft_logs", lambda: None)
+    monkeypatch.setattr(entry, "read_configuration", lambda: (Configuration(), False))
+    monkeypatch.setattr(entry, "find_desktop_launcher", lambda: "/fake/bin")
+
+    def fake_popen(argv, **kwargs):
+        captured["argv"] = argv
+
+    monkeypatch.setattr(entry.subprocess, "Popen", fake_popen)
+    with pytest.raises(SystemExit) as exc:
+        entry.main()
+    assert exc.value.code == 0
+    assert captured["argv"] == [
+        "/fake/bin",
+        "-f",
+        "/logs/Player.log",
+        "-d",
+        "/mtga/data",
+    ]
+
+
+def test_main_normal_launch_never_reads_default_ui(monkeypatch):
+    """Config is read once for initialization/corruption detection, and the
+    desktop binary is probed unconditionally — default_ui no longer exists."""
+    from src.configuration import Configuration
+
+    captured = {}
+
+    def fake_read_configuration(file_location=None):
+        # A legacy config whose settings still carry default_ui="tkinter"
+        # must not influence routing: the result is discarded entirely.
+        captured["read"] = True
+        return Configuration(), True
+
+    monkeypatch.setattr(entry.sys, "argv", ["main.py"])
+    monkeypatch.setattr(entry, "cleanup_old_draft_logs", lambda: None)
+    monkeypatch.setattr(entry, "read_configuration", fake_read_configuration)
+    monkeypatch.setattr(entry, "find_desktop_launcher", lambda: "/fake/bin")
+    monkeypatch.setattr(
+        entry.subprocess, "Popen", lambda argv, **kw: captured.update(argv=argv)
+    )
+    with pytest.raises(SystemExit) as exc:
+        entry.main()
+    assert exc.value.code == 0
+    assert captured["read"] is True
+    assert captured["argv"] == ["/fake/bin"]
+
+
+def test_main_without_build_exits_two_and_never_falls_through(monkeypatch, capsys):
+    """No build anywhere: unified build/dev/MTGA_DRAFT_DESKTOP guidance and
+    exit 2 — no fallback UI, no tkinter copy, no --ui flag."""
+    from src.configuration import Configuration
+
+    monkeypatch.setattr(entry.sys, "argv", ["main.py"])
     monkeypatch.setattr(entry, "cleanup_old_draft_logs", lambda: None)
     monkeypatch.setattr(entry, "read_configuration", lambda: (Configuration(), False))
     monkeypatch.setattr(entry, "find_desktop_launcher", lambda: None)
     with pytest.raises(SystemExit) as exc:
         entry.main()
     assert exc.value.code == 2
-    assert "No desktop build found" in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert "No desktop build found" in out
+    assert "npm run tauri dev" in out
+    assert "MTGA_DRAFT_DESKTOP" in out
+    assert "tkinter" not in out
+    assert "--ui" not in out

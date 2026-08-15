@@ -82,8 +82,8 @@ To ensure the app works seamlessly on Day 1 of a new set release without waiting
 
 Releases ship the **desktop bundles** (tag `v<desktop-version>` from
 `desktop/src-tauri/tauri.conf.json` — the single source of the desktop version —
-e.g. `v1.0.0`). The desktop app is the only self-updating client; the legacy
-tkinter self-update channel was removed.
+e.g. `v1.0.0`). The desktop app is the only client and the only self-updating
+one; the tkinter app — and its update channel — was removed.
 
 ### A. Legacy tkinter self-update channel — removed
 
@@ -91,15 +91,16 @@ The tkinter `src/app_update.py` self-update channel was **deleted** on
 2026-08-14 (architecture-review issue03). It had become a zombie: it compared
 the desktop release tag (`v0.39.0` → `0.39`) against the tkinter
 `APPLICATION_VERSION` (`4.19`) with `float(...)`, which can never fire, and the
-desktop app now owns update notifications (§5.B below). No tkinter asset is
-built or attached to releases; the frozen tkinter app does not self-update.
+desktop app owns update notifications (§5.B below). The tkinter UI itself was
+removed entirely on 2026-08-15, so no tkinter asset exists or is attached to
+releases.
 
-**Version series (how the three numbers relate):**
+**Version series (how the numbers relate):**
 
-- **tkinter `APPLICATION_VERSION`** (`src/constants.py`): frozen identity of the
-  bug-fix-only UI. Decoupled from the desktop series — nothing compares it
-  against desktop tags anymore.
-- **desktop `0.x`**: single source is `desktop/src-tauri/tauri.conf.json` (it
+- **root `APPLICATION_VERSION`** (`src/constants/versions.py`): retained only as
+  the bootstrap migration marker for `config.settings.last_run_version`; it is
+  not a release version and nothing compares it against desktop tags anymore.
+- **desktop version**: single source is `desktop/src-tauri/tauri.conf.json` (it
   names the `.dmg`/`.msi`, fills `Info.plist`, drives the release tag). Every
   other desktop literal — including `mtga_bridge/version.py` — is rewritten
   from it by `bump_desktop_version.py` (one command, one input); the guard
@@ -110,7 +111,7 @@ built or attached to releases; the frozen tkinter app does not self-update.
 
 ### B. Desktop app
 
-The desktop app's version series (v0.x) has the single source
+The desktop app's version series (v1.x) has the single source
 `desktop/src-tauri/tauri.conf.json`; the runtime literal
 `mtga_bridge/version.py` and every other manifest copy are rewritten from it by
 `bump_desktop_version.py`. Its bundles (`.dmg`/`.app` on macOS, `.msi`/`.exe`
