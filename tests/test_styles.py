@@ -132,3 +132,19 @@ class TestThemeEngine:
         Theme.apply(mock_root, "Dark")
 
         mock_root.configure.assert_any_call(bg=Theme.BG_PRIMARY)
+
+    def test_reload_does_not_stack_element_create_wrapper(self):
+        """Regression (ticket 10): reloading src.ui.styles must not stack the
+        Style.element_create wrapper until it captures itself, or any later
+        ttk widget creation recurses infinitely."""
+        import tkinter.ttk as tk_ttk
+
+        import src.ui.styles
+
+        reload(src.ui.styles)
+        reload(src.ui.styles)
+
+        # One call must resolve to the genuine tkinter method, not blow up.
+        fake_style = MagicMock()
+        tk_ttk.Style.element_create(fake_style, "test.elem", "from", "clam")
+        fake_style.tk.call.assert_called()

@@ -69,3 +69,29 @@ type Card = {
 For the desktop wire format (camelCase `CardVM`, `DraftStateVM`, `SettingsVM`,
 the `_VM` alias rules, and the `boot://` / `draft://` / `app://` event payloads),
 see `01-domain-models.md` §5–§6.
+
+## 4. Test pollution & module side-effect guardrails
+
+`importlib.reload` re-runs a module body in the **same globals dict** — any
+module that monkey-patches at top level (e.g. `src/ui/styles.py` wrapping
+`tkinter.ttk.Style.element_create`) becomes self-referential after the second
+reload, and any later ttk widget creation hits `RecursionError`. The suite
+only stayed green by alphabetical luck (`test_app_layout` < `test_styles`).
+Ticket 10 (resolved 2026-08-15) rules:
+
+1. **Top-level monkey-patches must be idempotent** and resolve the genuine
+   target **lazily per call** from the live class attribute — see
+   `_install_element_create_patch()` / `_resolve_real_element_create()` in
+   `src/ui/styles.py`. Never capture the "original" at module-body time on a
+   reloadable module (marker-attribute guard skips re-wrapping).
+2. **Tests must NOT `reload()` real modules** to flip behavior (platform
+   switches etc.) — inject the decision point instead. The two existing
+   `test_macos/windows_font_stability` reloads are legacy debt; no new
+   reloads.
+3. **Test suites must be order-insensitive**: subsets/`--order`/parallel runs
+   expose latent pollution that full alphabetical runs hide. Any top-level
+   side effect ships with a regression test that reloads the module twice and
+   proves the patched symbol still resolves to the genuine implementation
+   (see `test_reload_does_not_stack_element_create_wrapper`).
+4. **Verify root cause empirically** (state dump / breakpoints) before fixing:
+   the ticket's MagicMock-conjecture was wrong — two plain reloads sufficed.

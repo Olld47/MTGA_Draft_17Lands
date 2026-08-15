@@ -21,12 +21,30 @@ logger = logging.getLogger(__name__)
 import tkinter.ttk as tk_ttk
 
 # --- MONKEY PATCH TKINTER.TTK TO PREVENT TTKBOOTSTRAP NATIVE THEME CRASH ---
-_orig_element_create = tk_ttk.Style.element_create
+# Idempotent + lazy-origin: importlib.reload re-runs this body in the same
+# globals, so a naive re-wrap makes the previous wrapper's _orig_element_create
+# lookup resolve to itself after the second reload — any later ttk widget
+# creation then recurses infinitely (ticket 10). Guard skips re-wrapping when
+# already installed, and the genuine method is resolved per call from the live
+# class attribute (survives even a polluted pre-existing chain).
+_PATCH_MARKER = "_mtga_element_create_wrapped"
+
+
+def _resolve_real_element_create():
+    """The genuine Style.element_create beneath any installed wrapper."""
+    candidate = tk_ttk.Style.element_create
+    seen = set()
+    while getattr(candidate, _PATCH_MARKER, False) is True:
+        if id(candidate) in seen:
+            break  # defensive: never chase a cycle we somehow inherited
+        seen.add(id(candidate))
+        candidate = candidate._mtga_orig
+    return candidate
 
 
 def _safe_element_create(self, elementname, etype, *args, **kw):
     try:
-        _orig_element_create(self, elementname, etype, *args, **kw)
+        _resolve_real_element_create()(self, elementname, etype, *args, **kw)
     except tkinter.TclError as e:
         if "Duplicate element" in str(e):
             pass
@@ -34,7 +52,16 @@ def _safe_element_create(self, elementname, etype, *args, **kw):
             raise
 
 
-tk_ttk.Style.element_create = _safe_element_create
+def _install_element_create_patch():
+    current = getattr(tk_ttk.Style, "element_create", None)
+    if getattr(current, _PATCH_MARKER, False) is True:
+        return  # already wrapped — reload-safe, never stack another layer
+    _safe_element_create._mtga_orig = current
+    setattr(_safe_element_create, _PATCH_MARKER, True)
+    tk_ttk.Style.element_create = _safe_element_create
+
+
+_install_element_create_patch()
 
 
 class Theme:
