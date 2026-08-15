@@ -286,7 +286,7 @@ def test_an_archetype_lane_is_normalized_to_wubrg(metrics):
     WUBRG, so an unsorted lane would fall through to the raw string."""
     metrics.get_metrics.return_value = (55.0, 4.0)
     with patch(
-        "mtga_bridge.recap.identify_top_pairs", return_value=[["U", "W"]]
+        "src.recap_actions.identify_top_pairs", return_value=[["U", "W"]]
     ):
         recap = build_recap(_pool(40, gihwr=60.0), metrics, "d1", "PremierDraft")
 

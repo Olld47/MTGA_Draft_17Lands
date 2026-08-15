@@ -7,12 +7,10 @@ Calculates and displays Pool Grades, Steals, Reaches, and Synergies.
 import tkinter
 from tkinter import ttk
 import threading
-from src import constants
+from src.recap_actions import build_recap_data, fetch_draft_record
 from src.ui.styles import Theme
 from src.utils import open_file
 from src.ui.components import ManaCurvePlot, TypePieChart
-from src.advisor.deck_scorer import identify_top_pairs
-from src.card_logic import get_deck_metrics
 
 
 class DraftRecapScreen(ttk.Frame):
@@ -175,130 +173,44 @@ class DraftRecapScreen(ttk.Frame):
         self._create_stat_box(stats_col, "RARES & MYTHICS", "lbl_recap_rares").pack(
             fill="both", expand=True, pady=Theme.scaled_val((0, 10))
         )
-
     def update_summary(self, taken_cards, metrics, draft_id, event_type):
-        if not taken_cards or len(taken_cards) < 40:
+        data = build_recap_data(taken_cards, metrics, draft_id, event_type)
+        if not data.has_data:
             return
 
         self.lbl_actual_record.pack_forget()
         self.btn_17lands_link.pack_forget()
 
-        def get_gihwr(c):
-            return float(
-                c.get("deck_colors", {}).get("All Decks", {}).get("gihwr", 0.0)
-            )
-
-        valid_cards = [
-            c
-            for c in taken_cards
-            if "Basic" not in c.get("types", [])
-            and c.get("name") not in constants.BASIC_LANDS
-        ]
-        if not valid_cards:
-            return
-
-        # 1. OVERALL GRADE
-        valid_cards.sort(key=get_gihwr, reverse=True)
-        top_23 = valid_cards[:23]
-        avg_gihwr = sum(get_gihwr(c) for c in top_23) / len(top_23)
-
-        global_mean, global_std = (
-            metrics.get_metrics("All Decks", "gihwr") if metrics else (54.5, 3.5)
-        )
-        if global_mean <= 0:
-            global_mean = 54.5
-        if global_std <= 0:
-            global_std = 3.5
-
-        z_score = (avg_gihwr - global_mean) / global_std
-        pool_power = max(0, min(100, 75.0 + (z_score * 12.0)))
-
-        grade_map = [
-            (90, "S (God Tier)", "success"),
-            (85, "A (Amazing)", "success"),
-            (80, "B+ (Great)", "info"),
-            (75, "B (Good)", "info"),
-            (70, "C (Average)", "warning"),
-            (60, "D (Below Average)", "danger"),
-        ]
-        grade_str, bootstyle = next(
-            ((g, s) for threshold, g, s in grade_map if pool_power >= threshold),
-            ("F (Trainwreck)", "danger"),
-        )
-
         self.lbl_recovery_grade.config(
-            text=f"Pool Quality: {pool_power:.0f}/100 [{grade_str}]",
-            bootstyle=bootstyle,
+            text=f"Pool Quality: {data.pool_power:.0f}/100 [{data.grade}]",
+            bootstyle=data.grade_style,
         )
         self.lbl_recovery_stats.config(
-            text=f"Top 23 Avg Win Rate: {avg_gihwr:.1f}% (Format Avg: {global_mean:.1f}%)"
+            text=(
+                f"Top 23 Avg Win Rate: {data.top_23_avg:.1f}% "
+                f"(Format Avg: {data.format_avg:.1f}%)"
+            )
         )
 
-        # 2. TOP ARCHETYPES
-        from src.utils import normalize_color_string
-
-        top_pairs = identify_top_pairs(taken_cards, metrics)
-        arch_data = []
-        for pair in top_pairs:
-            lane = normalize_color_string("".join(pair))
-            wr, _ = metrics.get_metrics(lane, "gihwr") if metrics else (0, 0)
-            arch_data.append((constants.COLOR_NAMES_DICT.get(lane, lane), wr))
-
-        arch_data.sort(key=lambda x: x[1], reverse=True)
         arch_text = "".join(
-            [f"• {n} ({w:.1f}%)\n" if w > 0 else f"• {n}\n" for n, w in arch_data[:3]]
+            [
+                f"• {n} ({w:.1f}%)\n" if w > 0 else f"• {n}\n"
+                for n, w in data.archetypes
+            ]
         )
         self.lbl_recap_archetypes.config(
             text=arch_text if arch_text else "None Identified"
         )
 
-        # 3. BEST CARDS
-        best_text = "".join(
-            [
-                f"• {c.get('name', 'Unknown')} ({get_gihwr(c):.1f}%)\n"
-                for c in top_23[:6]
-            ]
+        self.lbl_recap_best.config(
+            text="".join([f"• {n} ({w:.1f}%)\n" for n, w in data.best_cards])
         )
-        self.lbl_recap_best.config(text=best_text)
-
-        # 4. STEALS & REACHES
-        total_cards = len(taken_cards)
-        cards_per_pack = (
-            15
-            if total_cards >= 45
-            else (
-                14
-                if total_cards >= 42
-                else (total_cards // 3 if total_cards >= 3 else 14)
-            )
-        )
-
-        steals, reaches = [], []
-        for i, c in enumerate(taken_cards):
-            name = c.get("name", "")
-            if "Basic" in c.get("types", []) or name in constants.BASIC_LANDS:
-                continue
-
-            pack, pick = (i // cards_per_pack) + 1, (i % cards_per_pack) + 1
-            gihwr, alsa, ata = (
-                get_gihwr(c),
-                float(c.get("deck_colors", {}).get("All Decks", {}).get("alsa", 0.0)),
-                float(c.get("deck_colors", {}).get("All Decks", {}).get("ata", 0.0)),
-            )
-
-            if alsa > 0 and pick > alsa + 1.5 and gihwr >= 55.0:
-                steals.append((name, pack, pick, alsa, pick - alsa))
-            if ata > 0 and ata > pick + 1.5 and gihwr < 54.0:
-                reaches.append((name, pack, pick, ata, ata - pick))
-
-        steals.sort(key=lambda x: x[4], reverse=True)
-        reaches.sort(key=lambda x: x[4], reverse=True)
 
         self.lbl_recap_steals.config(
             text="".join(
                 [
                     f"• {n} (P{pa}P{pi} | ALSA {a:.1f} | +{d:.1f})\n"
-                    for n, pa, pi, a, d in steals[:6]
+                    for n, pa, pi, a, d in data.steals
                 ]
             )
             or "No major steals detected."
@@ -307,128 +219,52 @@ class DraftRecapScreen(ttk.Frame):
             text="".join(
                 [
                     f"• {n} (P{pa}P{pi} | ATA {a:.1f} | -{d:.1f})\n"
-                    for n, pa, pi, a, d in reaches[:6]
+                    for n, pa, pi, a, d in data.reaches
                 ]
             )
             or "No major reaches detected."
         )
 
-        # 5. SYNERGY & ROLES
-        subs_counts, tags_count, non_basics = {}, {}, []
-        for c in taken_cards:
-            if "Basic" in c.get("types", []) or c.get("name") in constants.BASIC_LANDS:
-                continue
-            if "Land" in c.get("types", []):
-                non_basics.append(c)
-            if "Creature" in c.get("types", []):
-                for s in c.get("subtypes", []):
-                    subs_counts[s] = subs_counts.get(s, 0) + 1
-            for t in c.get("tags", []):
-                tags_count[t] = tags_count.get(t, 0) + 1
-
-        top_tribes = sorted(subs_counts.items(), key=lambda x: x[1], reverse=True)
         self.lbl_synergy_tribes.config(
-            text="".join([f"• {t} ({c})\n" for t, c in top_tribes[:6] if c >= 3])
+            text="".join([f"• {t} ({c})\n" for t, c in data.tribes])
             or "No creature types with 3+ cards."
         )
-
         self.lbl_synergy_roles.config(
-            text="".join(
-                [
-                    f"• {constants.TAG_VISUALS.get(t, t.capitalize())} ({c})\n"
-                    for t, c in sorted(
-                        tags_count.items(), key=lambda x: x[1], reverse=True
-                    )[:6]
-                ]
-            )
+            text="".join([f"• {t} ({c})\n" for t, c in data.roles])
             or "No Scryfall tags matched."
         )
-
-        staples = [
-            c
-            for c in valid_cards
-            if str(c.get("rarity", "")).lower() in ["common", "uncommon"]
-            and get_gihwr(c) >= 57.0
-        ]
-        staples.sort(key=get_gihwr, reverse=True)
         self.lbl_synergy_staples.config(
-            text="".join(
-                [f"• {c.get('name')} ({get_gihwr(c):.1f}%)\n" for c in staples[:6]]
-            )
+            text="".join([f"• {n} ({w:.1f}%)\n" for n, w in data.staples])
             or "No premium staples drafted."
         )
-
-        non_basics.sort(key=get_gihwr, reverse=True)
         self.lbl_synergy_lands.config(
-            text="".join(
-                [f"• {c.get('name')} ({get_gihwr(c):.1f}%)\n" for c in non_basics[:6]]
-            )
+            text="".join([f"• {n} ({w:.1f}%)\n" for n, w in data.non_basic_lands])
             or "No non-basic lands drafted."
         )
-
-        # 6. RARES & MYTHICS
-        rares = [
-            c
-            for c in valid_cards
-            if str(c.get("rarity", "")).lower() in ["rare", "mythic"]
-        ]
-        rares.sort(key=get_gihwr, reverse=True)
         self.lbl_recap_rares.config(
-            text="".join(
-                [f"• {c.get('name')} ({get_gihwr(c):.1f}%)\n" for c in rares[:10]]
-            )
+            text="".join([f"• {n} ({w:.1f}%)\n" for n, w in data.rares])
             or "No Rares or Mythics drafted."
         )
 
         # 7. CHARTS
-        deck_metrics = get_deck_metrics(taken_cards)
-        self.recap_curve_plot.update_curve(deck_metrics.distribution_all)
-
-        type_counts = {
-            "Creature": 0,
-            "Planeswalker": 0,
-            "Battle": 0,
-            "Instant": 0,
-            "Sorcery": 0,
-            "Enchantment": 0,
-            "Artifact": 0,
-            "Land": 0,
-        }
-        for card in taken_cards:
-            types = card.get("types", [])
-            if "Basic" in types or card.get("name") in constants.BASIC_LANDS:
-                continue
-            for t in [
-                "Creature",
-                "Planeswalker",
-                "Battle",
-                "Instant",
-                "Sorcery",
-                "Enchantment",
-                "Artifact",
-                "Land",
-            ]:
-                if t in types:
-                    type_counts[t] += 1
-        self.recap_type_chart.update_counts(type_counts)
+        self.recap_curve_plot.update_curve(data.cmc_distribution)
+        self.recap_type_chart.update_counts(data.type_counts)
 
         # 8. SEALED STUDIO BTN
-        if "Sealed" in (event_type or ""):
+        if data.is_sealed:
             self.btn_sealed_studio.pack(side="right", padx=Theme.scaled_val(10))
         else:
             self.btn_sealed_studio.pack_forget()
 
         # 9. 17LANDS API FETCH
-        if draft_id:
+        if data.draft_id:
 
             def fetch_17lands_record():
-                from src.seventeenlands import Seventeenlands
-
-                record = Seventeenlands().get_draft_record(draft_id)
+                record = fetch_draft_record(data.draft_id)
 
                 def apply_ui():
-                    if record and record.get("wins") is not None:
-                        w, l = record["wins"], record["losses"]
+                    if record:
+                        w, l, url = record
                         self.lbl_actual_record.config(
                             text=f"Actual 17Lands Record: {w} Wins - {l} Losses",
                             bootstyle=(
@@ -441,7 +277,7 @@ class DraftRecapScreen(ttk.Frame):
                             anchor="center", pady=Theme.scaled_val((5, 0))
                         )
                         self.btn_17lands_link.config(
-                            command=lambda: open_file(record["url"])
+                            command=lambda: open_file(url)
                         )
                         self.btn_17lands_link.pack(
                             side="right", padx=Theme.scaled_val((0, 10))
