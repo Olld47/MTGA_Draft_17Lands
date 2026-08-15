@@ -21,10 +21,14 @@
         // tests/test_desktop_bundle_config.py pins them to the same values.
         const UI_SCALE_MIN = 0.4;
         const UI_SCALE_MAX = 2.5;
-        const storedScale = Number(localStorage.getItem("mtga.uiScale"));
-        const uiScaleFactor = Number.isFinite(storedScale)
-          ? Math.min(Math.max(storedScale, UI_SCALE_MIN), UI_SCALE_MAX)
-          : 1;
+        // Absent key (first launch) must default to 1, not clamp to the
+        // minimum: Number(null) is 0, which would paint a 40% zoom flash.
+        const storedRaw = localStorage.getItem("mtga.uiScale");
+        const storedScale = storedRaw === null ? null : Number(storedRaw);
+        const uiScaleFactor =
+          storedScale === null || !Number.isFinite(storedScale)
+            ? 1
+            : Math.min(Math.max(storedScale, UI_SCALE_MIN), UI_SCALE_MAX);
         document.documentElement.style.setProperty(
           "--ui-scale",
           String(uiScaleFactor),

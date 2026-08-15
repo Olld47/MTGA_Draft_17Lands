@@ -105,8 +105,13 @@ def bump_changelog(content, new_version):
 
 def bump_all(new_version):
     """Rewrite every VERSION_SITES literal and the CHANGELOG heading to
-    `new_version`. Raises if any site holds fewer matches than its count."""
+    `new_version`. Raises if any site holds fewer matches than its count.
+
+    Two passes: rewrite and validate every site (and the CHANGELOG heading)
+    in memory first, and only write files once every check has passed — a
+    later under-replacement must never leave the repo half-bumped."""
     version = _validate_version(new_version)
+    pending = []
     for rel, pattern, count in VERSION_SITES:
         path = rel if os.path.isabs(rel) else os.path.join(REPO_ROOT, rel)
         with open(path, encoding="utf-8") as handle:
@@ -116,12 +121,15 @@ def bump_all(new_version):
             raise ValueError(
                 f"{rel}: expected {count} version literal(s), replaced {replaced}"
             )
-        with open(path, "w", encoding="utf-8") as handle:
-            handle.write(content)
+        pending.append((path, content))
     with open(CHANGELOG, encoding="utf-8") as handle:
         changelog = handle.read()
+    changelog = bump_changelog(changelog, version)  # raises before any write
+    for path, content in pending:
+        with open(path, "w", encoding="utf-8") as handle:
+            handle.write(content)
     with open(CHANGELOG, "w", encoding="utf-8") as handle:
-        handle.write(bump_changelog(changelog, version))
+        handle.write(changelog)
 
 
 def main():

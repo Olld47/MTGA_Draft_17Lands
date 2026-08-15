@@ -124,7 +124,7 @@ Users can actively "brute-force" permutations of their current deck configuratio
 Transitions into a Post-Draft Recap tracking:
 
 - **Holistic Pool Grading:** Evaluated on a realistic 100-point scale.
-- **Steals & Reaches:** Compares exact Pack/Pick against global ALSA/ATA. The pack-1 "wheel" discount lives in `ENGINE_PARAMS.wheel` (pick cutoff, rank multipliers, and the wheeling-card multiplier) and is driven by `WHEEL_COEFFICIENTS` in `src/constants.py`.
+- **Steals & Reaches:** Compares exact Pack/Pick against global ALSA/ATA. The pack-1 "wheel" discount lives in `ENGINE_PARAMS.wheel` (pick cutoff, rank multipliers, and the wheeling-card multiplier) and is driven by `WHEEL_COEFFICIENTS` in `src/constants/wheel.py` (re-exported by the `src/constants` package aggregator).
 - **Tribal Synergy:** Dynamically queries the MTGA SQLite database for `SubType` enumerators to highlight tribal synergies.
 
 ---

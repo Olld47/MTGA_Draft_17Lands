@@ -89,11 +89,16 @@ def _sync_cloud_datasets(config, progress_callback) -> BootSyncOutcome:
             purge_raw_cache()
         except Exception as purge_e:
             logger.debug(f"Raw cache purge skipped (non-fatal): {purge_e}")
-        config.settings.last_run_version = constants.APPLICATION_VERSION
-        write_configuration(config)
-        return _sync_outcome(
+        # Stamp-on-success: persist last_run_version only after the forced
+        # refresh succeeded, so a failed migration retries on the next launch
+        # instead of being silently skipped forever.
+        outcome = _sync_outcome(
             _run_dataset_sync(config, progress_callback), config, progress_callback
         )
+        if not outcome.failed:
+            config.settings.last_run_version = constants.APPLICATION_VERSION
+            write_configuration(config)
+        return outcome
     if config.settings.auto_sync_datasets:
         if is_auto_synced_today(config):
             progress_callback("Datasets already updated today...")

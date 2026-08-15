@@ -180,7 +180,11 @@ def test_sync_dataset_emits_loading_status_message(orchestrator):
     orchestrator.scanner.set_data._dataset = None
     orchestrator.config.card_data.latest_dataset = "M10_Data.json"
 
-    with patch("src.configuration.write_configuration"):
+    # Patch the symbol orchestrator actually bound at import time
+    # (from src.configuration import write_configuration) — patching the
+    # source module would be a no-op and the real function would atomically
+    # overwrite the user's config.json with the fixture's state.
+    with patch("src.orchestrator.write_configuration"):
         assert orchestrator.sync_dataset_to_event() is True
 
     msgs = list(orchestrator.update_queue.queue)
