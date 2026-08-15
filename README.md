@@ -53,7 +53,7 @@ To stay on the legacy UI, set `default_ui` to `"tkinter"` in `config.json` or al
 
 Because this is a free, open-source community project, the application is not signed with a paid Apple Developer Certificate ($100/year). As a result, macOS and Windows SmartScreen will flag the application as an "Unidentified Developer."
 
-To guarantee the integrity of your download, our GitHub Actions pipeline automatically generates a **SHA-256 Checksum** for every release. You can compare the hash of your downloaded file against the checksum listed on the [Releases page](https://github.com/unrealities/MTGA_Draft_17Lands/releases) to verify it has not been maliciously modified.
+To guarantee the integrity of your download, our GitHub Actions pipeline automatically generates a **SHA-256 Checksum** for every release. You can compare the hash of your downloaded file against the checksum listed on the [Releases page](https://github.com/Olld47/MTGA_Draft_17Lands/releases) to verify it has not been maliciously modified.
 
 **Mac Users: Bypassing the "App is Damaged" or "Malware" prompt**
 macOS actively quarantines unsigned apps downloaded from the internet. To run the app safely:
@@ -67,7 +67,7 @@ macOS actively quarantines unsigned apps downloaded from the internet. To run th
 
 ## Run Steps: Standalone App (Windows / macOS)
 
-- **Step 1:** Download the latest release for your operating system from the [releases page](https://github.com/unrealities/MTGA_Draft_17Lands/releases).
+- **Step 1:** Download the latest release for your operating system from the [releases page](https://github.com/Olld47/MTGA_Draft_17Lands/releases).
 - **Step 2:** Install/Extract the application:
   - **macOS:** Open the `.dmg` and drag `mtga-draft-desktop.app` to your Applications folder. *(See the Security section above if macOS blocks the app from running).*
   - **Windows:** Run the `.msi` installer (or the `.exe`) to install the app.
@@ -82,7 +82,7 @@ macOS actively quarantines unsigned apps downloaded from the internet. To run th
 
 ## Run Steps: Python (Windows / macOS)
 
-- **Step 1:** [Download](https://github.com/unrealities/MTGA_Draft_17Lands/archive/refs/heads/main.zip) and unzip the repository.
+- **Step 1:** [Download](https://github.com/Olld47/MTGA_Draft_17Lands/archive/refs/heads/main.zip) and unzip the repository.
 - **Step 2:** Download and install **Python 3.12**.
 - **Step 3:** Confirm that you're running Python 3.12 by opening the terminal and entering `python --version` (or `python3 --version`).
 - **Step 4:** Install the Poetry package manager by entering `pip install poetry`.
@@ -263,9 +263,9 @@ cd desktop && npm test
 
 ### Automated Releases & Version Management
 
-Releases are fully automated via GitHub Actions. The pipeline triggers **automatically whenever code is merged into the `master` or `main` branch.** It reads the desktop version from `desktop/src-tauri/tauri.conf.json`, tags the release `v<version>`, builds the **desktop bundles** (macOS arm64 `.dmg` / `.app`, Windows x86_64 `.msi` / `.exe`), and publishes them to the [Releases](https://github.com/unrealities/MTGA_Draft_17Lands/releases) page with SHA-256 checksums and a macOS Gatekeeper note.
+Releases are fully automated via GitHub Actions. The pipeline triggers **automatically whenever code is merged into the `master` or `main` branch.** It reads the desktop version from `desktop/src-tauri/tauri.conf.json`, tags the release `v<version>`, builds the **desktop bundles** (macOS arm64 `.dmg` / `.app`, Windows x86_64 `.msi` / `.exe`), and publishes them to the [Releases](https://github.com/Olld47/MTGA_Draft_17Lands/releases) page with SHA-256 checksums and a macOS Gatekeeper note.
 
-The desktop app uses its **own version series** (v0.x), independent of the legacy app's `APPLICATION_VERSION` in `src/constants.py` (v4.x). **Bumping the desktop version is by hand:** edit the version literal in every desktop manifest (`desktop/package.json`, `desktop/package-lock.json`, `desktop/pyproject.toml`, `desktop/src-tauri/pyproject.toml`, `desktop/src-tauri/Cargo.toml`, `desktop/Cargo.lock`, and `desktop/src-tauri/tauri.conf.json`) and add a matching `## [vX.Y]` heading to `CHANGELOG.md`. The `bump_version.py` script drives only the legacy tkinter app.
+The desktop app uses its **own version series** (v1.x), independent of the legacy app's `APPLICATION_VERSION` in `src/constants.py` (v4.x). **Bumping the desktop version is a single command:** `bump_desktop_version.py <version>` takes `desktop/src-tauri/tauri.conf.json` as the single source and rewrites every desktop manifest literal (`desktop/package.json`, `desktop/package-lock.json`, `desktop/pyproject.toml`, `desktop/src-tauri/pyproject.toml`, `desktop/src-tauri/Cargo.toml`, `desktop/Cargo.lock`, and `mtga_bridge/version.py`) plus the topmost `CHANGELOG.md` heading from that one input — never hand-edit the manifests. The `bump_version.py` script drives only the legacy tkinter app.
 
 *(If you merge code into main without bumping the version, the pipeline simply rebuilds and re-uploads the bundles on the existing release — perfect for hotfixes.)*
 

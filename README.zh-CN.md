@@ -53,7 +53,7 @@
 
 由于这是一个免费的开源社区项目，应用未使用付费的 Apple Developer Certificate（每年 $100）签名。因此 macOS 与 Windows SmartScreen 会将该应用标记为「未知开发者」。
 
-为确保下载文件的完整性，我们的 GitHub Actions 流水线会为每个版本自动生成 **SHA-256 校验和**。你可以将下载文件的哈希值与 [Releases 页面](https://github.com/unrealities/MTGA_Draft_17Lands/releases) 上列出的校验值进行比对，以确认文件未被恶意篡改。
+为确保下载文件的完整性，我们的 GitHub Actions 流水线会为每个版本自动生成 **SHA-256 校验和**。你可以将下载文件的哈希值与 [Releases 页面](https://github.com/Olld47/MTGA_Draft_17Lands/releases) 上列出的校验值进行比对，以确认文件未被恶意篡改。
 
 **Mac 用户：绕过「应用已损坏」或「恶意软件」提示**
 macOS 会主动隔离从网络下载的未签名应用。如需安全运行本应用：
@@ -67,7 +67,7 @@ macOS 会主动隔离从网络下载的未签名应用。如需安全运行本�
 
 ## 独立应用运行步骤（Windows / macOS）
 
-- **第 1 步：** 从 [Releases 页面](https://github.com/unrealities/MTGA_Draft_17Lands/releases) 下载适用于你操作系统的最新版本。
+- **第 1 步：** 从 [Releases 页面](https://github.com/Olld47/MTGA_Draft_17Lands/releases) 下载适用于你操作系统的最新版本。
 - **第 2 步：** 安装/解压应用：
   - **macOS：** 打开 `.dmg` 文件，将 `mtga-draft-desktop.app` 拖入「应用程序」文件夹。*（若 macOS 阻止应用运行，请参见上方「安全」部分。）*
   - **Windows：** 运行 `.msi` 安装程序（或 `.exe`）完成安装。
@@ -82,7 +82,7 @@ macOS 会主动隔离从网络下载的未签名应用。如需安全运行本�
 
 ## 通过 Python 运行（Windows / macOS）
 
-- **第 1 步：** [下载](https://github.com/unrealities/MTGA_Draft_17Lands/archive/refs/heads/main.zip) 并解压仓库。
+- **第 1 步：** [下载](https://github.com/Olld47/MTGA_Draft_17Lands/archive/refs/heads/main.zip) 并解压仓库。
 - **第 2 步：** 下载并安装 **Python 3.12**。
 - **第 3 步：** 打开终端输入 `python --version`（或 `python3 --version`）确认你正在使用 Python 3.12。
 - **第 4 步：** 输入 `pip install poetry` 安装 Poetry 包管理器。
@@ -263,9 +263,9 @@ cd desktop && npm test
 
 ### 自动化发布与版本管理
 
-发布通过 GitHub Actions 全自动完成。流水线会在代码**合并到 `master` 或 `main` 分支时自动触发。** 它从 `desktop/src-tauri/tauri.conf.json` 读取桌面版版本号，以 `v<版本>` 打标签，构建**桌面版安装包**（macOS arm64 `.dmg` / `.app`，Windows x86_64 `.msi` / `.exe`），并连同 SHA-256 校验和与 macOS Gatekeeper 提示发布到 [Releases](https://github.com/unrealities/MTGA_Draft_17Lands/releases) 页面。
+发布通过 GitHub Actions 全自动完成。流水线会在代码**合并到 `master` 或 `main` 分支时自动触发。** 它从 `desktop/src-tauri/tauri.conf.json` 读取桌面版版本号，以 `v<版本>` 打标签，构建**桌面版安装包**（macOS arm64 `.dmg` / `.app`，Windows x86_64 `.msi` / `.exe`），并连同 SHA-256 校验和与 macOS Gatekeeper 提示发布到 [Releases](https://github.com/Olld47/MTGA_Draft_17Lands/releases) 页面。
 
-桌面版使用**独立的版本序列**（v0.x），与旧版应用的 `src/constants.py` 中的 `APPLICATION_VERSION`（v4.x）相互独立。**桌面版版本号需手动修改：** 编辑每个桌面版清单文件中的版本号字面量（`desktop/package.json`、`desktop/package-lock.json`、`desktop/pyproject.toml`、`desktop/src-tauri/pyproject.toml`、`desktop/src-tauri/Cargo.toml`、`desktop/Cargo.lock` 与 `desktop/src-tauri/tauri.conf.json`），并在 `CHANGELOG.md` 中添加对应的 `## [vX.Y]` 标题。`bump_version.py` 脚本仅服务于旧版 tkinter 应用。
+桌面版使用**独立的版本序列**（v1.x），与旧版应用的 `src/constants.py` 中的 `APPLICATION_VERSION`（v4.x）相互独立。**桌面版版本号提升是一键命令：** `bump_desktop_version.py <版本>` 以 `desktop/src-tauri/tauri.conf.json` 为单一来源，从一个输入改写全部桌面版清单字面量（`desktop/package.json`、`desktop/package-lock.json`、`desktop/pyproject.toml`、`desktop/src-tauri/pyproject.toml`、`desktop/src-tauri/Cargo.toml`、`desktop/Cargo.lock` 与 `mtga_bridge/version.py`）以及 `CHANGELOG.md` 最顶部的 `## [vX.Y]` 标题——切勿手改清单。`bump_version.py` 脚本仅服务于旧版 tkinter 应用。
 
 *（若在未提升版本号的情况下合并代码到 main，流水线只会重建并重新上传已有发布标签上的安装包——适合热修复。）*
 
