@@ -160,7 +160,10 @@ async function renderBooted(
   opts: { logs?: DraftLogList } = {},
 ) {
   vi.mocked(getBootStatus).mockResolvedValue(bootStatus());
-  vi.mocked(getDraftState).mockResolvedValue(state);
+  // Share the exact promise the shell's fetch consumes, so the helper can await
+  // the applied state below instead of racing the async fetch.
+  const statePromise = Promise.resolve(state);
+  vi.mocked(getDraftState).mockReturnValue(statePromise);
   vi.mocked(getSettings).mockResolvedValue(settings());
   vi.mocked(getSetMetrics).mockResolvedValue({ metrics: {}, hasData: false });
   vi.mocked(listDraftLogs).mockResolvedValue(
@@ -176,6 +179,14 @@ async function renderBooted(
   render(<App />);
   // The shell (with the tab strip) only mounts once boot completes.
   await screen.findByRole("navigation");
+  // … but state-dependent UI lags the shell: useDraftState fetches the draft
+  // state in a separate effect after boot, so the Sealed tab / masthead may
+  // not exist yet even though the strip is up. Await the promise that fetch
+  // consumed (inside act, so the re-render flushes) — callers can then query
+  // the rendered state synchronously.
+  await act(async () => {
+    await statePromise;
+  });
 }
 
 beforeEach(() => {
