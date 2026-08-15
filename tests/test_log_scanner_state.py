@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 import os
 import logging
 import src.constants as constants
-from src.log_scanner import ArenaScanner, _dataset_event_type_rank
+from src.log_scanner import ArenaScanner
 from src.constants import LIMITED_TYPE_DRAFT_PREMIER_V2
 from src.limited_sets import SetDictionary, SetInfo
 
@@ -168,29 +168,6 @@ def test_stale_pool_no_wipe_historical_replay(scanner):
 # A set ships one dataset per event type; matching only the [SET] bracket loads
 # the wrong one (e.g. PickTwo data for a QuickDraft) and every stat reads 0.0.
 
-def test_dataset_event_type_rank_exact_section():
-    """An exact event-name section match ranks highest (rank 0)."""
-    assert _dataset_event_type_rank("QuickDraft", "QuickDraft_MSH_20260806") == 0
-    assert _dataset_event_type_rank("PremierDraft", "PremierDraft_MSH_20260806") == 0
-
-
-def test_dataset_event_type_rank_containment_fallback():
-    """Pick-two variants still resolve via containment (rank 1)."""
-    assert _dataset_event_type_rank("QuickDraft", "PickTwoQuickDraft_MSH_20260806") == 1
-    assert _dataset_event_type_rank("QuickDraft", "PhantomPickTwoQuickDraft_MSH_20260806") == 1
-
-
-def test_dataset_event_type_rank_mismatch():
-    """An unrelated dataset type is rejected outright (None)."""
-    assert _dataset_event_type_rank("PremierDraft", "QuickDraft_MSH_20260806") is None
-
-
-def test_dataset_event_type_rank_unknown_event_matches_all():
-    """An unparseable/empty event name matches every dataset type — the caller
-    falls back to any source for the set."""
-    assert _dataset_event_type_rank("QuickDraft", "") == 0
-
-
 @pytest.fixture
 def sources_scanner(scanner):
     """A scanner whose dataset catalog is stubbed to a controlled label->path map."""
@@ -246,6 +223,25 @@ def test_select_best_dataset_no_source_for_set_returns_empty(sources_scanner):
         }
     )
     assert s.select_best_dataset("MSH", "QuickDraft_MSH_20260806") == ""
+
+
+def test_retrieve_data_sources_proxy_forwards_draft_type(scanner, monkeypatch):
+    """ArenaScanner.retrieve_data_sources is a thin proxy for
+    DatasetSelector.retrieve_data_sources: it forwards the scanner's
+    draft_type (the collection-date tie-break) and returns the selector's
+    result untouched."""
+    from src import dataset_selector
+
+    received = {}
+    monkeypatch.setattr(
+        dataset_selector.DatasetSelector,
+        "retrieve_data_sources",
+        lambda _self, draft_type: received.update(draft_type=draft_type)
+        or "/proxied.json",
+    )
+    scanner.draft_type = constants.LIMITED_TYPE_DRAFT_QUICK
+    assert scanner.retrieve_data_sources() == "/proxied.json"
+    assert received["draft_type"] == constants.LIMITED_TYPE_DRAFT_QUICK
 
 
 def test_retrieve_color_win_rate_builds_label_to_key_map(scanner):

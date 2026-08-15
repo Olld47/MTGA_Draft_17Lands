@@ -7,12 +7,10 @@ and managing the state of the current draft (packs, picks, event info).
 
 import os
 import json
-import re
 import logging
 import threading
 import time
 from enum import Enum
-from datetime import datetime
 from typing import List, Optional
 
 import src.constants as constants
@@ -21,6 +19,7 @@ from src.card_logic import format_filter_label
 from src.logger import create_logger
 from src.set_metrics import SetMetrics
 from src.dataset import Dataset
+from src.dataset_selector import DatasetSelector
 from src.tier_list import TierList
 from src.scanner_state import (
     ScannerPhase,
@@ -32,7 +31,6 @@ from src.scanner_state import (
 from src.utils import (
     process_json,
     json_find,
-    retrieve_local_set_list,
     detect_string,
     normalize_color_string,
 )
@@ -43,6 +41,8 @@ if not os.path.exists(constants.DRAFT_LOG_FOLDER):
 LOG_TYPE_DRAFT = "draftLog"
 
 logger = create_logger()
+
+_dataset_selector = DatasetSelector()
 
 
 class Source(Enum):
@@ -60,51 +60,6 @@ class LogOffset:
 
     def __init__(self, position: int = 0):
         self.position = position
-
-
-def _dataset_event_type_rank(
-    label_event_type: str, event_name: str
-) -> Optional[int]:
-    """0 = exact event-name section match, 1 = containment match, None = no match.
-
-    Dataset labels carry an event type like "QuickDraft" or "PickTwoQuickDraft".
-    We prefer an exact section of the draft's event name (e.g. "QuickDraft" in
-    "QuickDraft_MSH_20260806") and fall back to containment so pick-two variants
-    still resolve ("QuickDraft" in "PickTwoQuickDraft_MSH_..."). Returns None
-    when the dataset's type is unrelated to the event.
-    """
-    if not event_name:
-        return 0
-    lowered = event_name.lower()
-    for section in event_name.split("_"):
-        if label_event_type.lower() == section.lower():
-            return 0
-    if label_event_type.lower() in lowered:
-        return 1
-    return None
-
-
-def _best_dataset_by_rank(sources, set_tag: str, type_rank_for):
-    """The best (score, path) among one set's dataset sources, or None.
-
-    Scores each label by (type_rank, group_rank, label) — lower wins, so an
-    exact event-type match beats a containment match, and the broad "All"
-    sample beats "Top" within a rank. type_rank_for(label) returns the event-type
-    rank or None to skip that source; the label must carry the set's [TAG] to be
-    considered at all.
-    """
-    best = None
-    for label, path in sources.items():
-        if set_tag not in label.upper():
-            continue
-        type_rank = type_rank_for(label)
-        if type_rank is None:
-            continue
-        group_rank = 0 if label.rstrip().endswith("(All)") else 1
-        score = (type_rank, group_rank, label)
-        if best is None or score < best[0]:
-            best = (score, path)
-    return best
 
 
 class ArenaScanner:
@@ -1334,63 +1289,27 @@ class ArenaScanner:
     # =========================================================================
 
     def retrieve_data_sources(self):
-        data_sources = {}
-        try:
-            file_list, error_list = retrieve_local_set_list()
-            if self.draft_type != constants.LIMITED_TYPE_UNKNOWN:
-                found_types = [
-                    k
-                    for k, v in constants.LIMITED_TYPES_DICT.items()
-                    if v == self.draft_type
-                ]
-                if file_list:
-                    file_list.sort(
-                        key=lambda x: (
-                            0 if x.event_type in found_types else 1,
-                            datetime.strptime(x.end_date, "%Y-%m-%d"),
-                        ),
-                        reverse=True,
-                    )
-                    file_list.sort(key=lambda x: x.collection_date, reverse=True)
-            for file in file_list:
-                set_code, event_type, user_group, location = (
-                    file.set_name,
-                    file.event_type,
-                    file.user_group,
-                    file.file_location,
-                )
-                prefix = (
-                    f"[{set_code[0:6]}]"
-                    if re.search(r"^[Yy]\d{2}", set_code)
-                    else f"[{set_code}]"
-                )
-                data_sources[f"{prefix} {event_type} ({user_group})"] = location
-        except Exception as error:
-            logger.error(error)
-        return data_sources if data_sources else constants.DATA_SOURCES_NONE
+        """Scan the local Sets folder into a label->path catalog.
+
+        Thin proxy for DatasetSelector.retrieve_data_sources — the catalog
+        scan and event-type/group ranking live in src/dataset_selector.py.
+        """
+        return _dataset_selector.retrieve_data_sources(self.draft_type)
 
     def select_best_dataset(self, s_code: str, event_name: str = "") -> str:
         """Picks the most representative local dataset for an event.
 
         Ranks every source for the set by event-type agreement with the draft
-        (see _dataset_event_type_rank) and by user group, preferring the broad
-        "All" sample over "Top". Returns the file path, or "" when the set has
-        no local dataset. Callers use this instead of matching only the set
-        bracket — a set has one dataset per event type, and loading the wrong
-        one (e.g. a PickTwo draft for a QuickDraft) yields all-zero stats.
+        (see src.dataset_selector._dataset_event_type_rank) and by user group,
+        preferring the broad "All" sample over "Top". Returns the file path,
+        or "" when the set has no local dataset. Callers use this instead of
+        matching only the set bracket — a set has one dataset per event type,
+        and loading the wrong one (e.g. a PickTwo draft for a QuickDraft)
+        yields all-zero stats.
         """
-        set_tag = f"[{s_code.upper()}]"
-        sources = self.retrieve_data_sources()
-
-        def rank_by_event(label: str) -> Optional[int]:
-            label_type = label.split("]", 1)[1].split("(", 1)[0].strip()
-            return _dataset_event_type_rank(label_type, event_name)
-
-        best = _best_dataset_by_rank(sources, set_tag, rank_by_event)
-        if best is None:
-            # No dataset matched the event name: fall back to any source for the set.
-            best = _best_dataset_by_rank(sources, set_tag, lambda _label: 1)
-        return best[1] if best else ""
+        return _dataset_selector.select_best_dataset(
+            self.retrieve_data_sources(), s_code, event_name
+        )
 
     def retrieve_set_data(self, file):
         with self.lock:

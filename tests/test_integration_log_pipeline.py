@@ -62,7 +62,7 @@ class TestLogPipelineIntegration:
             [],
         )
         monkeypatch.setattr(
-            "src.log_scanner.retrieve_local_set_list", lambda *a, **k: mock_data
+            "src.dataset_selector.retrieve_local_set_list", lambda *a, **k: mock_data
         )
         monkeypatch.setattr(
             "src.utils.retrieve_local_set_list", lambda *a, **k: mock_data
