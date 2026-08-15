@@ -128,6 +128,7 @@ class BombParams:
     power_bonus_min_z: float = 0.5       # docs §8: Z floor before power bonus counts
     lateness_threshold: float = 2.0      # docs §4: picks past ALSA before the late-signal bonus
     lateness_scale: float = 3.0          # docs §4: late-signal bonus scale
+    signal_min_pick: int = 5             # docs §4: pack-1 picks at/after which late-signal capitalization fires
     elite_castability_floor: float = 0.4  # docs §8: min castability for elite designation
 
 
@@ -341,7 +342,11 @@ class DraftAdvisor:
                 )
 
                 # --- STEP 3: Signal Capitalization ---
-                if pack_number == 1 and safe_pick >= 5 and alsa > 0:
+                if (
+                    pack_number == 1
+                    and safe_pick >= ENGINE_PARAMS.bomb.signal_min_pick
+                    and alsa > 0
+                ):
                     lateness = safe_pick - alsa
                     if (
                         lateness >= ENGINE_PARAMS.bomb.lateness_threshold

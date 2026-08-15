@@ -75,6 +75,17 @@ def test_engine_params_calibration_debt_documented():
     ), "calibration note must admit the values are unvalidated heuristics"
 
 
+def test_signal_capitalization_gate_is_annotated_param():
+    # The pack-1 pick floor for the late-signal bonus must be a typed
+    # ENGINE_PARAMS field (single source), not an engine-method literal.
+    from typing import get_type_hints
+
+    hints = get_type_hints(type(ENGINE_PARAMS.bomb))
+    assert "signal_min_pick" in hints
+    assert hints["signal_min_pick"] is int
+    assert ENGINE_PARAMS.bomb.signal_min_pick == 5
+
+
 # ---------------------------------------------------------------------------
 # Seam 2: docs/03 references config field names instead of restating values
 # ---------------------------------------------------------------------------
@@ -214,3 +225,44 @@ def test_bomb_reads_iwd_mult(metrics, monkeypatch):
         r for r in advisor.evaluate_pack(pack, current_pick=1) if r.card_name == "Bomb"
     )
     assert bomb2.contextual_score != bomb.contextual_score
+
+
+def test_signal_capitalization_reads_min_pick_gate(metrics, monkeypatch):
+    advisor = DraftAdvisor(metrics, [])
+    pack = [
+        {
+            "name": "Bomb",
+            "colors": ["W"],
+            "types": ["Creature"],
+            "cmc": 4,
+            "deck_colors": {"All Decks": {"gihwr": 75.0, "iwd": 5.0, "alsa": 2.0}},
+        },
+        {
+            "name": "F1",
+            "colors": ["W"],
+            "types": ["Creature"],
+            "cmc": 2,
+            "deck_colors": {"All Decks": {"gihwr": 50.0, "iwd": 0.0, "alsa": 8.0}},
+        },
+        {
+            "name": "F2",
+            "colors": ["W"],
+            "types": ["Creature"],
+            "cmc": 2,
+            "deck_colors": {"All Decks": {"gihwr": 50.0, "iwd": 0.0, "alsa": 8.0}},
+        },
+    ]
+    # Pack 1, pick 5, alsa 2 → lateness 3 ≥ 2 and z ≈ 1.4 > 0.5, so the
+    # late-signal branch fires at the stock gate (signal_min_pick=5).
+    bomb = next(
+        r for r in advisor.evaluate_pack(pack, current_pick=5) if r.card_name == "Bomb"
+    )
+    assert any("LATE SIGNAL" in reason for reason in bomb.reasoning)
+
+    new = replace(ENGINE_PARAMS, bomb=replace(ENGINE_PARAMS.bomb, signal_min_pick=6))
+    monkeypatch.setattr(engine_module, "ENGINE_PARAMS", new)
+    bomb2 = next(
+        r for r in advisor.evaluate_pack(pack, current_pick=5) if r.card_name == "Bomb"
+    )
+    assert not any("LATE SIGNAL" in reason for reason in bomb2.reasoning)
+    assert bomb2.contextual_score < bomb.contextual_score
