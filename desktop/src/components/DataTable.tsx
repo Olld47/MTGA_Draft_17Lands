@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { useLanguage } from "../i18n/useLanguage";
 
@@ -97,6 +97,22 @@ export function DataTable<T>({
   const [hovered, setHovered] = useState<T | null>(null);
   const [menu, setMenu] = useState<MenuState | null>(null);
   const posRef = useRef({ x: 0, y: 0 });
+  const hoverElRef = useRef<HTMLDivElement | null>(null);
+  // True once the user has picked a sort — the late-arriving persisted sort
+  // (Settings loads async) must never clobber it.
+  const userSortedRef = useRef(false);
+
+  // The persisted initialSort resolves after mount (Settings is fetched async):
+  // adopt it once it arrives. Guarded — only before the user has sorted.
+  useEffect(() => {
+    if (userSortedRef.current || !initialSort) return;
+    setSort((prev) =>
+      prev?.id === initialSort.id && prev?.desc === initialSort.desc
+        ? prev
+        : initialSort,
+    );
+  }, [initialSort]);
+
   // Header drag-to-reorder: the column being dragged, and a one-tick flag so
   // the release of a drag doesn't also toggle the sort (dragend → click in
   // WebKit). Cleared via the dragEnd timeout, which runs after the click.
@@ -160,18 +176,43 @@ export function DataTable<T>({
   const dataRows = buckets ? buckets.flatMap((b) => b.rows) : sorted;
 
   const toggleSort = (id: string) => {
-    setSort((prev) => {
-      const next =
-        prev?.id === id ? { id, desc: !prev.desc } : { id, desc: true };
-      onSortChange?.(next);
-      return next;
-    });
+    // Compute from the committed `sort` (the handler is fresh per render) and
+    // keep the updater pure — side effects in updaters fire on every
+    // invocation, which StrictMode double-invokes in dev.
+    const next =
+      sort?.id === id ? { id, desc: !sort.desc } : { id, desc: true };
+    userSortedRef.current = true;
+    setSort(next);
+    onSortChange?.(next);
   };
+
+  // Position the card below-right of the cursor, clamped so it stays on-screen
+  // (it is much taller than the old image-only preview). Applied imperatively:
+  // the position is DOM-only data — re-rendering the table per mousemove would
+  // rebuild the hover card on every pixel.
+  const positionHover = useCallback(() => {
+    const node = hoverElRef.current;
+    if (!node) return;
+    const { x, y } = posRef.current;
+    node.style.left = `${Math.max(8, Math.min(x + 18, window.innerWidth - 436))}px`;
+    node.style.top = `${Math.max(8, Math.min(y + 12, window.innerHeight - 300))}px`;
+  }, []);
+
+  // Sets the initial position on mount (the entry coordinates are already in
+  // posRef when the card first renders); later mousemoves update it directly.
+  const attachHover = useCallback(
+    (node: HTMLDivElement | null) => {
+      hoverElRef.current = node;
+      if (node) positionHover();
+    },
+    [positionHover],
+  );
 
   // Row delegation: moving between rows updates the preview without the
   // leave/enter churn of per-row handlers.
   const handleRowOver = (e: React.MouseEvent<HTMLTableElement>) => {
     posRef.current = { x: e.clientX, y: e.clientY };
+    positionHover();
     if (!hoverContent) return;
     const tr = (e.target as Element).closest("tr");
     const idx = tr?.getAttribute("data-index");
@@ -179,16 +220,8 @@ export function DataTable<T>({
     setHovered(row ?? null);
   };
 
-  // Position below-right of the cursor, clamped so the tooltip stays on-screen
-  // (it is much taller than the old image-only preview).
   const hoverNode =
     hovered && hoverContent ? hoverContent(hovered) : null;
-  const hoverStyle = hoverNode
-    ? {
-        left: Math.max(8, Math.min(posRef.current.x + 18, window.innerWidth - 436)),
-        top: Math.max(8, Math.min(posRef.current.y + 12, window.innerHeight - 300)),
-      }
-    : undefined;
 
   if (rows.length === 0) {
     return <div className="empty-state">{emptyText ?? t("table.noData")}</div>;
@@ -321,7 +354,7 @@ export function DataTable<T>({
         </tbody>
       </table>
       {hoverNode && (
-        <div className="card-hover" style={hoverStyle}>
+        <div ref={attachHover} className="card-hover">
           {hoverNode}
         </div>
       )}
