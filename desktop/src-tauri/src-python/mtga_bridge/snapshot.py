@@ -1,8 +1,10 @@
 """
 mtga_bridge.snapshot
-Headless port of AppController.refresh_ui_data (src/ui/app_controller.py):
-snapshots scanner state under its lock, runs the signal/advisor math engines,
-and serializes everything into IPC view-models.
+Draft-state adapter for the desktop bridge. Snapshots scanner state under its
+lock, delegates the signal/advisor/filter math to the shared
+src.snapshot_actions (the single implementation both this bridge and the
+legacy tkinter controller/dashboard consume — ticket 09 convergence), and
+serializes everything into IPC view-models.
 
 This module deliberately avoids importing pytauri so it can be unit-tested
 from the root poetry environment.
@@ -14,16 +16,17 @@ from typing import Dict, List, Optional
 
 from src import constants
 from src.card_data import CardData
-from src.advisor.engine import DraftAdvisor
 from src.advisor.schema import Recommendation
-from src.card_logic import (
-    deck_filter_stats,
-    filter_display_name,
-    filter_options,
-    filter_win_rate,
-    get_deck_metrics,
+from src.card_logic import deck_filter_stats, get_deck_metrics
+from src.snapshot_actions import (
+    build_filter_label,
+    compute_signals as _compute_signals,
+    expected_pool_size,
+    evaluate_pack,
+    is_draft_complete,
+    merge_taken_cards,
+    resolve_colors,
 )
-from src.signals import SignalCalculator
 
 from mtga_bridge.deck_view import hover_share_vm
 from mtga_bridge.viewmodels import (
@@ -170,60 +173,24 @@ def pool_summary_vm(taken_cards: List[CardData]) -> PoolSummaryVM:
 
 def compute_signals(scanner) -> Dict[str, float]:
     """Aggregates 'open lane' signals over the draft history (skips pack 2)."""
-    metrics = scanner.retrieve_set_metrics()
-    history = scanner.retrieve_draft_history()
-    sig_calc = SignalCalculator(metrics)
-    scores = {c: 0.0 for c in constants.CARD_COLORS}
-    for entry in history:
-        if entry["Pack"] == 2:
-            continue
-        h_pack: List[CardData] = scanner.set_data.get_data_by_id(entry["Cards"])
-        for color, value in sig_calc.calculate_pack_signals(
-            h_pack, entry["Pick"]
-        ).items():
-            scores[color] += value
-    return scores
-
-
-# Event types that represent an actual draft — the legacy dashboard.py is_human
-# / is_bot arms of draft_complete. Sealed is handled by its own arm.
-_DRAFT_EVENT_TYPES = {
-    constants.LIMITED_TYPE_STRING_DRAFT_PREMIER,
-    constants.LIMITED_TYPE_STRING_DRAFT_QUICK,
-    constants.LIMITED_TYPE_STRING_DRAFT_TRAD,
-    constants.LIMITED_TYPE_STRING_DRAFT_BOT,
-    constants.LIMITED_TYPE_STRING_DRAFT_PICK_TWO,
-    constants.LIMITED_TYPE_STRING_DRAFT_PICK_TWO_TRAD,
-    constants.LIMITED_TYPE_STRING_DRAFT_PICK_TWO_QUICK,
-}
+    return _compute_signals(
+        scanner.retrieve_set_metrics(),
+        scanner.retrieve_draft_history(),
+        scanner.set_data,
+    )
 
 
 def _expected_pool_size(scanner) -> int:
-    """Port of dashboard.py's expected_total: the largest pack in the draft's
-    history determines the pick count (14 → 42, 13 → 39, ≥15 → size × 3)."""
+    """The largest pack in the draft's history determines the pick count."""
     history = scanner.retrieve_draft_history() if scanner else []
-    max_pack_size = 0
-    for entry in history:
-        pack_size = entry.get("Pick", 1) + len(entry.get("Cards", [])) - 1
-        if pack_size > max_pack_size:
-            max_pack_size = pack_size
-    if max_pack_size >= 15:
-        return max_pack_size * 3
-    if max_pack_size == 13:
-        return 39
-    return 42
+    return expected_pool_size(history)
 
 
 def compute_draft_complete(scanner, event_type, taken_count) -> bool:
     """True once a draft's full pool is picked — or a Sealed pool reaches 40 —
     matching the legacy dashboard's draft_complete/sealed_complete gates that
     swap the dashboard to the recap screen."""
-    event_type = event_type or ""
-    if constants.LIMITED_TYPE_STRING_SEALED in event_type:
-        return taken_count >= 40
-    if event_type not in _DRAFT_EVENT_TYPES:
-        return False
-    return taken_count >= _expected_pool_size(scanner)
+    return is_draft_complete(event_type, taken_count, _expected_pool_size(scanner))
 
 
 def build_draft_state(scanner, config, include_pool_summary: bool = True) -> DraftStateVM:
@@ -245,23 +212,19 @@ def build_draft_state(scanner, config, include_pool_summary: bool = True) -> Dra
 
     scores = compute_signals(scanner)
 
-    advisor = DraftAdvisor(metrics, taken_cards, signals=scores)
-    recommendations = advisor.evaluate_pack(pack_cards, pick, current_pack=pack)
+    recommendations = evaluate_pack(
+        metrics, taken_cards, scores, pack_cards, pick, pack
+    )
     rec_map = {r.card_name: r for r in recommendations}
 
-    colors = filter_options(
+    colors = resolve_colors(
         taken_cards, config.settings.deck_filter, metrics, config
     )
     active_filter = colors[0] if colors else constants.FILTER_OPTION_ALL_DECKS
     is_auto = constants.FILTER_OPTION_AUTO in config.settings.deck_filter
-    name = filter_display_name(active_filter, config.settings.filter_format)
-    rate = filter_win_rate(active_filter, color_ratings)
-    if is_auto:
-        # "Auto (Azorius 56.3%)", the form src/ui/windows/overlay.py builds.
-        # Not format_filter_label's "Azorius (56.3%)" — that would nest parens.
-        filter_label = f"Auto ({name}{f' {rate}%' if rate is not None else ''})"
-    else:
-        filter_label = f"{name} ({rate}%)" if rate is not None else name
+    filter_label = build_filter_label(
+        active_filter, config.settings.filter_format, color_ratings, is_auto
+    )
 
     picked_names = {
         c.get(constants.DATA_FIELD_NAME) for c in (picked_cards or [])
@@ -317,23 +280,18 @@ def build_taken_cards(scanner, config) -> TakenCardsVM:
         metrics = scanner.retrieve_set_metrics()
         taken_cards: List[CardData] = scanner.retrieve_taken_cards()
 
-    colors = filter_options(
+    colors = resolve_colors(
         taken_cards, config.settings.deck_filter, metrics, config
     )
     active_filter = colors[0] if colors else constants.FILTER_OPTION_ALL_DECKS
 
     # Dedup by name, accumulating counts
-    merged: Dict[str, CardData] = {}
-    counts: Dict[str, int] = {}
-    for card in taken_cards or []:
-        name = card.get(constants.DATA_FIELD_NAME, "Unknown")
-        counts[name] = counts.get(name, 0) + 1
-        merged.setdefault(name, card)
+    merged, counts = merge_taken_cards(taken_cards)
 
     cards = []
-    for name, card in merged.items():
+    for card in merged:
         vm = card_to_vm(card, active_filter)
-        vm.count = counts[name]
+        vm.count = counts[card.get(constants.DATA_FIELD_NAME, "Unknown")]
         cards.append(vm)
     cards.sort(key=lambda c: (c.cmc, c.name))
 

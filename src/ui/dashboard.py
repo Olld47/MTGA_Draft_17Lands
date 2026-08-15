@@ -13,6 +13,7 @@ import json
 
 from src import constants
 from src.card_logic import field_process_sort, row_color_tag
+from src.snapshot_actions import expected_pool_size, is_draft_complete
 from src.ui.styles import Theme
 from src.utils import open_file
 from src.ui.components import (
@@ -505,45 +506,17 @@ class DashboardFrame(ttk.Frame):
             self._pack_count > 0 or self._missing_count > 0 or self._taken_count > 0
         )
 
-        is_human = self._current_event_type in [
-            constants.LIMITED_TYPE_STRING_DRAFT_PREMIER,
-            constants.LIMITED_TYPE_STRING_DRAFT_TRAD,
-            constants.LIMITED_TYPE_STRING_DRAFT_PICK_TWO,
-            constants.LIMITED_TYPE_STRING_DRAFT_PICK_TWO_TRAD,
-        ]
-
-        is_bot = self._current_event_type in [
-            constants.LIMITED_TYPE_STRING_DRAFT_QUICK,
-            constants.LIMITED_TYPE_STRING_DRAFT_PICK_TWO_QUICK,
-            constants.LIMITED_TYPE_STRING_DRAFT_BOT,
-        ]
-
-        expected_total = 42
-        if (
-            hasattr(self, "orchestrator")
+        expected_total = expected_pool_size(
+            self.orchestrator.scanner.retrieve_draft_history()
+            if hasattr(self, "orchestrator")
             and self.orchestrator
             and self.orchestrator.scanner
-        ):
-            history = self.orchestrator.scanner.retrieve_draft_history()
-            max_pack_size = 0
-            for entry in history:
-                pack_size = entry.get("Pick", 1) + len(entry.get("Cards", [])) - 1
-                if pack_size > max_pack_size:
-                    max_pack_size = pack_size
-
-            if max_pack_size >= 15:
-                expected_total = max_pack_size * 3
-            elif max_pack_size == 14:
-                expected_total = 42
-            elif max_pack_size == 13:
-                expected_total = 39
-
-        draft_complete = (is_human or is_bot) and self._taken_count >= expected_total
-        sealed_complete = (
-            "Sealed" in self._current_event_type and self._taken_count >= 40
+            else []
         )
 
-        show_recovery = draft_complete or sealed_complete
+        show_recovery = is_draft_complete(
+            self._current_event_type, self._taken_count, expected_total
+        )
 
         was_content_hidden = not self.content_frame.winfo_viewable()
         self.content_frame.grid_remove()

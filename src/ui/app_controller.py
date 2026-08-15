@@ -14,9 +14,8 @@ from src import constants
 from src.orchestrator import RefreshMessage, StatusMessage
 from src.card_data import CardData
 from src.configuration import write_configuration
-from src.advisor.engine import DraftAdvisor
-from src.signals import SignalCalculator
-from src.card_logic import filter_options, get_deck_metrics
+from src.card_logic import get_deck_metrics
+from src.snapshot_actions import compute_signals, evaluate_pack, resolve_colors
 
 logger = logging.getLogger(__name__)
 
@@ -212,20 +211,14 @@ class AppController:
             self.orchestrator.scanner.lock.release()
 
         # ADVISOR & SIGNAL MATH
-        sig_calc = SignalCalculator(metrics)
-        scores = {c: 0.0 for c in constants.CARD_COLORS}
-        for entry in history:
-            if entry["Pack"] == 2:
-                continue
-            h_pack: List[CardData] = self.orchestrator.scanner.set_data.get_data_by_id(
-                entry["Cards"]
-            )
-            for c, v in sig_calc.calculate_pack_signals(h_pack, entry["Pick"]).items():
-                scores[c] += v
+        scores = compute_signals(
+            metrics, history, self.orchestrator.scanner.set_data
+        )
 
         # Pass signals securely into Advisor
-        advisor = DraftAdvisor(metrics, taken_cards, signals=scores)
-        recommendations = advisor.evaluate_pack(pack_cards, pi, current_pack=pk)
+        recommendations = evaluate_pack(
+            metrics, taken_cards, scores, pack_cards, pi, pk
+        )
 
         # UPDATE UI STATE
         if pk > 0:
@@ -237,7 +230,7 @@ class AppController:
             if hasattr(self.app.top_bar, "lbl_status"):
                 self.app.top_bar.lbl_status.configure(bootstyle="secondary")
 
-        colors = filter_options(
+        colors = resolve_colors(
             taken_cards, self.config.settings.deck_filter, metrics, self.config
         )
 
