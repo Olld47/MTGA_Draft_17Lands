@@ -4,7 +4,7 @@ Evaluates pool strength, calculates holistic power scores, and identifies top la
 """
 
 from src import constants
-from src.card_logic import get_functional_cmc
+from src.card_logic import get_functional_cmc, get_oracle_text
 from src.advisor.mana_base import ManaSourceAnalyzer
 from src.sealed_logic import HeuristicEvaluator
 
@@ -147,9 +147,9 @@ def calculate_holistic_score(deck, colors, pool_size, metrics, tier_data=None):
             for c in deck
             if (
                 "fixing_ramp" in c.get("tags", [])
-                or "treasure" in str(c.get("oracle_text", c.get("text", ""))).lower()
-                or "add {" in str(c.get("oracle_text", c.get("text", ""))).lower()
-                or "adds {" in str(c.get("oracle_text", c.get("text", ""))).lower()
+                or "treasure" in get_oracle_text(c)
+                or "add {" in get_oracle_text(c)
+                or "adds {" in get_oracle_text(c)
             )
             and "Land" not in c.get("types", [])
         ),
@@ -185,7 +185,7 @@ def calculate_holistic_score(deck, colors, pool_size, metrics, tier_data=None):
     subtypes, changeling_count = {}, 0
     for c in spells:
         text, count = (
-            str(c.get("oracle_text", c.get("text", ""))).lower(),
+            get_oracle_text(c),
             c.get("count", 1),
         )
         if "changeling" in text:
@@ -200,8 +200,8 @@ def calculate_holistic_score(deck, colors, pool_size, metrics, tier_data=None):
         payoff_count = sum(
             c.get("count", 1)
             for c in spells
-            if "chosen type" in str(c.get("oracle_text", c.get("text", ""))).lower()
-            or top_tribe.lower() in str(c.get("oracle_text", c.get("text", ""))).lower()
+            if "chosen type" in get_oracle_text(c)
+            or top_tribe.lower() in get_oracle_text(c)
         )
 
         if total_tribe_density >= 6 and payoff_count >= 2:
@@ -213,9 +213,9 @@ def calculate_holistic_score(deck, colors, pool_size, metrics, tier_data=None):
         domain_payoffs = sum(
             c.get("count", 1)
             for c in spells
-            if "colors among" in str(c.get("oracle_text", c.get("text", ""))).lower()
+            if "colors among" in get_oracle_text(c)
             or "basic land types"
-            in str(c.get("oracle_text", c.get("text", ""))).lower()
+            in get_oracle_text(c)
         )
         fixing_count = ManaSourceAnalyzer(deck).total_fixing_cards
 
@@ -232,7 +232,7 @@ def calculate_holistic_score(deck, colors, pool_size, metrics, tier_data=None):
         for c in spells
         if "evasion" in c.get("tags", [])
         or any(
-            kw in str(c.get("oracle_text", c.get("text", ""))).lower()
+            kw in get_oracle_text(c)
             for kw in [
                 "flying",
                 "trample",

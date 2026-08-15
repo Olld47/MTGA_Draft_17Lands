@@ -9,6 +9,7 @@ import os
 import logging
 from typing import List, Dict, Optional, Tuple
 from src import constants
+from src.card_data import CardData
 
 logger = logging.getLogger(__name__)
 
@@ -27,8 +28,8 @@ class HeuristicEvaluator:
     }
 
     @classmethod
-    def evaluate(cls, card: Dict) -> float:
-        from src.card_logic import get_functional_cmc
+    def evaluate(cls, card: CardData) -> float:
+        from src.card_logic import get_functional_cmc, get_oracle_text
 
         rarity = str(card.get("rarity", "common")).lower()
         score = cls.BASE_SCORES.get(rarity, 52.0)
@@ -79,7 +80,7 @@ class HeuristicEvaluator:
                         "mana_sink",
                     ]
                 )
-                text = str(card.get("oracle_text", card.get("text", ""))).lower()
+                text = get_oracle_text(card)
                 good_keywords = any(
                     kw in text
                     for kw in [
@@ -139,14 +140,19 @@ class SealedVariant:
 class SealedSession:
     """The master state manager for the Sealed Studio."""
 
-    def __init__(self, session_id: str):
+    def __init__(self, session_id: str, session_dir: Optional[str] = None):
         self.session_id = session_id
-        self.master_pool: List[Dict] = []
+        # Injectable persistence directory (Ticket 08): tests pass a tmp_path;
+        # production keeps the TEMP_FOLDER default.
+        self.session_dir = (
+            session_dir if session_dir is not None else constants.TEMP_FOLDER
+        )
+        self.master_pool: List[CardData] = []
         self.variants: Dict[str, SealedVariant] = {}
         self.active_variant_name: str = ""
         self._pool_inventory: Dict[str, int] = {}
 
-    def load_pool(self, raw_pool: List[Dict]):
+    def load_pool(self, raw_pool: List[CardData]):
         self.master_pool = raw_pool
         self._pool_inventory.clear()
 
@@ -243,7 +249,7 @@ class SealedSession:
 
             self.variants[self.active_variant_name].remove_card(actual_name, count)
 
-    def get_active_deck_lists(self) -> Tuple[List[Dict], List[Dict]]:
+    def get_active_deck_lists(self) -> Tuple[List[CardData], List[CardData]]:
         if not self.active_variant_name:
             return [], []
 
@@ -289,7 +295,7 @@ class SealedSession:
         return main_deck, sideboard
 
     def save_session(self):
-        filepath = os.path.join(constants.TEMP_FOLDER, f"sealed_{self.session_id}.json")
+        filepath = os.path.join(self.session_dir, f"sealed_{self.session_id}.json")
         try:
             data = {
                 "session_id": self.session_id,
@@ -303,9 +309,15 @@ class SealedSession:
 
     @classmethod
     def load_session(
-        cls, session_id: str, raw_pool: List[Dict]
+        cls,
+        session_id: str,
+        raw_pool: List[CardData],
+        session_dir: Optional[str] = None,
     ) -> Optional["SealedSession"]:
-        filepath = os.path.join(constants.TEMP_FOLDER, f"sealed_{session_id}.json")
+        filepath = os.path.join(
+            session_dir if session_dir is not None else constants.TEMP_FOLDER,
+            f"sealed_{session_id}.json",
+        )
         if not os.path.exists(filepath):
             return None
         try:
@@ -314,7 +326,7 @@ class SealedSession:
             if data.get("session_id") != session_id:
                 return None
 
-            session = cls(session_id)
+            session = cls(session_id, session_dir)
             session.load_pool(raw_pool)
             session.active_variant_name = data.get("active_variant_name", "")
             for k, v_data in data.get("variants", {}).items():
@@ -329,11 +341,13 @@ def generate_sealed_shells(session: SealedSession, metrics, tier_data=None) -> N
     Analyzes the SealedSession's master pool and mathematically generates
     the top 3 distinct shells, loading them directly into the session variants.
     """
-    from src.card_logic import (
-        identify_top_pairs,
+    from src.advisor.deck_builder import (
         build_variant_consistency,
         build_variant_greedy,
         build_variant_curve,
+    )
+    from src.advisor.deck_scorer import (
+        identify_top_pairs,
         calculate_holistic_score,
     )
 

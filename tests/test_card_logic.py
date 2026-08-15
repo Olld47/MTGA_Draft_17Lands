@@ -254,3 +254,306 @@ def test_get_functional_cmc_mechanics():
     # 4. Empty/Missing Data
     assert get_functional_cmc({}) == 0
     assert get_functional_cmc({"cmc": 2, "oracle_text": None}) == 2
+
+
+# --- card text normalization --------------------------------------------------
+
+def test_get_oracle_text_normalizes_card_text():
+    """get_oracle_text is the single normalized card-text accessor. It lower-cases
+    string oracle text and falls back to \"\" — without raising — for cards with
+    no usable text (missing, None, empty, or non-string)."""
+    from src.card_logic import get_oracle_text
+
+    # String text -> lower-cased, otherwise untouched
+    assert (
+        get_oracle_text({"oracle_text": "Lightning Bolt deals 3 damage."})
+        == "lightning bolt deals 3 damage."
+    )
+    assert get_oracle_text({"oracle_text": "  Mixed CASE  "}) == "  mixed case  "
+    # Missing key, None, empty, and non-string values -> "" (never raise)
+    assert get_oracle_text({}) == ""
+    assert get_oracle_text({"oracle_text": None}) == ""
+    assert get_oracle_text({"oracle_text": ""}) == ""
+    assert get_oracle_text({"oracle_text": 123}) == ""
+
+
+# --- deck filter labels ------------------------------------------------------
+
+
+def test_filter_display_name_uses_the_guild_name_under_the_names_format():
+    from src.card_logic import filter_display_name
+
+    assert (
+        filter_display_name("WU", constants.DECK_FILTER_FORMAT_NAMES) == "Azorius"
+    )
+    assert filter_display_name("WU", constants.DECK_FILTER_FORMAT_COLORS) == "WU"
+
+
+def test_filter_display_name_passes_through_keys_with_no_guild_name():
+    """Auto and All Decks are in DECK_FILTERS but not COLOR_NAMES_DICT, so the
+    Names format has to fall back to the key rather than to an empty string."""
+    from src.card_logic import filter_display_name
+
+    for key in (constants.FILTER_OPTION_AUTO, constants.FILTER_OPTION_ALL_DECKS):
+        assert filter_display_name(key, constants.DECK_FILTER_FORMAT_NAMES) == key
+
+
+def test_filter_win_rate_distinguishes_absent_from_zero():
+    """None means 17Lands reported nothing; 0.0 is a real (terrible) rate. The
+    UI branches on the difference, so they must not collapse."""
+    from src.card_logic import filter_win_rate
+
+    assert filter_win_rate("WU", {"WU": 0.0}) == 0.0
+    assert filter_win_rate("UB", {"WU": 56.3}) is None
+    assert filter_win_rate("WU", {}) is None
+    assert filter_win_rate("WU", None) is None
+
+
+def test_format_filter_label_appends_the_rate_only_when_present():
+    from src.card_logic import format_filter_label
+
+    ratings = {"WU": 56.3}
+    assert (
+        format_filter_label("WU", constants.DECK_FILTER_FORMAT_NAMES, ratings)
+        == "Azorius (56.3%)"
+    )
+    assert (
+        format_filter_label("WU", constants.DECK_FILTER_FORMAT_COLORS, ratings)
+        == "WU (56.3%)"
+    )
+    assert (
+        format_filter_label("UB", constants.DECK_FILTER_FORMAT_COLORS, ratings) == "UB"
+    )
+
+
+def test_deck_filter_stats_falls_back_to_all_decks_when_archetype_has_no_games():
+    """A card with zero games in the active archetype (samples 0) must not
+    render its placeholder 0.0 rates when 17Lands has real numbers under
+    All Decks — the "data exists but the tool shows 0" bug."""
+    from src.card_logic import deck_filter_stats
+
+    card = {
+        constants.DATA_FIELD_DECK_COLORS: {
+            "All Decks": {"gihwr": 61.0, "samples": 4000},
+            "WU": {"gihwr": 0.0, "samples": 0},  # never played in WU decks
+        }
+    }
+    assert deck_filter_stats(card, "WU")["gihwr"] == 61.0
+
+
+def test_deck_filter_stats_keeps_the_active_filter_once_it_has_games():
+    """samples > 0 means the rate is real — a genuine 0% must stay 0%, and a
+    populated lane must not be masked by the broad All Decks aggregate."""
+    from src.card_logic import deck_filter_stats
+
+    card = {
+        constants.DATA_FIELD_DECK_COLORS: {
+            "All Decks": {"gihwr": 55.0, "samples": 4000},
+            "WU": {"gihwr": 0.0, "samples": 300},  # a real 0% from actual games
+        }
+    }
+    assert deck_filter_stats(card, "WU")["gihwr"] == 0.0
+    assert deck_filter_stats(card, "All Decks")["gihwr"] == 55.0
+
+
+def test_deck_filter_stats_does_not_invent_data():
+    """When neither lane has games the placeholder lane is returned untouched —
+    the caller decides how to render a card with no data anywhere."""
+    from src.card_logic import deck_filter_stats
+
+    card = {
+        constants.DATA_FIELD_DECK_COLORS: {
+            "All Decks": {"gihwr": 0.0, "samples": 0},
+            "WU": {"gihwr": 0.0, "samples": 0},
+        }
+    }
+    assert deck_filter_stats(card, "WU")["gihwr"] == 0.0
+    assert deck_filter_stats(card, "BG") == {}
+
+
+# --- card_logic ↔ deck_builder circular import -------------------------------
+
+
+def test_deck_builder_imports_standalone_without_card_logic():
+    """Acceptance for the P1 fix: importing deck_builder first (before
+    card_logic) must succeed. It used to raise ImportError because card_logic
+    eagerly re-exported deck_builder symbols at module scope. Run in a fresh
+    interpreter because pytest already holds both modules in sys.modules."""
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    repo_root = Path(__file__).resolve().parents[1]
+    result = subprocess.run(
+        [sys.executable, "-c", "import src.advisor.deck_builder"],
+        cwd=str(repo_root),
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
+
+
+def test_card_logic_no_longer_re_exports_deck_builder_symbols():
+    """card_logic must not carry the deck-layer symbols at all — importing them
+    here both reintroduces the cycle and hides their true home. Import the names
+    from src.advisor.deck_builder directly."""
+    import src.card_logic as card_logic
+
+    for name in (
+        "suggest_deck",
+        "optimize_deck",
+        "clear_deck_cache",
+        "get_sideboard",
+        "GLOBAL_DECK_CACHE",
+        "build_variant_consistency",
+        "build_variant_greedy",
+        "build_variant_curve",
+        "build_variant_soup",
+    ):
+        assert not hasattr(card_logic, name), (
+            f"src.card_logic re-exports {name}; import it from "
+            "src.advisor.deck_builder instead"
+        )
+
+
+# --- card_logic ↔ advisor-layer circular import ------------------------------
+
+# Every advisor symbol card_logic used to re-export at module scope (simulator /
+# deck_scorer / mana_base), and their true homes. The standalone-import tests
+# below are run in a fresh interpreter because pytest already holds both
+# card_logic and the advisor modules in sys.modules, which would mask the cycle.
+_ADVISOR_RE_EXPORTED = (
+    # src.advisor.simulator
+    "simulate_deck",
+    # src.advisor.mana_base
+    "calculate_dynamic_mana_base",
+    "create_basic_lands",
+    "is_castable",
+    "ManaSourceAnalyzer",
+    "count_fixing",
+    "get_strict_colors",
+    "select_useful_lands",
+    # src.advisor.deck_scorer
+    "TIER_TO_GIHWR",
+    "get_card_rating",
+    "identify_top_pairs",
+    "calculate_holistic_score",
+    "estimate_record",
+)
+
+
+def _fresh_interpreter_ok(statement):
+    """Runs `statement` in a fresh interpreter at the repo root. Returns False
+    when the interpreter exits non-zero (the statement raised)."""
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    repo_root = Path(__file__).resolve().parents[1]
+    result = subprocess.run(
+        [sys.executable, "-c", statement],
+        cwd=str(repo_root),
+        capture_output=True,
+        text=True,
+    )
+    return result.returncode == 0, result.stderr
+
+
+def test_simulator_imports_standalone_without_card_logic():
+    """Importing simulator first (before card_logic) used to raise ImportError:
+    card_logic eagerly re-imported simulate_deck at module scope while simulator
+    was still initializing, mid-way through its own import of card_logic."""
+    ok, stderr = _fresh_interpreter_ok("import src.advisor.simulator")
+    assert ok, stderr
+
+
+def test_deck_scorer_imports_standalone_without_card_logic():
+    """Same import-order fragility for deck_scorer: importing it first used to
+    raise ImportError on the re-exported TIER_TO_GIHWR block."""
+    ok, stderr = _fresh_interpreter_ok("import src.advisor.deck_scorer")
+    assert ok, stderr
+
+
+def test_mana_base_imports_standalone_without_card_logic():
+    """mana_base has no card_logic dependency of its own, but its symbols were
+    re-exported by card_logic all the same — importing it first must work and
+    never pull card_logic's re-export hub back in."""
+    ok, stderr = _fresh_interpreter_ok("import src.advisor.mana_base")
+    assert ok, stderr
+
+
+def test_card_logic_no_longer_re_exports_advisor_symbols():
+    """card_logic must not carry any simulator / deck_scorer / mana_base symbol.
+    Re-adding one here both reintroduces the import-order cycle and hides the
+    symbol's true home. Import them from src.advisor.<module> directly."""
+    import src.card_logic as card_logic
+
+    for name in _ADVISOR_RE_EXPORTED:
+        assert not hasattr(card_logic, name), (
+            f"src.card_logic re-exports {name}; import it from its real "
+            "advisor module instead"
+        )
+
+
+def test_card_logic_does_not_transitively_import_advisor_layer():
+    """Importing card_logic alone must not drag the advisor layer (numba, deck
+    scoring, simulation) into the interpreter. card_logic's own one use of this
+    block (identify_top_pairs in filter_options) must be function-local."""
+    statement = (
+        "import src.card_logic, sys\n"
+        "leaked = sorted(m for m in sys.modules if m.startswith('src.advisor'))\n"
+        "assert not leaked, leaked"
+    )
+    ok, stderr = _fresh_interpreter_ok(statement)
+    assert ok, stderr
+
+
+def test_card_text_access_uses_shared_helper():
+    """No advisor / card-logic module may inline the lowercased-oracle_text
+    access. Everyone calls get_oracle_text() so normalization has a single
+    definition and one place to adjust when the card shape changes."""
+    import re
+    from pathlib import Path
+
+    repo_root = Path(__file__).resolve().parents[1]
+    targets = [
+        repo_root / "src" / "card_logic.py",
+        repo_root / "src" / "sealed_logic.py",
+        *sorted((repo_root / "src" / "advisor").glob("*.py")),
+    ]
+    pattern = re.compile(r'get\("oracle_text",\s*""\)+\.lower\(\)')
+    offenders = {}
+    for path in targets:
+        for lineno, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            if pattern.search(line):
+                offenders.setdefault(str(path), []).append(lineno)
+    assert not offenders, (
+        "inline lowercased-oracle_text access still present; use "
+        f"src.card_logic.get_oracle_text instead: {offenders}"
+    )
+
+
+def test_no_call_site_stringifies_oracle_text_to_none():
+    """No advisor / card-logic module may wrap a raw oracle_text dict access in
+    str(). A None oracle_text stringifies to \"None\" — lower-cased \"none\" —
+    the exact regression get_oracle_text's empty-string fallback was built to
+    prevent. Everyone routes through get_oracle_text."""
+    import re
+    from pathlib import Path
+
+    repo_root = Path(__file__).resolve().parents[1]
+    targets = [
+        repo_root / "src" / "card_logic.py",
+        repo_root / "src" / "sealed_logic.py",
+        *sorted((repo_root / "src" / "advisor").glob("*.py")),
+    ]
+    pattern = re.compile(r'str\(\s*[^)]*\bget\("oracle_text"')
+    offenders = {}
+    for path in targets:
+        for lineno, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            if pattern.search(line):
+                offenders.setdefault(str(path), []).append(lineno)
+    assert not offenders, (
+        "raw oracle_text access stringified with str() (None -> \"none\"); use "
+        f"src.card_logic.get_oracle_text instead: {offenders}"
+    )

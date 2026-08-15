@@ -46,6 +46,9 @@ MANIFEST
 #  before PyInstaller builds the exe, so as to inject date/other infos into it.
 *.manifest
 
+# Node.js dependencies
+node_modules/
+
 # Installer logs
 pip-log.txt
 pip-delete-this-directory.txt
@@ -184,3 +187,19 @@ repomix-output.*
 
 # Personal todo list
 todo.md
+
+# CLAUDE
+.claude/
+CLAUDE.md
+CHANGELOG.md
+plan.md
+review.md
+.scratch/
+.env
+.mcp.json
+
+# CODEX
+AGENTS.md
+
+# OMP
+.omp/

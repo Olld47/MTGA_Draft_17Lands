@@ -14,14 +14,27 @@ import io
 import csv
 import json
 from src import constants
+from src.card_data import CardData
 from src.logger import create_logger
 
 logger = create_logger()
 
+# --- CARD-TEXT HELPER ---
+
+
+def get_oracle_text(card: CardData) -> str:
+    """Returns the lower-cased oracle text of a card, safe for substring
+    matching. The single normalization point for card text: falls back to ""
+    — without raising — for cards with no usable text (missing / None / empty /
+    non-string ``oracle_text``). Never stringify ``None`` into ``"none"``."""
+    text = card.get("oracle_text", "")
+    return text.lower() if isinstance(text, str) else ""
+
+
 # --- HELPER CLASSES ---
 
 
-def get_functional_cmc(card: dict) -> int:
+def get_functional_cmc(card: CardData) -> int:
     """
     Determines the practical mana cost of a card by checking for cost-reduction
     mechanics, alternate casting costs (Disguise/Morph/Evoke), and channel abilities.
@@ -29,7 +42,7 @@ def get_functional_cmc(card: dict) -> int:
     """
     try:
         raw_cmc = int(card.get("cmc", 0))
-        text = str(card.get("oracle_text", card.get("text", ""))).lower()
+        text = get_oracle_text(card)
 
         if not text:
             return raw_cmc
@@ -152,6 +165,8 @@ def filter_options(deck, option_selection, metrics, configuration):
         if len(deck) < 5:
             return [constants.FILTER_OPTION_ALL_DECKS]
 
+        from src.advisor.deck_scorer import identify_top_pairs
+
         top_pair = identify_top_pairs(deck, metrics)
         if top_pair and top_pair[0]:
             from src.utils import normalize_color_string
@@ -169,6 +184,53 @@ def filter_options(deck, option_selection, metrics, configuration):
         logger.error(f"Auto filter error: {e}")
 
     return [constants.FILTER_OPTION_ALL_DECKS]
+
+
+def deck_filter_stats(card: CardData, active_filter: str) -> dict:
+    """The per-archetype stats to render for a card under the active filter.
+
+    17Lands records per-card rates per deck archetype. A card that never
+    appeared in this exact color combination ships `samples: 0` with every
+    rate at 0.0 — the dataset's no-data placeholder. Rendering that as a real
+    0% win rate is the "17Lands has the number but the tool shows 0" bug. When
+    the active archetype has no games but the set-wide "All Decks" lane does,
+    fall back to it: the same card's real rate, aggregated over every deck."""
+    deck_colors = card.get(constants.DATA_FIELD_DECK_COLORS, {}) or {}
+    stats = deck_colors.get(active_filter, {})
+    if (
+        active_filter != constants.FILTER_OPTION_ALL_DECKS
+        and not stats.get("samples")
+    ):
+        all_decks = deck_colors.get(constants.FILTER_OPTION_ALL_DECKS, {})
+        if all_decks.get("samples"):
+            return all_decks
+    return stats
+
+
+def filter_display_name(filter_key, filter_format):
+    """A deck filter as the user asked to see it: "Azorius" under the Names
+    format, "WU" under Colors. Falls back to the key for anything absent from
+    COLOR_NAMES_DICT, which is what "Auto" and "All Decks" hit."""
+    if filter_format != constants.DECK_FILTER_FORMAT_NAMES:
+        return filter_key
+    return constants.COLOR_NAMES_DICT.get(filter_key, filter_key)
+
+
+def filter_win_rate(filter_key, color_ratings):
+    """The archetype's overall win rate, or None when 17Lands reported no
+    ratings for it. 0.0 is not usable as the absent value: a real archetype can
+    round to it, and the UI has to tell "no data" from "terrible"."""
+    if not color_ratings:
+        return None
+    return color_ratings.get(filter_key)
+
+
+def format_filter_label(filter_key, filter_format, color_ratings):
+    """The label the filter dropdown and the masthead both show, e.g.
+    "Azorius (56.3%)". Mirrors log_scanner.retrieve_color_win_rate's format."""
+    name = filter_display_name(filter_key, filter_format)
+    rate = filter_win_rate(filter_key, color_ratings)
+    return f"{name} ({rate}%)" if rate is not None else name
 
 
 def get_deck_metrics(deck):
@@ -282,6 +344,26 @@ def stack_cards(cards):
         else:
             stacked[name]["count"] += 1
     return list(stacked.values())
+
+
+def count_copies(cards):
+    """Card count of a stacked list, where each row carries a count."""
+    return sum(c.get(constants.DATA_FIELD_COUNT, 1) for c in cards)
+
+
+def take_copies(cards, limit):
+    """The first `limit` copies, splitting the row that straddles the boundary."""
+    taken = []
+    remaining = limit
+    for card in cards:
+        if remaining <= 0:
+            break
+        count = min(card.get(constants.DATA_FIELD_COUNT, 1), remaining)
+        row = dict(card)
+        row[constants.DATA_FIELD_COUNT] = count
+        taken.append(row)
+        remaining -= count
+    return taken
 
 
 def copy_deck(deck, sideboard):
@@ -500,32 +582,13 @@ class CardResult:
         return val
 
 
-# === EXTRACTED LOGIC IMPORTS ===
-from src.advisor.simulator import simulate_deck
-from src.advisor.mana_base import (
-    calculate_dynamic_mana_base,
-    create_basic_lands,
-    is_castable,
-    ManaSourceAnalyzer,
-    count_fixing,
-    get_strict_colors,
-    select_useful_lands,
-)
-from src.advisor.deck_scorer import (
-    TIER_TO_GIHWR,
-    get_card_rating,
-    identify_top_pairs,
-    calculate_holistic_score,
-    estimate_record,
-)
-from src.advisor.deck_builder import (
-    GLOBAL_DECK_CACHE,
-    clear_deck_cache,
-    get_sideboard,
-    optimize_deck,
-    suggest_deck,
-    build_variant_consistency,
-    build_variant_greedy,
-    build_variant_curve,
-    build_variant_soup,
-)
+# NOTE: no advisor-layer symbols are re-exported from this module. The simulator
+# / deck_scorer / mana_base / deck_builder names that once lived here at module
+# scope formed circular imports that only resolved by import order (importing
+# any of those modules first raised ImportError), and dragged the whole advisor
+# stack in whenever this low-level module was imported. Consumers must import
+# those names from their real modules — src.advisor.simulator, src.advisor.deck_scorer,
+# src.advisor.mana_base, src.advisor.deck_builder — directly. The one symbol this
+# module still calls (identify_top_pairs, in filter_options) is imported
+# function-locally, so card_logic never depends on the advisor layer at import
+# time.

@@ -12,6 +12,7 @@ from src.configuration import (
     reset_configuration,
     Configuration,
     get_config_path,
+    Settings,
 )
 
 
@@ -142,3 +143,118 @@ def test_get_config_path():
         # On Linux logic: expanduser("~/.config") -> "/User/Home/.config"
         expected = os.path.join("/User/Home/.config", "MTGA_Draft_Tool", "config.json")
         assert get_config_path() == expected
+
+
+def test_language_validator_accepts_listed_and_falls_back():
+    """Settings.language accepts the constants.LANGUAGE_LIST values and falls
+    back to the default on anything else (mirrors validate_desktop_theme)."""
+    from src import constants
+
+    assert Settings().language == constants.LANGUAGE_DEFAULT
+    assert Settings(language="zh").language == "zh"
+    assert Settings(language="fr").language == constants.LANGUAGE_DEFAULT
+
+
+def test_read_configuration_ignores_removed_tk_fields(tmp_path):
+    """Old configs carrying the removed tkinter settings still load: unknown
+    keys are ignored by Pydantic, so no migration or compatibility alias is
+    needed for the legacy fields."""
+    file_location = tmp_path / "config.json"
+    legacy = {
+        "settings": {
+            "default_ui": "tkinter",
+            "theme": "Dark",
+            "theme_base": "clam",
+            "theme_palette": "Neutral",
+            "theme_custom_path": "",
+            "show_splash_screen": True,
+            "table_width": 270,
+            "main_window_geometry": "600x1080",
+            "paned_window_sash": 500,
+            "dashboard_sash": 800,
+            "collapsible_states": {"sidebar_panel": True},
+            "ui_size": "100%",
+        }
+    }
+    with open(file_location, "w") as f:
+        json.dump(legacy, f)
+
+    config, success = read_configuration(file_location)
+
+    assert success is True
+    assert config.settings.ui_size == "100%"
+
+
+def test_write_configuration_drops_removed_tk_fields(tmp_path):
+    """Reserializing an old config strips the removed keys: the next save
+    permanently cleans them out without a migration pass, while kept desktop
+    fields survive untouched."""
+    file_location = tmp_path / "config.json"
+    legacy = {
+        "settings": {
+            "default_ui": "tkinter",
+            "theme": "Dark",
+            "table_width": 270,
+            "ui_size": "120%",
+            "desktop_theme": "Dark",
+            "language": "zh",
+        }
+    }
+    with open(file_location, "w") as f:
+        json.dump(legacy, f)
+    config, _ = read_configuration(file_location)
+
+    success = write_configuration(config, file_location)
+
+    assert success is True
+    with open(file_location, "r") as f:
+        written = json.load(f)
+    removed = {
+        "default_ui",
+        "theme",
+        "theme_base",
+        "theme_palette",
+        "theme_custom_path",
+        "show_splash_screen",
+        "table_width",
+        "main_window_geometry",
+        "paned_window_sash",
+        "dashboard_sash",
+        "collapsible_states",
+    }
+    assert not removed & set(written["settings"])
+    assert written["settings"]["ui_size"] == "120%"
+    assert written["settings"]["desktop_theme"] == "Dark"
+    assert written["settings"]["language"] == "zh"
+
+
+def test_write_configuration_error_notifier(tmp_path, example_configuration):
+    """A registered error notifier is invoked when the config write fails."""
+    from src import configuration as config_module
+
+    calls = []
+    config_module.set_error_notifier(lambda title, msg: calls.append((title, msg)))
+    try:
+        # Force a write failure via an unwritable path replacement
+        with patch("os.replace", side_effect=OSError("locked")):
+            success = write_configuration(
+                example_configuration, str(tmp_path / "config.json")
+            )
+        assert success is False
+        assert len(calls) == 1
+        assert calls[0][0] == "Settings Save Error"
+        assert "locked" in calls[0][1]
+    finally:
+        config_module.set_error_notifier(None)
+
+
+def test_write_configuration_no_notifier(tmp_path, example_configuration):
+    """Without a notifier, a failed write is logged but raises nothing."""
+    from src import configuration as config_module
+
+    config_module.set_error_notifier(None)
+    with patch("os.replace", side_effect=OSError("locked")):
+        success = write_configuration(
+            example_configuration, str(tmp_path / "config.json")
+        )
+    assert success is False

@@ -3,19 +3,9 @@ import sys
 import logging
 import logging.handlers
 
+from src.app_paths import resolve_base_dir
 
-def _get_logger_base_dir():
-    if getattr(sys, "frozen", False):
-        if sys.platform == "darwin":
-            return os.path.expanduser("~/Library/Application Support/MTGA_Draft_Tool")
-        elif sys.platform == "linux":
-            return os.path.expanduser("~/.config/MTGA_Draft_Tool")
-        else:
-            return os.path.dirname(sys.executable)
-    return os.getcwd()
-
-
-DEBUG_LOG_FOLDER = os.path.join(_get_logger_base_dir(), "Debug")
+DEBUG_LOG_FOLDER = os.path.join(resolve_base_dir(), "Debug")
 DEBUG_LOG_FILE = os.path.join(DEBUG_LOG_FOLDER, "debug.log")
 DEBUG_LOGGER_NAME = "debug_log"
 

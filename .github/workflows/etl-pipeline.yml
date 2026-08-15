@@ -1,3 +1,10 @@
+# Daily dataset ETL. Aggregates Scryfall + 17Lands telemetry into compressed
+# .json.gz datasets (plus manifest.json and report.json) and publishes them to
+# GitHub Pages — the primary data source for the desktop app's DatasetUpdater,
+# which syncs at most once per UTC day. server/main.py also runs post-transform
+# data-quality checks; a broken run is surfaced to users through report.json's
+# pipeline_run.status, which the client reads as a health flag.
+
 name: Daily Dataset ETL Pipeline
 
 on:
@@ -36,14 +43,26 @@ jobs:
           ref: gh-pages
           path: build
 
+      - name: Get current UTC date
+        id: date
+        # Rotates the cache key every UTC day (the server keys on UTC). actions/cache
+        # does not overwrite an existing key, so without rotation the blob freezes at
+        # its first run and the Scryfall 7-day cache silently stops persisting.
+        run: echo "date=$(date -u +'%Y-%m-%d')" >> "$GITHUB_OUTPUT"
+
       - name: Restore API Caches
         uses: actions/cache@v4
         with:
-          # Tell GitHub to save/restore the two folders we moved in Fix 1
+          # Tell GitHub to save/restore the two folders the pipeline uses.
           path: |
             .api_cache
             .scryfall_cache
-          # Cache key based on the date so it refreshes naturally
+          # Fresh key each UTC day so the save always lands and the cache rolls
+          # forward day to day. The restored files keep their mtimes, so the
+          # server's own TTLs drive freshness: 17Lands is re-fetched every run
+          # (12h TTL, feeding the client's once-per-UTC-day sync) while Scryfall
+          # base data persists up to 7 days. restore-keys falls back to the most
+          # recent previous day when the exact key misses.
           key: etl-cache-${{ runner.os }}-${{ steps.date.outputs.date }}
           restore-keys: |
             etl-cache-${{ runner.os }}-

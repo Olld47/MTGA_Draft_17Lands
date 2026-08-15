@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MTGA Draft Tool</title>
+    <script>
+      // Settings arrive over async IPC, so paint the last known palette first
+      // or every Light user gets a dark flash on launch. state/theme.ts owns
+      // the key and overwrites this once the real preference loads.
+      try {
+        document.documentElement.dataset.theme =
+          localStorage.getItem("mtga.theme") || "dark";
+        document.documentElement.lang =
+          localStorage.getItem("mtga.lang") || "en";
+        // state/scale.ts owns this key and overwrites it once the real setting
+        // loads; painting it first avoids a zoom flash on launch. The bounds
+        // come from state/uiScaleClamp.ts — the module this script can't
+        // import (it runs before the bundle loads), so vite.config.ts rewrites
+        // the two literals below from that module at every dev/build, and
+        // tests/test_desktop_bundle_config.py pins them to the same values.
+        const UI_SCALE_MIN = 0.4;
+        const UI_SCALE_MAX = 2.5;
+        // Absent key (first launch) must default to 1, not clamp to the
+        // minimum: Number(null) is 0, which would paint a 40% zoom flash.
+        const storedRaw = localStorage.getItem("mtga.uiScale");
+        const storedScale = storedRaw === null ? null : Number(storedRaw);
+        const uiScaleFactor =
+          storedScale === null || !Number.isFinite(storedScale)
+            ? 1
+            : Math.min(Math.max(storedScale, UI_SCALE_MIN), UI_SCALE_MAX);
+        document.documentElement.style.setProperty(
+          "--ui-scale",
+          String(uiScaleFactor),
+        );
+      } catch (e) {
+        document.documentElement.dataset.theme = "dark";
+      }
+    </script>
+  </head>
+
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

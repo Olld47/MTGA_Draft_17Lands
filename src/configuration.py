@@ -6,13 +6,22 @@ import sys
 import tempfile
 import threading
 from pydantic import BaseModel, field_validator, Field
-from typing import List, Dict, Tuple
+from typing import Callable, List, Dict, Optional, Tuple
 from src import constants
 from src.logger import create_logger
 from src.constants import BASE_DIR
 
 logger = create_logger()
 CONFIG_LOCK = threading.RLock()
+
+# Pluggable UI-agnostic error notifier; unset, errors are only logged.
+_error_notifier: Optional[Callable[[str, str], None]] = None
+
+
+def set_error_notifier(notifier: Optional[Callable[[str, str], None]]):
+    """Registers a callable(title, message) used to surface config errors to the user."""
+    global _error_notifier
+    _error_notifier = notifier
 
 
 def get_config_path():
@@ -57,14 +66,7 @@ class DeckType(BaseModel):
 class Settings(BaseModel):
     """This class holds UI settings"""
 
-    table_width: int = 270
     overlay_geometry: str = "300x600+50+50"
-
-    main_window_geometry: str = "600x1080"
-    paned_window_sash: int = 500
-    dashboard_sash: int = 800
-
-    collapsible_states: Dict[str, bool] = Field(default_factory=dict)
 
     column_configs: Dict[str, List[str]] = Field(
         default_factory=lambda: {
@@ -83,10 +85,12 @@ class Settings(BaseModel):
     filter_format: str = constants.DECK_FILTER_FORMAT_COLORS
     result_format: str = constants.RESULT_FORMAT_WIN_RATE
     ui_size: str = constants.UI_SIZE_DEFAULT
-    theme: str = "Dark"
-    theme_base: str = "clam"  # aqua, vista, clam, etc.
-    theme_palette: str = "Neutral"  # Forest, Island, etc.
-    theme_custom_path: str = ""  # Path to user's .tcl file
+    # The pytauri desktop UI's appearance; the React frontend maps this to its
+    # light/dark/system themes.
+    desktop_theme: str = constants.DESKTOP_THEME_DEFAULT
+    # UI language for the pytauri desktop (frontend picks the locale dict from
+    # this).
+    language: str = constants.LANGUAGE_DEFAULT
 
     # Core Feature Toggles
     always_on_top: bool = False
@@ -95,7 +99,6 @@ class Settings(BaseModel):
     update_notifications_enabled: bool = True
     missing_notifications_enabled: bool = True
     auto_sync_datasets: bool = True
-    show_splash_screen: bool = True
 
     # System Paths (Restored)
     arena_log_location: str = ""
@@ -133,6 +136,22 @@ class Settings(BaseModel):
     @classmethod
     def validate_ui_size(cls, value, info):
         allowed_values = constants.UI_SIZE_DICT
+        if value not in allowed_values:
+            return cls.model_fields[info.field_name].default
+        return value
+
+    @field_validator("desktop_theme")
+    @classmethod
+    def validate_desktop_theme(cls, value, info):
+        allowed_values = constants.DESKTOP_THEME_LIST
+        if value not in allowed_values:
+            return cls.model_fields[info.field_name].default
+        return value
+
+    @field_validator("language")
+    @classmethod
+    def validate_language(cls, value, info):
+        allowed_values = constants.LANGUAGE_LIST
         if value not in allowed_values:
             return cls.model_fields[info.field_name].default
         return value
@@ -181,6 +200,9 @@ class CardData(BaseModel):
     latest_dataset: str = ""
     last_check: float = 0
     last_auto_check: float = 0
+    # UTC date (YYYY-MM-DD) the cloud datasets were last auto-refreshed. Drives
+    # the once-per-natural-day auto-sync gate; manual downloads ignore it.
+    last_auto_sync_date: str = ""
 
 
 class Configuration(BaseModel):
@@ -245,15 +267,14 @@ def write_configuration(
             print(f"Failed to save settings to {file_location}: {error}")
 
             # ALERT THE USER IF SAVING FAILS (Anti-virus, OneDrive sync locks, etc.)
-            try:
-                import tkinter.messagebox
-
-                tkinter.messagebox.showerror(
-                    "Settings Save Error",
-                    f"Could not save preferences to {file_location}.\n\nThis is usually caused by an Anti-Virus or OneDrive temporarily locking the file.\n\nError: {error}",
-                )
-            except Exception:
-                pass
+            if _error_notifier:
+                try:
+                    _error_notifier(
+                        "Settings Save Error",
+                        f"Could not save preferences to {file_location}.\n\nThis is usually caused by an Anti-Virus or OneDrive temporarily locking the file.\n\nError: {error}",
+                    )
+                except Exception:
+                    pass
 
             # Clean up the temp file if the replace failed
             try:

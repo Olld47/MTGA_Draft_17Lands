@@ -18,7 +18,12 @@ from src.log_scanner import ArenaScanner
 @pytest.fixture
 def scanner(tmp_path):
     """Fresh scanner with retrieve_unknown=True so any string ID is its own card name."""
-    s = ArenaScanner(str(tmp_path / "Player.log"), [], retrieve_unknown=True)
+    s = ArenaScanner(
+        str(tmp_path / "Player.log"),
+        [],
+        retrieve_unknown=True,
+        state_file=str(tmp_path / "active_draft_state.json"),
+    )
     s.log_enable(False)
     return s
 

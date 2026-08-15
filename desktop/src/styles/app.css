@@ -1,0 +1,1705 @@
+/* App shell, dashboard grid, tables, advisor rail, signal ledger */
+
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+/* --- Boot screen --- */
+
+.boot-screen {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+}
+
+.boot-screen h1 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: var(--text-xl);
+  letter-spacing: 0.01em;
+  margin: 0;
+}
+
+.boot-log {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--gruff);
+  min-height: 1.4em;
+  max-width: 480px;
+  text-align: center;
+}
+
+.boot-error {
+  color: var(--err);
+  font-size: var(--text-sm);
+  max-width: 480px;
+  text-align: center;
+}
+
+/* --- Masthead --- */
+
+.masthead {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  padding: 14px 20px 10px;
+  border-bottom: 1px solid var(--line);
+}
+
+.masthead .event-name {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: var(--text-lg);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.masthead .pack-pick {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--text-xl);
+  letter-spacing: 0.02em;
+}
+
+.masthead .spacer {
+  flex: 1;
+}
+
+.log-switcher {
+  font-size: var(--text-xs);
+  max-width: 240px;
+  align-self: center;
+  text-overflow: ellipsis;
+}
+
+.dataset-switcher {
+  display: flex;
+  gap: 6px;
+  align-self: center;
+}
+
+.dataset-switcher select {
+  font-size: var(--text-xs);
+  max-width: 140px;
+}
+
+.context-menu {
+  position: fixed;
+  z-index: 100;
+  min-width: 190px;
+  padding: 4px;
+  background: var(--felt);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-pop);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.context-menu button {
+  text-align: left;
+  font-size: var(--text-sm);
+  color: var(--parchment);
+  padding: 6px 10px;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.context-menu button:hover {
+  background: var(--felt-hover);
+}
+
+.context-menu hr {
+  border: none;
+  border-top: 1px solid var(--line);
+  margin: 3px 4px;
+}
+
+.filter-pill {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--gold-foil);
+  border: 1px solid var(--gold-foil-dim);
+  border-radius: 999px;
+  padding: 3px 12px;
+  background: transparent;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--gruff);
+  flex: none;
+  align-self: center;
+}
+
+.status-dot.live {
+  background: var(--ok);
+}
+
+.status-text {
+  font-size: var(--text-xs);
+  color: var(--gruff);
+  align-self: center;
+}
+
+/* --- Tabs --- */
+
+.tab-strip {
+  display: flex;
+  gap: 2px;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--line);
+}
+
+.tab-strip button {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  color: var(--gruff);
+  padding: 9px 14px;
+  font-size: var(--text-sm);
+}
+
+.tab-strip button:hover {
+  color: var(--parchment);
+  background: none;
+}
+
+.tab-strip button.active {
+  color: var(--parchment);
+  border-bottom-color: var(--gold-foil);
+}
+
+.tab-body {
+  flex: 1;
+  overflow: auto;
+  padding: var(--gap) 20px 20px;
+}
+
+/* --- Dashboard grid --- */
+
+.dashboard {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: var(--gap);
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .dashboard {
+    grid-template-columns: 1fr;
+  }
+}
+
+.panel {
+  background: var(--felt);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+}
+
+.panel h2 {
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--gruff);
+  margin: 0 0 8px;
+}
+
+.rail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+}
+
+/* --- Data table --- */
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+
+.data-table th {
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--gruff);
+  text-align: left;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--line);
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.data-table th.sorted {
+  color: var(--parchment);
+}
+
+/* Trailing "+" add-column cell (legacy add_btn column) — slim, muted until
+   hovered so it reads as an affordance rather than a real header. */
+.data-table th.col-add {
+  width: 26px;
+  text-align: center;
+  color: var(--gruff);
+  font-size: var(--text-md);
+  font-weight: 400;
+  padding: 2px 4px;
+  opacity: 0.6;
+}
+
+.data-table th.col-add:hover {
+  color: var(--gold-foil);
+  opacity: 1;
+}
+
+.data-table td.col-add {
+  padding: 0;
+  border-bottom: none;
+}
+
+.data-table td {
+  padding: 4px 8px;
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 45%, transparent);
+  white-space: nowrap;
+}
+
+.data-table td.num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.data-table tbody tr:hover {
+  background: var(--felt-hover);
+}
+
+/* Group-by section header (sealed pool / deck) — the legacy sealed_studio
+   "Label (N)" group heading. Spans the row; muted tint, no hover highlight. */
+.data-table tr.group-head td {
+  padding: 5px 8px 3px;
+  font-weight: 600;
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--gruff);
+  background: color-mix(in srgb, var(--line) 40%, transparent);
+  border-bottom: 1px solid var(--line);
+}
+
+.data-table tbody tr.group-head:hover {
+  background: color-mix(in srgb, var(--line) 40%, transparent);
+}
+
+/* Hover tooltip that follows the cursor over a table row — a port of the
+   legacy CardToolTip: art beside a GLOBAL PERFORMANCE / CARD ROLES panel. */
+.card-hover {
+  position: fixed;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 420px;
+  padding: 8px;
+  background: var(--felt);
+  border: 1px solid var(--gold-foil-dim);
+  border-radius: 8px;
+  box-shadow: var(--shadow-hover);
+  pointer-events: none;
+  z-index: 100;
+}
+
+.card-hover .ch-header {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+
+.card-hover .ch-header .card-name {
+  margin-left: auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.card-hover .ch-rarity {
+  flex-shrink: 0;
+  font-weight: 800;
+  font-size: var(--text-xs);
+  letter-spacing: 0.6px;
+}
+
+.card-hover .ch-body {
+  display: flex;
+  gap: 10px;
+}
+
+.card-hover .ch-image {
+  width: 168px;
+  height: 234px;
+  object-fit: cover;
+  flex-shrink: 0;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--ink);
+}
+
+.card-hover .ch-info {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+}
+
+.card-hover .ch-section {
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  color: var(--gruff);
+}
+
+.card-hover .ch-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 10px;
+  row-gap: 2px;
+  margin: 0;
+  font-size: var(--text-sm);
+}
+
+.card-hover .ch-grid dt {
+  color: var(--gruff);
+}
+
+.card-hover .ch-grid dd {
+  margin: 0;
+  font-weight: 700;
+  text-align: right;
+}
+
+.card-hover .ch-grid dd.up,
+.card-hover .ch-grid dt.up {
+  color: var(--ok);
+}
+
+.card-hover .ch-grid dd.accent,
+.card-hover .ch-grid dt.accent {
+  color: var(--gold-foil);
+}
+
+.card-hover .ch-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.card-hover .ch-archetype {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: var(--text-sm);
+}
+
+.card-hover .ch-archetype > div {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.card-hover .ch-archetype > div.up {
+  color: var(--ok);
+}
+
+.table-wrap {
+  position: relative;
+}
+
+.data-table tr.picked {
+  opacity: 0.45;
+}
+
+.data-table tr.elite .card-name {
+  color: var(--gold-foil);
+}
+
+.card-name {
+  font-weight: 500;
+}
+
+/* Rarity initial beside the card name — bold and prominent (legacy tooltip
+   header coloring), so a mythic/rare in the pack reads at a glance. */
+.card-rarity {
+  display: inline-block;
+  width: 1.15em;
+  margin-right: 2px;
+  font-weight: 800;
+  font-size: 1.3em;
+  line-height: 1;
+  vertical-align: -0.08em;
+}
+
+/* Row tint by card color (card_colors_enabled) */
+.data-table tr.tint-w td:first-child { box-shadow: inset 3px 0 var(--mana-w); }
+.data-table tr.tint-u td:first-child { box-shadow: inset 3px 0 var(--mana-u); }
+.data-table tr.tint-b td:first-child { box-shadow: inset 3px 0 var(--mana-b); }
+.data-table tr.tint-r td:first-child { box-shadow: inset 3px 0 var(--mana-r); }
+.data-table tr.tint-g td:first-child { box-shadow: inset 3px 0 var(--mana-g); }
+.data-table tr.tint-multi td:first-child { box-shadow: inset 3px 0 var(--gold-foil-dim); }
+
+/* --- Mana symbols --- */
+
+.mana {
+  display: inline-flex;
+  gap: 2px;
+  vertical-align: middle;
+}
+
+.mana .pip {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--line);
+  color: var(--pip-fg);
+}
+
+.mana .pip.w { background: var(--mana-w); color: var(--mana-w-fg); }
+.mana .pip.u { background: var(--mana-u); color: var(--mana-u-fg); }
+.mana .pip.b { background: var(--mana-b); color: var(--mana-b-fg); }
+.mana .pip.r { background: var(--mana-r); color: var(--mana-r-fg); }
+.mana .pip.g { background: var(--mana-g); color: var(--mana-g-fg); }
+.mana .pip.c { background: var(--gruff); }
+
+/* --- Advisor rail --- */
+
+.advisor-rec {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 45%, transparent);
+}
+
+.advisor-rec:last-child {
+  border-bottom: none;
+}
+
+.advisor-rec .rec-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.advisor-rec .rec-rank {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--gruff);
+}
+
+.advisor-rec .rec-name {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: var(--text-md);
+  flex: 1;
+}
+
+.advisor-rec.elite .rec-name::after {
+  content: " ★";
+  color: var(--gold-foil);
+}
+
+.advisor-rec .rec-score {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+}
+
+.reason-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.reason-chips span {
+  font-size: var(--text-xs);
+  color: var(--gruff);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 1px 6px;
+}
+
+/* Card-role tags line under an advisor pick (the legacy TAG_VISUALS row) */
+.rec-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.rec-tags span {
+  font-size: var(--text-xs);
+  padding: 1px 4px;
+}
+
+/* --- Signal Ledger (signature element) --- */
+
+.signal-ledger {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.signal-lane {
+  display: grid;
+  grid-template-columns: 16px auto 38px;
+  align-items: center;
+  gap: 8px;
+}
+
+.signal-lane .lane-symbol {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--gruff);
+  text-align: center;
+}
+
+.signal-lane .lane-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--line) 45%, transparent);
+  border: 1px solid var(--line);
+  transition: background 250ms ease, border-color 250ms ease;
+}
+
+.signal-lane .lane-dot.open {
+  background: var(--ok);
+  border-color: var(--ok);
+}
+
+.signal-lane .lane-dot.cut {
+  background: var(--err);
+  border-color: var(--err);
+}
+
+.signal-lane .lane-word {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--gruff);
+  text-transform: lowercase;
+}
+
+.signal-lane .lane-word.open {
+  color: var(--ok);
+}
+
+.signal-lane .lane-word.cut {
+  color: var(--err);
+}
+
+/* --- Pool summary strip --- */
+
+.pool-strip {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  font-size: var(--text-sm);
+  color: var(--gruff);
+}
+
+.pool-strip .curve {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 22px;
+}
+
+.pool-strip .curve i {
+  display: inline-block;
+  width: 7px;
+  background: var(--gruff);
+  border-radius: 1px 1px 0 0;
+  min-height: 2px;
+}
+
+.pool-strip .pips {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  display: inline-flex;
+  gap: 8px;
+}
+
+.pool-strip .pips .w { color: var(--mana-w); }
+.pool-strip .pips .u { color: var(--mana-u); }
+.pool-strip .pips .b { color: var(--mana-b); }
+.pool-strip .pips .r { color: var(--mana-r); }
+.pool-strip .pips .g { color: var(--mana-g); }
+
+/* --- Pool charts (mana curve + type balance) --- */
+
+.pool-charts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--gap);
+  margin-top: 14px;
+}
+
+.pool-chart-title {
+  display: block;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--gruff);
+  margin-bottom: 8px;
+}
+
+.mana-curve {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  height: 110px;
+}
+
+.mana-curve .curve-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  flex: 1;
+  height: 100%;
+  min-width: 0;
+}
+
+.curve-bar-wrap {
+  position: relative;
+  width: 100%;
+  flex: 1;
+  display: flex;
+  align-items: flex-end;
+}
+
+.curve-bar {
+  width: 100%;
+  border-radius: 2px 2px 0 0;
+  min-height: 2px;
+}
+
+.curve-bar.over { background: var(--err); }
+.curve-bar.under { background: var(--gold-foil); }
+.curve-bar.ok { background: var(--ok); }
+
+.curve-ideal {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border: 1px dashed var(--gruff);
+  border-bottom: none;
+  box-sizing: border-box;
+  opacity: 0.85;
+}
+
+.curve-value {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--parchment);
+  line-height: 1.4;
+}
+
+.curve-label {
+  font-size: var(--text-xs);
+  color: var(--gruff);
+}
+
+.pool-balance {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.pool-balance-pie {
+  width: 84px;
+  height: 84px;
+  min-width: 84px;
+  border-radius: 50%;
+  border: 4px solid var(--ink);
+}
+
+.pool-balance-legend {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 3px;
+  font-size: var(--text-xs);
+  color: var(--gruff);
+}
+
+.pool-balance-legend li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.pool-balance-legend i {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.pool-balance-legend b {
+  color: var(--parchment);
+  font-family: var(--font-mono);
+}
+
+/* --- Disclosure (missing cards) --- */
+
+.disclosure summary {
+  cursor: pointer;
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--gruff);
+  padding: 6px 0;
+  user-select: none;
+}
+
+.disclosure summary:hover {
+  color: var(--parchment);
+}
+
+/* --- Settings --- */
+
+.settings-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  max-width: 620px;
+}
+
+.settings-group h2 {
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--gruff);
+  margin: 0 0 10px;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 6px;
+}
+
+.setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 5px 0;
+}
+
+.setting-row label {
+  font-size: var(--text-sm);
+}
+
+.setting-row .hint {
+  font-size: var(--text-xs);
+  color: var(--gruff);
+}
+
+.setting-row .hint.path {
+  font-family: var(--font-mono);
+  word-break: break-all;
+  max-width: 46ch;
+}
+
+.setting-note {
+  font-size: var(--text-xs);
+  color: var(--gruff);
+  padding-top: 6px;
+}
+
+/* --- Datasets --- */
+
+.dataset-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: color-mix(in srgb, var(--gold-foil) 8%, var(--felt));
+  border: 1px solid var(--gold-foil-dim);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  margin-bottom: var(--gap);
+  font-size: var(--text-sm);
+}
+
+/* A stale dataset is a warning, not a missing-dataset prompt — amber/error
+   tint distinguishes it from the gold "download one below" banner. */
+.dataset-stale-banner {
+  background: color-mix(in srgb, var(--err) 10%, var(--felt));
+  border-color: var(--err);
+}
+
+.download-form {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: var(--gap);
+}
+
+.download-form .field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.download-form .field span {
+  font-size: var(--text-xs);
+  color: var(--gruff);
+}
+
+.progress-track {
+  height: 6px;
+  background: color-mix(in srgb, var(--line) 40%, transparent);
+  border-radius: 3px;
+  overflow: hidden;
+  margin: 8px 0;
+}
+
+.progress-fill {
+  height: 100%;
+  background: var(--gold-foil);
+  border-radius: 3px;
+  transition: width 200ms ease;
+}
+
+.progress-status {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--gruff);
+}
+
+.empty-state {
+  color: var(--gruff);
+  font-size: var(--text-sm);
+  padding: 26px 0;
+  text-align: center;
+}
+
+.empty-state p {
+  margin: 0 0 12px;
+}
+
+.page-error {
+  padding: 32px 0;
+  text-align: center;
+  color: var(--gruff);
+  font-size: var(--text-sm);
+}
+
+.page-error h2 {
+  margin: 0 0 12px;
+  color: var(--err);
+  font-size: var(--text-md);
+}
+
+.page-error-message {
+  display: inline-block;
+  max-width: 520px;
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  border: 1px solid var(--err);
+  border-radius: var(--radius);
+  background: var(--felt);
+  font-family: var(--font-mono);
+  text-align: left;
+  word-break: break-word;
+}
+
+.error-toast,
+.dataset-toast,
+.update-toast {
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  max-width: 380px;
+  background: var(--felt);
+  border: 1px solid var(--err);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  font-size: var(--text-sm);
+  z-index: 10;
+}
+
+/* The dataset toast is a success/neutral notice, not an error — green border
+   distinguishes it from the error path while sharing the fixed-toast chrome. */
+.dataset-toast {
+  border-color: var(--ok);
+}
+
+/* The app-update toast is informational news — gold border and link set it
+   apart from both the error path and the dataset-success notice. */
+.update-toast {
+  border-color: var(--gold-foil);
+}
+
+.update-toast a {
+  color: var(--gold-foil);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.update-toast a:hover {
+  text-decoration: underline;
+}
+
+/* --- Shared helpers (recap / deck / sealed / compare / tiers) ------------- */
+
+.spacer {
+  flex: 1;
+}
+
+.ghost-btn {
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--parchment);
+  border-radius: var(--radius);
+  padding: 3px 9px;
+  font-size: var(--text-xs);
+  cursor: pointer;
+}
+
+.ghost-btn:hover {
+  background: var(--felt-hover);
+}
+
+.ghost-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.empty-inline {
+  color: var(--gruff);
+  font-size: var(--text-sm);
+  padding: 6px 0;
+}
+
+.filter-note {
+  color: var(--gruff);
+  font-size: var(--text-sm);
+  font-weight: normal;
+}
+
+.stat-label {
+  color: var(--gruff);
+  font-size: var(--text-xs);
+}
+
+/* --- Recap --------------------------------------------------------------- */
+
+.recap-hero {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.recap-grade {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px 20px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  min-width: 140px;
+}
+
+.recap-grade .grade-label {
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+}
+
+.recap-grade .grade-power {
+  font-family: var(--font-mono);
+  font-size: var(--text-xl);
+  color: var(--gold-foil);
+}
+
+.recap-grade.tint-success { border-color: var(--ok); }
+.recap-grade.tint-info { border-color: var(--mana-u); }
+.recap-grade.tint-warning { border-color: var(--gold-foil); }
+.recap-grade.tint-danger { border-color: var(--err); }
+
+.recap-hero-stats {
+  display: flex;
+  gap: 28px;
+}
+
+.recap-hero-stats > div {
+  display: flex;
+  flex-direction: column;
+}
+
+.recap-hero-stats .stat-value {
+  font-family: var(--font-mono);
+  font-size: var(--text-lg);
+}
+
+/* Legacy dashboard_recap.py's "⚔️ Enter Sealed Studio" — pushed to the right
+   edge of the hero row so the recap grade/stats keep the lead. */
+.recap-hero .sealed-studio-btn {
+  margin-left: auto;
+}
+
+.recap-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--gap);
+}
+
+.recap-card-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.recap-card-list li {
+  display: flex;
+  justify-content: space-between;
+  padding: 2px 0;
+  font-size: var(--text-sm);
+}
+
+.recap-card-list .num {
+  font-family: var(--font-mono);
+  color: var(--gruff);
+}
+
+.recap-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.recap-chips span {
+  background: var(--felt-hover);
+  border-radius: var(--radius);
+  padding: 2px 8px;
+  font-size: var(--text-xs);
+}
+
+/* --- Deck / Sealed layout ------------------------------------------------ */
+
+.deck-layout {
+  display: grid;
+  grid-template-columns: 1fr 300px;
+  gap: var(--gap);
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .deck-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.deck-main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+}
+
+.deck-rail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+  position: sticky;
+  top: 0;
+}
+
+.deck-toolbar,
+.variant-tabs,
+.basics-row,
+.compare-search {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.basics-row {
+  margin-top: 8px;
+}
+
+.basic-stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--text-xs);
+}
+
+.basic-stepper span {
+  font-family: var(--font-mono);
+  min-width: 16px;
+  text-align: center;
+}
+
+/* Group-by selector above the sealed pool / deck tables (legacy sealed_studio's
+   "Sort:" combobox). */
+.deck-group-control {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 0 10px;
+  font-size: var(--text-sm);
+}
+
+.deck-group-control select {
+  background: var(--felt-hover);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--parchment);
+  padding: 2px 6px;
+  font-size: var(--text-sm);
+  font-family: var(--font-body);
+}
+
+/* Sealed pool filter bar (type + color checkboxes, legacy sealed_studio's
+   filter_vars). Colored letters reuse the mana palette for WUBRG; colorless
+   and multicolor get neutral/gold accents. */
+.pool-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  font-size: var(--text-sm);
+}
+
+.pool-filter-bar label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+}
+
+.pool-filter-bar .pool-filter-divider {
+  width: 1px;
+  height: 14px;
+  background: var(--line);
+}
+
+.pool-filter-bar .pool-color {
+  font-family: var(--font-mono);
+  font-weight: 700;
+}
+
+.pool-filter-bar .pool-color.w { color: var(--mana-w); }
+.pool-filter-bar .pool-color.u { color: var(--mana-u); }
+.pool-filter-bar .pool-color.b { color: var(--mana-b); }
+.pool-filter-bar .pool-color.r { color: var(--mana-r); }
+.pool-filter-bar .pool-color.g { color: var(--mana-g); }
+.pool-filter-bar .pool-color.c { color: var(--gruff); }
+.pool-filter-bar .pool-color.m { color: var(--gold-foil); }
+
+.deck-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.deck-stat-tiles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: var(--text-xs);
+  color: var(--gruff);
+}
+
+.deck-stat-tiles b {
+  color: var(--parchment);
+  font-family: var(--font-mono);
+}
+
+.deck-curve {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  height: 70px;
+}
+
+.curve-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  flex: 1;
+  height: 100%;
+}
+
+.curve-col i {
+  width: 100%;
+  background: var(--gold-foil-dim);
+  border-radius: 2px 2px 0 0;
+  min-height: 2px;
+}
+
+.curve-col .curve-label {
+  font-size: var(--text-xs);
+  color: var(--gruff);
+  margin-top: 3px;
+}
+
+.deck-pips {
+  display: flex;
+  gap: 6px;
+}
+
+.pip-count {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  padding: 2px 6px;
+  border-radius: var(--radius);
+  background: var(--felt-hover);
+}
+
+.pip-count.w { color: var(--mana-w); }
+.pip-count.u { color: var(--mana-u); }
+.pip-count.b { color: var(--mana-b); }
+.pip-count.r { color: var(--mana-r); }
+.pip-count.g { color: var(--mana-g); }
+
+/* Deck-completeness cue (legacy "MAIN DECK (40) ✔ / ⚠️ CUT N / ⚠️ ADD N") */
+.deck-complete {
+  color: var(--ok);
+}
+
+.deck-incomplete {
+  color: var(--gold-foil);
+  font-size: var(--text-sm);
+}
+
+.deck-tribes {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.deck-tribes .recap-chips {
+  margin-top: 0;
+}
+
+.sim-note {
+  font-size: var(--text-sm);
+  color: var(--gold-foil);
+  margin-top: 8px;
+}
+
+.sim-table {
+  width: 100%;
+  font-size: var(--text-sm);
+}
+
+.sim-table .num {
+  font-family: var(--font-mono);
+  text-align: right;
+}
+
+.sim-table .sim-section td {
+  padding-top: 10px;
+  font-family: var(--font-display);
+  font-weight: 700;
+  color: var(--gruff);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-size: 11px;
+}
+
+.sim-table .sim-grade {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.sim-table .sim-grade.great { color: var(--ok); }
+.sim-table .sim-grade.fair { color: var(--gold-foil); }
+.sim-table .sim-grade.poor { color: var(--err); }
+
+.sim-advice {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  font-size: var(--text-sm);
+  color: var(--gruff);
+}
+
+/* --- Sealed variant tabs ------------------------------------------------- */
+
+.variant-tab {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.variant-tab.active {
+  border-color: var(--gold-foil);
+}
+
+.variant-tab > button {
+  background: transparent;
+  border: none;
+  color: var(--parchment);
+  padding: 4px 10px;
+  cursor: pointer;
+  font-size: var(--text-sm);
+}
+
+.variant-tab em {
+  color: var(--gruff);
+  font-style: normal;
+}
+
+.variant-edit {
+  background: transparent;
+  border: none;
+  border-left: 1px solid var(--line);
+  color: var(--gruff);
+  padding: 4px 6px;
+  cursor: pointer;
+}
+
+.variant-edit:hover {
+  color: var(--parchment);
+}
+
+/* --- Compare / Tiers inputs --------------------------------------------- */
+
+.compare-search input,
+.download-form input {
+  background: var(--felt-hover);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--parchment);
+  padding: 5px 9px;
+  font-size: var(--text-sm);
+}
+
+.compare-search input {
+  flex: 1;
+  min-width: 200px;
+}
+
+/* --- Suggest deck ------------------------------------------------------- */
+
+.archetype-select {
+  background: var(--felt-hover);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--parchment);
+  padding: 5px 9px;
+  font-size: var(--text-sm);
+  flex: 1;
+  min-width: 240px;
+}
+
+/* Overlapping fan, echoing the tkinter panel's stacked sample hand. */
+.hand-fan {
+  display: flex;
+  padding-right: 96px;
+}
+
+.hand-card {
+  margin: 0 -96px 0 0;
+  width: 180px;
+  flex: 0 0 auto;
+  transition: transform 120ms ease;
+}
+
+.hand-card:hover,
+.hand-card:focus-within {
+  transform: translateY(-8px);
+  z-index: 1;
+}
+
+.hand-card img {
+  width: 100%;
+  display: block;
+  border-radius: 9px;
+}
+
+.hand-card figcaption {
+  font-size: var(--text-xs);
+  color: var(--gruff);
+  text-align: center;
+  margin-top: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hand-card {
+    transition: none;
+  }
+}
+
+/* --- Mini Mode overlay -------------------------------------------------- */
+/* Compact always-on-top view over the Arena client (port of CompactOverlay). */
+
+.mini-overlay {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: var(--felt);
+  color: var(--parchment);
+  overflow: hidden;
+  /* Legacy CompactOverlay transparency: attributes("-alpha", 0.92). The OS
+     window is configured transparent in tauri.conf.json, so this opacity
+     genuinely reveals the desktop behind the overlay. */
+  opacity: 0.92;
+}
+
+.mini-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  background: var(--felt-hover);
+  border-bottom: 1px solid var(--line);
+  cursor: move;
+  user-select: none;
+}
+
+.mini-info {
+  font-size: var(--text-sm);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--gruff);
+}
+
+.mini-status {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.mini-btn {
+  background: none;
+  border: none;
+  color: var(--gruff);
+  font-size: var(--text-md);
+  cursor: pointer;
+  padding: 0 4px;
+}
+
+.mini-btn:hover {
+  color: var(--gold-foil);
+}
+
+.mini-btn.active {
+  color: var(--gold-foil);
+}
+
+/* ⚙ gear popover — the desktop port of CompactOverlay._show_settings_menu
+   (Colors / Event Type / User Group / Preferences). Anchors below the button,
+   reusing the context-menu look. */
+
+.mini-gear-wrap {
+  position: relative;
+}
+
+.mini-gear {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 60;
+  min-width: 190px;
+  padding: 6px;
+  background: var(--felt);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-pop);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.mini-gear-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: var(--text-xs);
+  color: var(--gruff);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.mini-gear-row select {
+  font-size: var(--text-sm);
+  width: 100%;
+}
+
+.mini-gear-prefs {
+  text-align: center;
+  border-top: 1px solid var(--line);
+  padding-top: 6px;
+  margin-top: 2px;
+}
+
+.mini-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--line);
+  flex-shrink: 0;
+}
+
+.mini-tabs button {
+  flex: 1;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--gruff);
+  padding: 6px 4px;
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.mini-tabs button.active {
+  color: var(--parchment);
+  border-bottom-color: var(--gold-foil);
+}
+
+.mini-tabs button:hover {
+  color: var(--parchment);
+}
+
+.mini-body {
+  flex: 1;
+  overflow: auto;
+  padding: 6px;
+}
+
+.mini-stats h3 {
+  font-size: var(--text-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--gold-foil);
+  margin: 8px 0 4px;
+}
+
+.mini-stats h3:first-child {
+  margin-top: 0;
+}
+
+.mini-footer {
+  flex-shrink: 0;
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 6px 4px;
+}
+
+.mini-grip {
+  cursor: nwse-resize;
+  color: var(--gruff);
+  font-size: var(--text-md);
+  user-select: none;
+  padding: 0 2px;
+}
+
+.mini-grip:hover {
+  color: var(--gold-foil);
+}
+
+/* --- Practice dialog ------------------------------------------------------ */
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: var(--scrim);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 20;
+}
+
+.modal {
+  background: var(--felt);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+  width: min(480px, 90vw);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.modal h2 {
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  margin: 0;
+}
+
+.modal-field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: var(--text-sm);
+}
+
+.modal-modes {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: var(--text-sm);
+}
+
+.modal-modes label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.modal-textarea {
+  background: var(--felt-hover);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--parchment);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  padding: 8px;
+  resize: vertical;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}

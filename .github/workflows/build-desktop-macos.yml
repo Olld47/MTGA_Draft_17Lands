@@ -1,0 +1,85 @@
+# Builds the PyTauri desktop app (desktop/) with an embedded CPython — the
+# only client (the tkinter/PyInstaller build workflows were removed).
+#
+# macOS arm64 only. Windows x86_64 lives in build-desktop-windows.yml. The
+# remaining two template legs — macOS x86_64 and Windows arm64 — are
+# deliberately absent: numba 0.65.1 publishes no wheel for either, and it is a
+# hard dependency (src/advisor/simulator.py is @njit, and boot.py warms the
+# JIT). Revisit when those wheels exist. Linux is not a supported platform.
+#
+# Runs on merges to main/master, and on demand.
+#
+# Deliberately a separate run rather than a job inside publish-release.yml:
+# `continue-on-error` is not a permitted keyword on a job that calls a reusable
+# workflow, so a red desktop build would mark an otherwise-successful release
+# run as failed. The bundles are unsigned and the .msi has never been launched,
+# so they are built but not attached to the Release.
+#
+# The ci/desktop* trigger predates the main one and is kept: it runs this leg
+# from a terminal without the `gh` CLI or the Actions web UI, without putting a
+# full Rust + numba build on every commit to a real branch.
+
+name: Build Desktop App (macOS)
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - "ci/desktop*"
+      - main
+      - master
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: desktop -> target
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: desktop
+        run: npm ci
+
+      # Downloads python-build-standalone into desktop/src-tauri/pyembed.
+      # Kept in the script so local and CI builds cannot drift.
+      - name: Download python-build-standalone
+        run: desktop/scripts/macos/download-py.sh aarch64-apple-darwin
+
+      # Installs mtga-bridge and the repo-root src package into the embedded
+      # interpreter, then runs `tauri build` with the bundle overlay config.
+      - name: Build and bundle
+        run: desktop/scripts/macos/build.sh
+
+      - name: Upload bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: mtga-draft-desktop-macos-aarch64
+          path: |
+            desktop/target/bundle-release/bundle/dmg/*.dmg
+            desktop/target/bundle-release/bundle/macos/*.app
+          if-no-files-found: error

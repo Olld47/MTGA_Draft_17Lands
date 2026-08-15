@@ -67,6 +67,52 @@ def test_sealed_session_variant_management():
     assert len(sb) == 0
 
 
+# --- session_dir injection ---------------------------------------------------
+# Ticket 08: sealed session files were hard-pinned to constants.TEMP_FOLDER.
+# The seam is now an injectable directory on the session and on load_session.
+
+def test_sealed_session_injected_dir_roundtrip(tmp_path):
+    """A session built with an injected session_dir persists and reloads there —
+    never to the module-level TEMP_FOLDER default."""
+    from pathlib import Path
+    from src import constants as constants_mod
+
+    pool = [
+        {DATA_FIELD_NAME: "Card A", "count": 2},
+        {DATA_FIELD_NAME: "Plains", "types": ["Basic", "Land"]},
+    ]
+    session = SealedSession("sess_injected", session_dir=str(tmp_path))
+    session.load_pool(pool)
+    session.active_variant_name = "Build 1"
+    session.save_session()
+
+    state_file = tmp_path / "sealed_sess_injected.json"
+    assert state_file.exists()
+    assert not (
+        Path(constants_mod.TEMP_FOLDER) / "sealed_sess_injected.json"
+    ).exists()
+
+    loaded = SealedSession.load_session(
+        "sess_injected", pool, session_dir=str(tmp_path)
+    )
+    assert loaded is not None
+    assert loaded.active_variant_name == "Build 1"
+
+
+def test_sealed_session_default_dir_uses_temp_folder(monkeypatch, tmp_path):
+    """Omitting session_dir keeps the legacy TEMP_FOLDER-derived path."""
+    from src import constants as constants_mod
+
+    monkeypatch.setattr(constants_mod, "TEMP_FOLDER", str(tmp_path))
+    session = SealedSession("sess_default")
+    session.save_session()
+    assert (tmp_path / "sealed_sess_default.json").exists()
+
+    loaded = SealedSession.load_session("sess_default", [])
+    assert loaded is not None
+    assert loaded.session_id == "sess_default"
+
+
 def test_generate_sealed_shells(monkeypatch):
     """Verify AI generates shells based on the pool."""
     # We must mock metrics and holistic scoring since it relies on dataset

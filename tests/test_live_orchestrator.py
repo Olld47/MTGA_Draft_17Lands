@@ -2,7 +2,7 @@ import pytest
 import os
 import queue
 from unittest.mock import patch, MagicMock
-from src.ui.orchestrator import DraftOrchestrator
+from src.orchestrator import DraftOrchestrator, RefreshMessage, StatusMessage
 from src.configuration import Configuration
 
 
@@ -18,8 +18,8 @@ def orchestrator():
     return DraftOrchestrator(mock_scanner, config, MagicMock())
 
 
-@patch("src.ui.orchestrator.os.path.getsize")
-@patch("src.ui.orchestrator.os.path.exists")
+@patch("src.orchestrator.os.path.getsize")
+@patch("src.orchestrator.os.path.exists")
 @patch("builtins.open")
 def test_check_live_log_detects_draft(
     mock_open, mock_exists, mock_getsize, orchestrator
@@ -51,8 +51,8 @@ def test_check_live_log_detects_draft(
     assert orchestrator._last_live_file_size == 1000
 
 
-@patch("src.ui.orchestrator.os.path.getsize", return_value=500)
-@patch("src.ui.orchestrator.os.path.exists", return_value=True)
+@patch("src.orchestrator.os.path.getsize", return_value=500)
+@patch("src.orchestrator.os.path.exists", return_value=True)
 def test_check_live_log_ignores_static_file(mock_exists, mock_getsize, orchestrator):
     """Verifies we do not waste CPU cycles reading the log if the file size hasn't changed."""
 
@@ -81,7 +81,7 @@ def test_orchestrator_flags(orchestrator):
     assert orchestrator._force_math_event.is_set()
 
 
-@patch("src.ui.orchestrator.time.sleep", return_value=None)
+@patch("src.orchestrator.time.sleep", return_value=None)
 def test_orchestrator_run_loop(mock_sleep, orchestrator):
     """Verify the run loop correctly consumes events and file swaps."""
     # Trigger the flags
@@ -135,3 +135,58 @@ def test_file_swap_queue_processing(orchestrator):
 
     # Verify scanner was updated
     orchestrator.scanner.set_arena_file.assert_called_with("historical_draft_2.log")
+
+
+def test_orchestrator_emits_typed_refresh_message(orchestrator):
+    """The queue must carry a typed RefreshMessage, never a bare "REFRESH" string."""
+    orchestrator.request_math_update()
+    with patch("src.orchestrator.time.sleep", return_value=None):
+        orchestrator._stop_event.is_set = MagicMock(side_effect=[False, True])
+        orchestrator.run()
+
+    msgs = list(orchestrator.update_queue.queue)
+    assert msgs
+    assert all(isinstance(m, RefreshMessage) for m in msgs)
+    assert all(not isinstance(m, str) for m in msgs)
+
+
+def test_orchestrator_emits_typed_status_then_refresh_sequence(orchestrator):
+    """The file-swap path emits StatusMessage(s) then a final RefreshMessage."""
+    orchestrator.set_file_and_scan("fake.log")
+    orchestrator.scanner.set_arena_file = MagicMock()
+    orchestrator.scanner.draft_start_search = MagicMock(return_value=False)
+    orchestrator.sync_dataset_to_event = MagicMock()
+    with patch("src.orchestrator.time.sleep", return_value=None):
+        orchestrator._stop_event.is_set = MagicMock(side_effect=[False, True])
+        orchestrator.run()
+
+    msgs = list(orchestrator.update_queue.queue)
+    assert msgs[0] == StatusMessage(text="Scanning Log...")
+    assert any(m == StatusMessage(text="Parsing Picks...") for m in msgs)
+    assert msgs[-1] == RefreshMessage()
+    assert all(not isinstance(m, (dict, str)) for m in msgs)
+
+
+def test_sync_dataset_emits_loading_status_message(orchestrator):
+    """sync_dataset_to_event reports a typed Loading status message on cache miss."""
+    orchestrator.scanner.retrieve_current_limited_event = MagicMock(
+        return_value=("OTJ", "PremierDraft")
+    )
+    orchestrator.scanner.event_string = "PremierDraft"
+    orchestrator.scanner.select_best_dataset = MagicMock(
+        return_value="/sets/OTJ_Data.json"
+    )
+    orchestrator.scanner.retrieve_set_data = MagicMock()
+    orchestrator.scanner.set_data._dataset = None
+    orchestrator.config.card_data.latest_dataset = "M10_Data.json"
+
+    # Patch the symbol orchestrator actually bound at import time
+    # (from src.configuration import write_configuration) — patching the
+    # source module would be a no-op and the real function would atomically
+    # overwrite the user's config.json with the fixture's state.
+    with patch("src.orchestrator.write_configuration"):
+        assert orchestrator.sync_dataset_to_event() is True
+
+    msgs = list(orchestrator.update_queue.queue)
+    assert StatusMessage(text="Loading OTJ Dataset...") in msgs
+    assert all(not isinstance(m, dict) for m in msgs)

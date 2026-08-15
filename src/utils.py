@@ -4,7 +4,7 @@ import time
 import platform
 import subprocess
 from enum import Enum
-from typing import List
+from typing import List, NamedTuple
 from src.constants import (
     LIMITED_TYPES_DICT,
     LIMITED_GROUPS_LIST,
@@ -84,12 +84,44 @@ def json_find(key, obj):
     return result
 
 
+class LocalSetInfo(NamedTuple):
+    """One row of retrieve_local_set_list's file list — the parsed meta of a
+    local dataset file. Indexing and unpacking still work (a NamedTuple is a
+    tuple), so existing positional consumers are untouched; new code should read
+    the named fields instead of a positional f[6] for the file path."""
+
+    set_name: str
+    event_type: str
+    user_group: str
+    start_date: str
+    end_date: str
+    game_count: int
+    file_location: str
+    collection_date: str
+
+
 _LOCAL_SET_CACHE = {"mtime": 0.0, "files": []}
 
 
 def invalidate_local_set_cache():
     global _LOCAL_SET_CACHE
     _LOCAL_SET_CACHE["mtime"] = 0.0
+
+
+def drop_local_set_from_cache(file_path: str) -> None:
+    """Removes one dataset file from the cached set list after a delete so the
+    next listing is O(1) instead of re-reading every dataset file (a
+    full-folder rescan takes seconds once the Sets folder has dozens of
+    multi-MB JSONs)."""
+    global _LOCAL_SET_CACHE
+    target = os.path.abspath(file_path)
+    _LOCAL_SET_CACHE["files"] = [
+        f for f in _LOCAL_SET_CACHE["files"] if f.file_location != target
+    ]
+    try:
+        _LOCAL_SET_CACHE["mtime"] = os.path.getmtime(SETS_FOLDER)
+    except OSError:
+        _LOCAL_SET_CACHE["mtime"] = 0.0
 
 
 def clear_set_history() -> int:
@@ -192,7 +224,7 @@ def retrieve_local_set_list(codes=None, names=None):
                 pass
 
         file_list.append(
-            (
+            LocalSetInfo(
                 display_name,
                 event_type,
                 user_group,
@@ -385,7 +417,7 @@ def read_dataset_info(filename: str, codes=None, names=None):
                 except Exception:
                     user_group = f"{user_group} (Custom)"
 
-        return (
+        return LocalSetInfo(
             set_name,
             event_type,
             user_group,

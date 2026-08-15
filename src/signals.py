@@ -1,4 +1,7 @@
+from typing import Dict, List
+
 from src import constants
+from src.card_data import CardData
 from src.card_logic import get_card_colors
 
 
@@ -12,7 +15,9 @@ class SignalCalculator:
         if self.baseline_wr == 0.0:
             self.baseline_wr = 54.0
 
-    def calculate_pack_signals(self, pack_cards, current_pick):
+    def calculate_pack_signals(
+        self, pack_cards: List[CardData], current_pick: int
+    ) -> Dict[str, float]:
         """
         Standard lateness signal (seeing good cards late).
         """
@@ -44,7 +49,12 @@ class SignalCalculator:
 
         return color_signals
 
-    def calculate_wheel_signals(self, current_pack_cards, original_pack_ids, dataset):
+    def calculate_wheel_signals(
+        self,
+        current_pack_cards: List[CardData],
+        original_pack_ids: List[str],
+        dataset,
+    ) -> Dict[str, float]:
         """
         v4 Logic: Compares P1P9 content to P1P1 content.
         Calculates the 'Retention Rate' of quality for each color.
@@ -52,7 +62,7 @@ class SignalCalculator:
         If High Quality cards returned -> Open Lane.
         If only trash returned -> Closed Lane.
         """
-        original_cards = dataset.get_data_by_id(original_pack_ids)
+        original_cards: List[CardData] = dataset.get_data_by_id(original_pack_ids)
 
         # 1. Sum 'Quality' (WR > Baseline) for P1P1 by color
         p1_quality = {c: 0.0 for c in constants.CARD_COLORS}
@@ -75,14 +85,16 @@ class SignalCalculator:
 
         return signals
 
-    def _add_card_quality(self, card, bucket):
+    def _add_card_quality(self, card: CardData, bucket: Dict[str, float]) -> None:
         stats = card.get("deck_colors", {}).get(constants.FILTER_OPTION_ALL_DECKS, {})
         wr = float(stats.get(constants.DATA_FIELD_GIHWR, 0.0))
         if wr > self.baseline_wr:
             val = wr - self.baseline_wr
             self._distribute_score(card, val, bucket)
 
-    def _distribute_score(self, card, score, bucket):
+    def _distribute_score(
+        self, card: CardData, score: float, bucket: Dict[str, float]
+    ) -> None:
         card_colors = card.get(constants.DATA_FIELD_COLORS, [])
         if not card_colors and constants.DATA_FIELD_MANA_COST in card:
             mana_colors = get_card_colors(card[constants.DATA_FIELD_MANA_COST])

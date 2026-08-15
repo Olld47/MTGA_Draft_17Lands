@@ -42,7 +42,6 @@ body:
       options:
         - Windows
         - macOS
-        - Linux
     validations:
       required: true
   - type: textarea
@@ -59,7 +58,7 @@ body:
       label: Run Type
       description: In what form are you running this program?
       options:
-        - Compiled Executable (Windows/Mac/Linux)
+        - Compiled Executable (Windows/Mac)
         - Python Source (Poetry)
     validations:
       required: true

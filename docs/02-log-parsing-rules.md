@@ -62,6 +62,13 @@ These are the signals for Human drafts (Premier/Traditional/Cube).
   ```
   > **Pick-Two Drafts:** Certain events (like OM1 or TMT) allow picking 2 cards per pack. The payload handles this by returning a JSON array under `GrpIds` rather than a singular `GrpId`. The `cards_per_pick` logic dynamically tracks this to correctly compute the "Wheel Tracker" offsets.
 
+### D. Draft Completion (Terminal DeckSelect)
+
+The draft is considered finished when the log reports a `DeckSelect` module with a completed `DraftStatus`:
+
+- **Trigger:** A `DraftStatus` payload whose `CurrentModule` is `"DeckSelect"` (DraftStatus `"Completed"`).
+- **Action:** The scanner *retires* the live pack/pick and the UI transitions to the post-draft recap view instead of rendering an empty pack.
+
 ---
 
 ## 4. Event Catalog (Quick Draft / Bot Draft)
@@ -111,7 +118,25 @@ Sealed events dump the entire pool at once and skip pack-by-pack drafting.
 
 ---
 
-## 6. State Machine Diagram
+## 6. Crash Recovery & the Desktop Deep Scan
+
+Draft state is persisted to `Temp/active_draft_state.json` as it changes, so a
+restart mid-draft resumes exactly where the user left off.
+
+On boot, the desktop app performs a **deep scan** of `Player.log` from the
+beginning before tailing:
+
+- The scanner replays `Event_Join` / `BotDraft_DraftStatus` / `"CardPool":[`
+  payloads to reconstruct the active event.
+- The desktop bridge's `snapshot.build_draft_state` (`mtga_bridge/snapshot.py`)
+  serializes the reconstructed state for the React dashboard, so recovery is
+  byte-identical to the live scan.
+- If the log file severely desyncs, the UI's **Rescan** action wipes the in-memory
+  state and re-runs the deep scan.
+
+---
+
+## 7. State Machine Diagram
 
 ```mermaid
 stateDiagram-v2
@@ -125,11 +150,53 @@ stateDiagram-v2
         WaitingForPack --> PackReview: Draft.Notify
         PackReview --> PickMade: MakePick
         PickMade --> WaitingForPack: (Next Pick)
-        PickMade --> [*]: Draft Complete
+        PickMade --> Done: Terminal DeckSelect (DraftStatus Completed)
     }
 
     state Sealed {
         [*] --> SealedStudio
-        SealedStudio --> [*]: Event End
+        SealedStudio --> Done: Event End
     }
+
+    Done --> [*]: Recap
 ```
+
+### Code mapping (architecture-review issue 11)
+
+Every state and transition above has an explicit counterpart in
+`src/scanner_state.py`, consumed by `ArenaScanner`:
+
+| Diagram state | Code symbol |
+|---|---|
+| `Idle` | `ScannerPhase.IDLE` |
+| `Drafting.WaitingForPack` | `ScannerPhase.DRAFTING_WAITING_FOR_PACK` |
+| `Drafting.PackReview` | `ScannerPhase.DRAFTING_PACK_REVIEW` |
+| `Drafting.PickMade` | `ScannerPhase.DRAFTING_PICK_MADE` |
+| `Sealed.SealedStudio` | `ScannerPhase.SEALED_STUDIO` |
+| `Done` | `ScannerPhase.DONE` (`derive_scanner_phase` with UNKNOWN + recap payload) |
+
+- Transitions are single-point `TRANSITIONS[(ScannerPhase, ScannerEvent)]` rows;
+  `ArenaScanner.__perform_search_logic` / `_apply_transition` consult the table
+  and `logger.warning` on unregistered (illegal) combinations.
+- `derive_scanner_phase` is the one place scanner fields map onto a phase
+  (the fields remain the source of truth; the phase is a view driven by the
+  dispatch, exposed as `ArenaScanner.phase`).
+- Event handlers: `_search_pack_notify` / `_search_pack_bot` / `_search_pick_human`
+  / `_search_pick_v1` / `_search_pick_bot` / `_search_card_pool`. The terminal
+  `DECK_SELECT_COMPLETED` transition dispatches to `_search_pack_bot`, which calls
+  `_mark_draft_complete` as its completion helper.
+- `ScannerEvent.EVENT_JOIN` rows document the `Idle/Done → Drafting` edge; the
+  transition itself is applied inside `draft_start_search` / `__check_event`.
+
+**Known diagram/code gaps (deliberate — no behavior is added to paper over
+them):**
+
+- **`SealedStudio → Done: Event End` has no scanner counterpart.** Sealed has
+  no terminal event handler (`_mark_draft_complete` only fires from the bot
+  family's terminal DeckSelect); completion is derived by consumers via
+  `is_draft_complete` (`src/snapshot_actions`).
+- **There is no `Game` state.** It appears in no diagram edge, no event type,
+  and no scan family; the scanner never tracks match play.
+- **Human drafts have no scanner-side terminal detection.** The `PickMade →
+  Done` transition is exercised by the bot family; human completion is derived
+  by consumers via `is_draft_complete`.

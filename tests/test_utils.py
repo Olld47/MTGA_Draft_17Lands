@@ -222,3 +222,38 @@ def test_clear_set_history_removes_datasets(tmp_path, monkeypatch):
     assert not (tmp_path / "MSH_PremierDraft_All_Data.json").exists()
     assert not (tmp_path / "local_manifest.json").exists()
     assert (tmp_path / "unrelated.txt").exists()
+
+
+def test_drop_local_set_from_cache_removes_one_row(tmp_path, monkeypatch):
+    """Deleting one dataset drops its cached row in place, so the next listing
+    is O(1) instead of re-reading every file; sibling rows survive."""
+    import src.utils as utils_module
+    from src.utils import LocalSetInfo, drop_local_set_from_cache
+
+    monkeypatch.setattr(utils_module, "SETS_FOLDER", str(tmp_path))
+    survivor = os.path.join(str(tmp_path), "MH3_PremierDraft_All_Data.json")
+    doomed = os.path.join(str(tmp_path), "OTJ_TradDraft_Middle_Data.json")
+    rows = [
+        LocalSetInfo(
+            "MH3", "PremierDraft", "All", "2019-01-01", "2024-07-11",
+            0, survivor, "2025-11-28 10:15:45.788070",
+        ),
+        LocalSetInfo(
+            "OTJ", "TradDraft", "Middle", "2019-01-01", "2024-07-11",
+            0, doomed, "2025-11-28 10:15:45.788070",
+        ),
+    ]
+    utils_module._LOCAL_SET_CACHE = {"mtime": 1.0, "files": rows}
+
+    try:
+        drop_local_set_from_cache(doomed)
+
+        cached_paths = [
+            f.file_location for f in utils_module._LOCAL_SET_CACHE["files"]
+        ]
+        assert survivor in cached_paths
+        assert doomed not in cached_paths
+        # mtime re-synced to the live folder so the cache stays warm
+        assert utils_module._LOCAL_SET_CACHE["mtime"] == os.path.getmtime(str(tmp_path))
+    finally:
+        utils_module._LOCAL_SET_CACHE = {"mtime": 0.0, "files": []}

@@ -8,13 +8,13 @@ from src.card_logic import (
 
 
 def test_get_functional_cmc():
-    assert get_functional_cmc({"cmc": 5, "text": "landcycling"}) == 2
-    assert get_functional_cmc({"cmc": 4, "text": "morph {3}"}) == 3
-    assert get_functional_cmc({"cmc": 6, "text": "channel —"}) == 2
-    assert get_functional_cmc({"cmc": 6, "text": "costs {2} less"}) == 4
-    assert get_functional_cmc({"cmc": 5, "text": "evoke {2}"}) == 3
-    assert get_functional_cmc({"cmc": 2, "text": ""}) == 2
-    assert get_functional_cmc({"cmc": 0, "text": "prototype {1}"}) == 0
+    assert get_functional_cmc({"cmc": 5, "oracle_text": "landcycling"}) == 2
+    assert get_functional_cmc({"cmc": 4, "oracle_text": "morph {3}"}) == 3
+    assert get_functional_cmc({"cmc": 6, "oracle_text": "channel —"}) == 2
+    assert get_functional_cmc({"cmc": 6, "oracle_text": "costs {2} less"}) == 4
+    assert get_functional_cmc({"cmc": 5, "oracle_text": "evoke {2}"}) == 3
+    assert get_functional_cmc({"cmc": 2, "oracle_text": ""}) == 2
+    assert get_functional_cmc({"cmc": 0, "oracle_text": "prototype {1}"}) == 0
 
 
 def test_format_types_for_ui():

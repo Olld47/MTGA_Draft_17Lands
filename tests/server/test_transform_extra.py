@@ -116,3 +116,39 @@ def test_transform_payload_linked_face_type():
     card_b = payload["card_ratings"]["222"]
     assert card_b["rarity"] == "rare"  # Fallback to 17Lands stat rarity
     assert card_b["image"] == ["imgB"]  # Fallback to 17Lands image
+
+
+def test_transform_output_stays_within_card_data_shape():
+    """Guard: every field the ETL writes onto a card must be part of the
+    documented CardData shape (tests/test_card_data.py). Mirrors the app-side
+    guard in the other direction — the daily-published dataset must never ship
+    an undocumented field (the historical isprimarycard / linkedfacetype / set /
+    color_identity / keywords were stripped for exactly this reason). Shipping
+    FEWER fields than documented is fine; shipping more is a contract drift.
+    """
+    from src.card_data import CardData
+
+    # Feed every stripped-field source through the transform: if the ETL ever
+    # re-emits them (or any other undocumented field), the assertion trips.
+    scryfall_cards = {
+        "Doc Card": {
+            "arena_ids": [1],
+            "cmc": 2,
+            "mana_cost": "{R}",
+            "types": ["Instant"],
+            "subtypes": [],
+            "color_identity": ["R"],
+            "oracle_text": "Deal 3 damage.",
+            "keywords": ["deal damage"],
+            "set": "SET",
+        }
+    }
+    stats = {"All Decks": {"Doc Card": {"gihwr": 60.0, "samples": 50}}}
+
+    payload = transform_payload(
+        "SET", "Draft", scryfall_cards, stats, {}, None, "2024", "2024", 500
+    )
+
+    card = payload["card_ratings"]["1"]
+    undocumented = set(card) - set(CardData.__annotations__)
+    assert not undocumented, f"ETL ships undocumented card fields: {undocumented}"

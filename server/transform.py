@@ -129,8 +129,6 @@ def transform_payload(
             "name": name,
             "cmc": sf_card.get("cmc", 0),
             "mana_cost": sf_card.get("mana_cost", ""),
-            "isprimarycard": 1,
-            "linkedfacetype": 0,
             "types": sf_card.get("types", ["Creature"]),
             "rarity": sf_card.get(
                 "rarity", all_decks_stats.get("rarity", "common")
@@ -139,12 +137,14 @@ def transform_payload(
             or all_decks_stats.get("17lands_images", []),
             "subtypes": sf_card.get("subtypes", []),
             "colors": sf_card.get("color_identity", []),
-            "set": set_code,
             "deck_colors": {},
             "tags": card_tags.get(name, []),
         }
 
-        for extra_key in ["color_identity", "keywords", "oracle_text"]:
+        # Only write fields the app actually reads. color_identity/keywords were
+        # shipped historically but have zero consumers (P2 audit) — keep the
+        # output subset == CardData so shipped == documented.
+        for extra_key in ["oracle_text"]:
             if val := sf_card.get(extra_key):
                 card_obj[extra_key] = val
 
@@ -186,14 +186,11 @@ def transform_payload(
                 "name": name,
                 "cmc": sf_card.get("cmc", 0),
                 "mana_cost": sf_card.get("mana_cost", ""),
-                "isprimarycard": 1,
-                "linkedfacetype": 0,
                 "types": sf_card.get("types", ["Land", "Basic"]),
                 "rarity": "common",
                 "image": sf_card.get("image", []),
                 "subtypes": sf_card.get("subtypes", []),
                 "colors": sf_card.get("color_identity", []),
-                "set": set_code,
                 "deck_colors": {},
                 "tags": card_tags.get(name, []),
             }

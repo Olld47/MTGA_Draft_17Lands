@@ -3,6 +3,13 @@
 **Purpose:** Defines the core data structures used throughout the application logic.
 **Target:** AI Context & Type Definition for Migration/Development.
 
+> Two notation conventions are used deliberately:
+> - **Canonical Python shapes** (§1–§4) are snake_case and match the pydantic
+>   models in `src/` exactly.
+> - **Desktop IPC shapes** (§5–§6) are the wire format the React frontend reads:
+>   camelCase, because every bridge model derives from `_VM`
+>   (`desktop/src-tauri/src-python/mtga_bridge/viewmodels.py`).
+
 ## 1. The Card Object (Canonical)
 
 Every card flowing through the system eventually matches this shape after data merging.
@@ -87,3 +94,121 @@ interface Recommendation {
   tags: string[] // Scryfall semantic tags
 }
 ```
+
+---
+
+## 5. The IPC Serialization Boundary (Desktop)
+
+The desktop app crosses the Python <-> JavaScript boundary with pydantic models in `mtga_bridge/viewmodels.py`. Every model derives from a single base:
+
+```python
+class _VM(BaseModel):
+    model_config = ConfigDict(
+        alias_generator=to_camel,   # pack_cards -> packCards
+        populate_by_name=True,
+        extra="forbid",
+        serialize_by_alias=True,    # pytauri serializes with a bare model_dump_json()
+    )
+```
+
+Two invariants follow from this:
+
+1. **Python fields stay snake_case; the alias does the conversion.** Never rename a field to camelCase to "match" the frontend.
+2. **Any `model_dump()` whose keys are consumed by Python** (e.g. `setattr` onto the snake_case `Settings` model in `services.apply_settings_patch`) must pass `by_alias=False` explicitly — the default emits camelCase keys.
+
+## 6. Desktop ViewModels (Wire Format)
+
+The React frontend consumes these camelCase shapes. Field lists below are abbreviated; the source of truth is `viewmodels.py`.
+
+### A. Boot Complete (`boot://complete`)
+
+```typescript
+interface BootComplete {
+  foundDraft: boolean
+  eventSet: string      // e.g. "OTJ"
+  eventType: string     // "PremierDraft" | "Sealed" | ...
+  pack: number
+  pick: number
+  hasDataset: boolean
+}
+```
+
+### B. Draft State (`get_draft_state` -> `DraftStateVM`)
+
+```typescript
+interface DraftState {
+  booted: boolean
+  eventSet: string
+  eventType: string
+  eventString: string
+  draftId: string
+  startTime: string | null
+  pack: number
+  pick: number
+  activeFilter: string      // "All Decks"
+  filterLabel: string       // "Auto"
+  packCards: CardVM[]       // Live pack, each card scored
+  missingCards: CardVM[]    // Wheel-tracker cards you passed
+  takenCount: number
+  draftComplete: boolean    // full pool picked -> Draft tab swaps to recap
+  signals: { scores: Record<string, number> }   // WUBRG keys
+  poolSummary: PoolSummaryVM | null             // curve, pips, type counts
+  datasetName: string | null
+  logSource: "live" | "history"
+  logName: string
+}
+```
+
+### C. Card (`CardVM`)
+
+```typescript
+interface CardVM {
+  name: string
+  manaCost: string
+  cmc: number
+  colors: string[]         // sorted WUBRG
+  types: string[]
+  rarity: string
+  image: string[]          // Scryfall image URIs
+  count: number
+  stats: CardStatsVM | null   // gihwr/ohwr/gpwr/alsa/ata/iwd/gih/ngp (nullable)
+  recommendation: RecommendationVM | null
+  isPicked: boolean
+  returnableAt: number[]
+  tier: string | null      // active tier-list grade
+  deckColors: DeckColorVM[]    // per-color play-share for hover
+}
+```
+
+> `CardVM` is an explicit whitelist, not an auto-projection of `CardData`: fields
+> with zero frontend consumers (e.g. `oracle_text`, `subtypes`) are intentionally
+> **not** serialized. Add them only when the React app starts rendering them.
+
+### D. Settings (`SettingsVM`)
+
+```typescript
+interface Settings {
+  deckFilter: string
+  filterFormat: string      // "Colors" | "Names"
+  resultFormat: string      // "Percentage" | "Rating" | "Grade"
+  uiSize: string            // legacy percentage string "40%".."250%"
+  desktopTheme: string      // "System" | "Dark" | "Light"
+  // + language, alwaysOnTop, cardColorsEnabled, autoSyncDatasets,
+  //   updateNotificationsEnabled, draftLogEnabled, missingNotificationsEnabled,
+  //   arenaLogLocation, databaseLocation, overlayGeometry, deckMidDistribution ...
+}
+```
+
+### E. Events (Python -> JS)
+
+| Event | Payload | Purpose |
+|---|---|---|
+| `boot://progress` | `{message}` | Boot status streamed to the BootScreen |
+| `boot://complete` | `BootComplete` | Boot finished; frontend may load state |
+| `boot://error` | `{message}` | Fatal boot error |
+| `draft://status` | `{text}` | Scanner status text |
+| `draft://refresh` | `{seq}` | Frontend re-invokes `get_draft_state` |
+| `draft://heartbeat` | `{logMtime, logName}` | Feeds the live status dot |
+| `app://error` | `{message}` | Recoverable app error |
+| `datasets://updated` | `{updatedCount}` | Background dataset sync finished |
+| `datasets://syncFailed` | `{}` | Background dataset sync failed (retried next launch) |
