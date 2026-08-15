@@ -161,3 +161,42 @@ stateDiagram-v2
 
     Done --> [*]: Recap
 ```
+
+### Code mapping (architecture-review issue 11)
+
+Every state and transition above has an explicit counterpart in
+`src/scanner_state.py`, consumed by `ArenaScanner`:
+
+| Diagram state | Code symbol |
+|---|---|
+| `Idle` | `ScannerPhase.IDLE` |
+| `Drafting.WaitingForPack` | `ScannerPhase.DRAFTING_WAITING_FOR_PACK` |
+| `Drafting.PackReview` | `ScannerPhase.DRAFTING_PACK_REVIEW` |
+| `Drafting.PickMade` | `ScannerPhase.DRAFTING_PICK_MADE` |
+| `Sealed.SealedStudio` | `ScannerPhase.SEALED_STUDIO` |
+| `Done` | `ScannerPhase.DONE` (`derive_scanner_phase` with UNKNOWN + recap payload) |
+
+- Transitions are single-point `TRANSITIONS[(ScannerPhase, ScannerEvent)]` rows;
+  `ArenaScanner.__perform_search_logic` / `_apply_transition` consult the table
+  and `logger.warning` on unregistered (illegal) combinations.
+- `derive_scanner_phase` is the one place scanner fields map onto a phase
+  (the fields remain the source of truth; the phase is a view driven by the
+  dispatch, exposed as `ArenaScanner.phase`).
+- Event handlers: `_search_pack_notify` / `_search_pack_bot` / `_search_pick_human`
+  / `_search_pick_v1` / `_search_pick_bot` / `_search_card_pool`, plus
+  `_mark_draft_complete` for the terminal `DECK_SELECT_COMPLETED` transition.
+- `ScannerEvent.EVENT_JOIN` rows document the `Idle/Done → Drafting` edge; the
+  transition itself is applied inside `draft_start_search` / `__check_event`.
+
+**Known diagram/code gaps (deliberate — no behavior is added to paper over
+them):**
+
+- **`SealedStudio → Done: Event End` has no scanner counterpart.** Sealed has
+  no terminal event handler (`_mark_draft_complete` only fires from the bot
+  family's terminal DeckSelect); completion is derived by consumers via
+  `is_draft_complete` (`src/snapshot_actions`).
+- **There is no `Game` state.** It appears in no diagram edge, no event type,
+  and no scan family; the scanner never tracks match play.
+- **Human drafts have no scanner-side terminal detection.** The `PickMade →
+  Done` transition is exercised by the bot family; human completion is derived
+  by consumers via `is_draft_complete`.

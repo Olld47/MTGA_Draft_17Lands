@@ -1,6 +1,7 @@
 import pytest
 from unittest.mock import MagicMock
 import os
+import logging
 import src.constants as constants
 from src.log_scanner import ArenaScanner, _dataset_event_type_rank
 from src.constants import LIMITED_TYPE_DRAFT_PREMIER_V2
@@ -546,6 +547,200 @@ def test_recovery_mode_sets_draft_label(scanner):
     scanner._ArenaScanner__perform_search_logic()
 
     assert scanner.draft_label == constants.LIMITED_TYPE_STRING_DRAFT_PREMIER
+
+
+# --- Explicit state machine (architecture-review issue 11) -------------------
+# The docs/02 §7 diagram now has code counterparts: ScannerPhase symbols, a
+# single TRANSITIONS table, and a phase property driven by the dispatch.
+# These walkthroughs drive real log lines through the full
+# draft_data_search/draft_start_search pipeline and assert the phase chain —
+# deleting a TRANSITIONS row must make exactly these tests go red.
+
+WALK_JOIN_PREMIER = (
+    '[UnityCrossThreadLogger]==> Event_Join '
+    '{"id":"11a8f74b-1afb-4d25-bb35-55d43674c808",'
+    '"request":"{\\"EventName\\":\\"PremierDraft_OTJ_20240416\\",'
+    '\\"EntryCurrencyType\\":\\"Gem\\"}"}'
+)
+WALK_PACK_P1P1 = (
+    '[UnityCrossThreadLogger]Draft.Notify '
+    '{"draftId":"87b408d1-43e0-4fb5-8c74-a1257fde087c","SelfPick":1,"SelfPack":1,'
+    '"PackCards":"90734,90584,90631,90362,90440,90349,90486,90527,90406,'
+    '90439,90488,90480,90388,90459"}'
+)
+WALK_PICK_P1P1 = (
+    '[UnityCrossThreadLogger]==> Event_PlayerDraftMakePick '
+    '{"id":"a14a9a98-f408-4051-8799-50df13eb18ad",'
+    '"request":"{\\"DraftId\\":\\"87b408d1-43e0-4fb5-8c74-a1257fde087c\\",'
+    '\\"GrpId\\":90459,\\"Pack\\":1,\\"Pick\\":1}"}'
+)
+WALK_PACK_P1P2 = (
+    '[UnityCrossThreadLogger]Draft.Notify '
+    '{"draftId":"87b408d1-43e0-4fb5-8c74-a1257fde087c","SelfPick":2,"SelfPack":1,'
+    '"PackCards":"90701,90416,90606,90524,90481,90588,90440,90418,90353,'
+    '90494,90360,90609,90548"}'
+)
+WALK_JOIN_QUICK = (
+    '[UnityCrossThreadLogger]==> BotDraft_DraftStatus '
+    '{"id":"acd4c04b-fabcd-4c5c-ac1e-6dfb53a2df2f",'
+    '"request":"{\\"EventName\\":\\"QuickDraft_OTJ_20240426\\"}"}'
+)
+WALK_PACK_BOT = (
+    '{"CurrentModule":"BotDraft","Payload":"{\\"Result\\":\\"Success\\",'
+    '\\"EventName\\":\\"QuickDraft_OTJ_20240426\\",\\"DraftStatus\\":\\"PickNext\\",'
+    '\\"PackNumber\\":0,\\"PickNumber\\":0,'
+    '\\"DraftPack\\":[\\"90711\\",\\"90504\\"],\\"PickedCards\\":[]}"}'
+)
+WALK_PICK_BOT = (
+    '[UnityCrossThreadLogger]==> BotDraft_DraftPick '
+    '{"id":"a14a9a98-f408-4051-8799-50df13eb18ad",'
+    '"request":"{\\"CardIds\\":[\\"90428\\"],\\"PackNumber\\":0,\\"PickNumber\\":0}"}'
+)
+WALK_TERMINAL_BOT = (
+    '{"CurrentModule":"DeckSelect","Payload":"{\\"Result\\":\\"Success\\",'
+    '\\"EventName\\":\\"QuickDraft_OTJ_20240426\\",\\"DraftStatus\\":\\"Completed\\",'
+    '\\"DraftPack\\":[],\\"PackNumber\\":2,\\"PickNumber\\":13}"}'
+)
+
+
+@pytest.fixture
+def walkthrough_scanner(tmp_path):
+    """A scanner on a real append-only log with a real set dictionary, driven
+    through the full draft_data_search/draft_start_search pipeline."""
+    from src.limited_sets import SetDictionary, SetInfo
+
+    log = tmp_path / "Player.log"
+    log.write_text("")
+    s = ArenaScanner(
+        str(log),
+        SetDictionary(
+            data={
+                "OTJ": SetInfo(seventeenlands=["OTJ"], set_code="OTJ"),
+                "DSK": SetInfo(seventeenlands=["DSK"], set_code="DSK"),
+            }
+        ),
+        retrieve_unknown=False,
+        state_file=str(tmp_path / "active_draft_state.json"),
+    )
+    s.log_enable(False)
+    return s, log
+
+
+def _append(log, *lines):
+    with open(str(log), "a", encoding="utf-8") as f:
+        for line in lines:
+            f.write(line + "\n")
+
+
+def test_phase_walkthrough_human_draft(walkthrough_scanner):
+    """Idle →(EventJoin) WaitingForPack →(Draft.Notify) PackReview →(MakePick)
+    PickMade →(next Draft.Notify) PackReview."""
+    from src.scanner_state import ScannerPhase
+
+    s, log = walkthrough_scanner
+    assert s.phase == ScannerPhase.IDLE
+
+    _append(log, WALK_JOIN_PREMIER)
+    s.draft_data_search()
+    assert s.phase == ScannerPhase.DRAFTING_WAITING_FOR_PACK
+
+    _append(log, WALK_PACK_P1P1)
+    s.draft_data_search()
+    assert s.phase == ScannerPhase.DRAFTING_PACK_REVIEW
+    assert (s.current_pack, s.current_pick) == (1, 1)
+
+    _append(log, WALK_PICK_P1P1)
+    s.draft_data_search()
+    assert s.phase == ScannerPhase.DRAFTING_PICK_MADE
+    assert s.current_picked_pick == 1
+
+    _append(log, WALK_PACK_P1P2)
+    s.draft_data_search()
+    assert s.phase == ScannerPhase.DRAFTING_PACK_REVIEW
+    assert s.current_pick == 2
+
+
+def test_phase_walkthrough_bot_draft_to_done_and_next_draft(walkthrough_scanner):
+    """Idle →(BotDraft join) WaitingForPack →(bot pack) PackReview
+    →(terminal DeckSelect) Done →(new EventJoin) WaitingForPack."""
+    from src import constants as c
+    from src.scanner_state import ScannerPhase
+
+    s, log = walkthrough_scanner
+
+    _append(log, WALK_JOIN_QUICK)
+    s.draft_data_search()
+    assert s.phase == ScannerPhase.DRAFTING_WAITING_FOR_PACK
+
+    _append(log, WALK_PACK_BOT)
+    s.draft_data_search()
+    assert s.phase == ScannerPhase.DRAFTING_PACK_REVIEW
+    assert (s.current_pack, s.current_pick) == (1, 1)  # 0-indexed log → 1-indexed
+
+    _append(log, WALK_PICK_BOT)
+    s.draft_data_search()
+    assert s.phase == ScannerPhase.DRAFTING_PICK_MADE
+    assert s.current_picked_pick == 1
+
+    _append(log, WALK_TERMINAL_BOT)
+    s.draft_data_search()
+    assert s.phase == ScannerPhase.DONE
+    assert s.draft_type == c.LIMITED_TYPE_UNKNOWN
+    assert s.current_pack == 0  # live pack retired, pool kept for recap
+
+    _append(log, WALK_JOIN_PREMIER)
+    s.draft_data_search()
+    assert s.phase == ScannerPhase.DRAFTING_WAITING_FOR_PACK
+    assert s.event_string == "PremierDraft_OTJ_20240416"  # recap wiped, fresh draft
+
+
+def test_phase_walkthrough_sealed_recovery(walkthrough_scanner):
+    """Cold boot with a CardPool dump: Idle → SealedStudio, pool adopted."""
+    from src.scanner_state import ScannerPhase
+
+    s, log = walkthrough_scanner
+    _append(log, DSK_SEALED_DUMP)
+
+    s.draft_data_search()
+
+    assert s.phase == ScannerPhase.SEALED_STUDIO
+    assert s.event_string == "Sealed_DSK_20240924"
+    assert s.taken_cards == [str(2000 + i) for i in range(20)]
+
+
+def test_illegal_transition_fails_loud(scanner, caplog):
+    """An event with no TRANSITIONS row for the current phase must fail loud
+    (logger.warning) instead of silently applying a return-value convention.
+
+    Driven through the real recovery chain with the scan seams stubbed (the
+    pattern of test_recovery_mode_sets_draft_label): a terminal DeckSelect
+    firing from IDLE is the canonical illegal combo — IDLE has no
+    DECK_SELECT_COMPLETED row. (End-to-end this path is cursor-shadowed —
+    _search_pack_notify consumes pack_offset to EOF first — so the fail-loud
+    branch is exercised exactly as a future event type added to a family
+    without table rows will hit it.)"""
+    from src.scanner_state import ScannerEvent, ScannerPhase
+
+    scanner.draft_type = constants.LIMITED_TYPE_UNKNOWN
+    scanner._search_pack_notify = MagicMock(return_value=False)
+    scanner._search_pick_human = MagicMock(return_value=False)
+    scanner._search_pack_bot = MagicMock(
+        return_value=ScannerEvent.DECK_SELECT_COMPLETED
+    )
+    scanner._search_pick_bot = MagicMock(return_value=False)
+    scanner._search_card_pool = MagicMock(return_value=False)
+
+    with caplog.at_level(logging.WARNING):
+        scanner._ArenaScanner__perform_search_logic()
+
+    assert any(
+        "no registered transition" in record.message.lower()
+        for record in caplog.records
+        if record.levelno == logging.WARNING
+    )
+    # The machine must not pretend a transition happened.
+    assert scanner.phase == ScannerPhase.IDLE
+    assert scanner.draft_type == constants.LIMITED_TYPE_UNKNOWN
 
 
 # --- Typed scan cursors (architecture-review issue04) -------------------------

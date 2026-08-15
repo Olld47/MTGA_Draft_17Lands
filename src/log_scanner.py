@@ -22,6 +22,13 @@ from src.logger import create_logger
 from src.set_metrics import SetMetrics
 from src.dataset import Dataset
 from src.tier_list import TierList
+from src.scanner_state import (
+    ScannerPhase,
+    ScannerEvent,
+    TRANSITIONS,
+    FAMILY_SCANS,
+    derive_scanner_phase,
+)
 from src.utils import (
     process_json,
     json_find,
@@ -169,6 +176,24 @@ class ArenaScanner:
         self.draft_start_time = ""
         self._last_seen_timestamp = "Unknown"
         self._load_state()
+        self._phase = derive_scanner_phase(
+            draft_type=self.draft_type,
+            draft_label=self.draft_label,
+            draft_sets=self.draft_sets,
+            taken_cards=self.taken_cards,
+            current_pick=self.current_pick,
+            current_picked_pick=self.current_picked_pick,
+        )
+
+    @property
+    def phase(self) -> ScannerPhase:
+        """Current ScannerPhase — the explicit state machine view (issue 11).
+
+        The phase is driven by the dispatch's TRANSITIONS lookup, not by
+        field inspection: scanner fields stay the source of truth for
+        behavior, and this property is what the state-walkthrough tests pin.
+        """
+        return self._phase
 
     def set_arena_file(self, filename):
         """Updates the log path and resets pointers for a clean scan."""
@@ -362,6 +387,14 @@ class ArenaScanner:
             self.current_draft_id = ""
             self.event_string = ""
             self.draft_start_time = ""
+            self._phase = derive_scanner_phase(
+                draft_type=self.draft_type,
+                draft_label=self.draft_label,
+                draft_sets=self.draft_sets,
+                taken_cards=self.taken_cards,
+                current_pick=self.current_pick,
+                current_picked_pick=self.current_picked_pick,
+            )
             if not full_clear:
                 self._save_state()
 
@@ -389,6 +422,14 @@ class ArenaScanner:
             self.picked_cards = [[] for _ in range(self.number_of_players)]
             self.pack_cards = [[] for _ in range(self.number_of_players)]
             self.initial_pack = [[] for _ in range(self.number_of_players)]
+            self._phase = derive_scanner_phase(
+                draft_type=self.draft_type,
+                draft_label=self.draft_label,
+                draft_sets=self.draft_sets,
+                taken_cards=self.taken_cards,
+                current_pick=self.current_pick,
+                current_picked_pick=self.current_picked_pick,
+            )
             self._save_state()
         if was_active:
             logger.info("Draft completed; cleared active state")
@@ -531,6 +572,14 @@ class ArenaScanner:
                     self.event_string = event_name
                     self.current_transaction_id = draft_id
                     self.number_of_players = number_of_players
+                    self._phase = derive_scanner_phase(
+                        draft_type=self.draft_type,
+                        draft_label=self.draft_label,
+                        draft_sets=self.draft_sets,
+                        taken_cards=self.taken_cards,
+                        current_pick=self.current_pick,
+                        current_picked_pick=self.current_picked_pick,
+                    )
                     self._save_state()
                 update = True
 
@@ -927,54 +976,69 @@ class ArenaScanner:
             pp = self.current_picked_pick
 
         explicit_update = False
+        phase = self._phase
 
         # RECOVERY MODE: If the app restarts mid-draft and misses EventJoin,
         # infer the draft type from the active log events. The label is set so
         # the recap gate (compute_draft_complete) still recognizes the type when
         # the pool is finished; a later EventJoin overwrites it via __check_event.
+        # The short-circuit evaluation order of the old if/elif chain is
+        # preserved exactly (a fired pack search skips the pick search, etc.).
         if self.draft_type == constants.LIMITED_TYPE_UNKNOWN:
-            if self._search_pack_notify() or self._search_pick_human():
+            fired = None
+            if self._search_pack_notify():
+                fired = ScannerEvent.PACK_NOTIFY
+            elif self._search_pick_human():
+                fired = ScannerEvent.PICK_HUMAN
+            else:
+                bot_result = self._search_pack_bot()
+                if bot_result == ScannerEvent.PACK_BOT:
+                    fired = ScannerEvent.PACK_BOT
+                elif self._search_pick_bot():
+                    fired = ScannerEvent.PICK_BOT
+                elif self._search_card_pool():
+                    fired = ScannerEvent.CARD_POOL
+                elif bot_result == ScannerEvent.DECK_SELECT_COMPLETED:
+                    fired = ScannerEvent.DECK_SELECT_COMPLETED
+
+            if fired in (
+                ScannerEvent.PACK_NOTIFY,
+                ScannerEvent.PICK_HUMAN,
+            ):
                 self.draft_type = constants.LIMITED_TYPE_DRAFT_PREMIER_V2
                 self.draft_label = constants.LIMITED_TYPE_STRING_DRAFT_PREMIER
                 self.number_of_players = 8
                 explicit_update = True
-            elif self._search_pack_bot() or self._search_pick_bot():
+            elif fired in (
+                ScannerEvent.PACK_BOT,
+                ScannerEvent.PICK_BOT,
+            ):
                 self.draft_type = constants.LIMITED_TYPE_DRAFT_QUICK
                 self.draft_label = constants.LIMITED_TYPE_STRING_DRAFT_QUICK
                 self.number_of_players = 8
                 explicit_update = True
-            elif self._search_card_pool():
+            elif fired == ScannerEvent.CARD_POOL:
                 self.draft_type = constants.LIMITED_TYPE_SEALED
                 self.draft_label = constants.LIMITED_TYPE_STRING_SEALED
                 explicit_update = True
 
-        if self.draft_type == constants.LIMITED_TYPE_DRAFT_PREMIER_V1:
-            explicit_update |= self._search_pick_v1()
-            explicit_update |= self._search_pack_notify()
-            explicit_update |= self._search_card_pool()
-        elif self.draft_type in [
-            constants.LIMITED_TYPE_DRAFT_PREMIER_V2,
-            constants.LIMITED_TYPE_DRAFT_PICK_TWO,
-            constants.LIMITED_TYPE_DRAFT_TRADITIONAL,
-            constants.LIMITED_TYPE_DRAFT_PICK_TWO_TRAD,
-            # Contender drafts are human live drafts (Premier protocol)
-            constants.LIMITED_TYPE_DRAFT_CONTENDER,
-        ]:
-            explicit_update |= self._search_pick_human()
-            explicit_update |= self._search_pack_notify()
-            explicit_update |= self._search_card_pool()
-        elif self.draft_type in [
-            constants.LIMITED_TYPE_DRAFT_QUICK,
-            constants.LIMITED_TYPE_DRAFT_PICK_TWO_QUICK,
-        ]:
-            explicit_update |= self._search_pick_bot()
-            explicit_update |= self._search_pack_bot()
-            explicit_update |= self._search_card_pool()
-        elif self.draft_type in [
-            constants.LIMITED_TYPE_SEALED,
-            constants.LIMITED_TYPE_SEALED_TRADITIONAL,
-        ]:
-            explicit_update |= self._search_card_pool()
+            if fired is not None:
+                phase = self._apply_transition(phase, fired)
+        else:
+            # Typed draft/sealed: scan the protocol family's events in the
+            # registered order (FAMILY_SCANS preserves the pre-refactor order
+            # verbatim) and advance the machine via the TRANSITIONS table.
+            for event, handler_name in FAMILY_SCANS[self.draft_type]:
+                fired = getattr(self, handler_name)()
+                if not fired:
+                    continue
+                fired_event = (
+                    fired if isinstance(fired, ScannerEvent) else event
+                )
+                phase = self._apply_transition(phase, fired_event)
+                explicit_update = True
+
+        self._phase = phase
 
         with self.lock:
             return bool(
@@ -983,6 +1047,22 @@ class ArenaScanner:
                 or (pp != self.current_picked_pick)
                 or explicit_update
             )
+
+    def _apply_transition(self, phase, fired):
+        """Look up (phase, fired event) in TRANSITIONS and return the target
+        phase. An unregistered combination fails loud — the event is still
+        processed by its handler (behavior is preserved), but the machine must
+        not pretend a transition happened."""
+        transition = TRANSITIONS.get((phase, fired))
+        if transition is None:
+            logger.warning(
+                "No registered transition: phase %s + event %s "
+                "(processing anyway)",
+                phase.value,
+                fired.value,
+            )
+            return phase
+        return transition.target
 
     # =========================================================================
     # MODULAR PARSERS
@@ -1093,8 +1173,15 @@ class ArenaScanner:
             self.pick_offset, [constants.DRAFT_PICK_STRING_PREMIER_OLD], _extract
         )
 
-    def _search_pack_bot(self) -> bool:
+    def _search_pack_bot(self):
+        """Scan BotDraft pack payloads; returns the fired ScannerEvent
+        (PACK_BOT on a live offer, DECK_SELECT_COMPLETED on the terminal
+        DeckSelect, None when nothing fired) — the dispatch consumes this
+        instead of the old bool-only convention."""
+        fired = None
+
         def _extract(data):
+            nonlocal fired
             status = json_find("DraftStatus", data)
             if status != "PickNext":
                 # A terminal DeckSelect (DraftStatus "Completed") is the last
@@ -1103,6 +1190,7 @@ class ArenaScanner:
                 # active next boot — otherwise a completed event (whose rotation
                 # may have ended) keeps showing stale Pack/Pick data.
                 if status and data.get("CurrentModule") == "DeckSelect":
+                    fired = ScannerEvent.DECK_SELECT_COMPLETED
                     self._mark_draft_complete()
                 return False
             cards = json_find("DraftPack", data)
@@ -1134,11 +1222,14 @@ class ArenaScanner:
                     self.taken_cards = picked_list
                     self.picked_cards[0] = self.taken_cards
                     changed = True
+            if changed:
+                fired = ScannerEvent.PACK_BOT
             return changed
 
-        return self._parse_events(
+        self._parse_events(
             self.pack_offset, [constants.DRAFT_PACK_STRING_QUICK], _extract
         )
+        return fired
 
     def _search_pick_bot(self) -> bool:
         def _extract(data):
