@@ -1,8 +1,7 @@
-import { useEffect, useState } from "react";
-
-import { EVENTS, on, type UpdateAvailablePayload } from "../api/events";
+import { EVENTS, type UpdateAvailablePayload } from "../api/events";
 import { openUrl } from "../api/client";
 import { useLanguage } from "../i18n/useLanguage";
+import { useToastEvent } from "../state/useToastEvent";
 
 /** Toast shown when a newer desktop release exists (app_update_notifier.py).
  *  Self-subscribing like DatasetUpdateToast: mounts once next to the other
@@ -11,27 +10,10 @@ import { useLanguage } from "../i18n/useLanguage";
  *  target=_blank anchor stays inside the Tauri webview (RecapPage pattern). */
 export function AppUpdateToast() {
   const { t } = useLanguage();
-  const [update, setUpdate] = useState<UpdateAvailablePayload | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-
-    const un = on<UpdateAvailablePayload>(EVENTS.updateAvailable, (p) => {
-      if (cancelled) return;
-      setUpdate(p);
-      if (timer) clearTimeout(timer);
-      timer = setTimeout(() => {
-        if (!cancelled) setUpdate(null);
-      }, 10000);
-    });
-
-    return () => {
-      cancelled = true;
-      if (timer) clearTimeout(timer);
-      un.then((f) => f());
-    };
-  }, []);
+  const update = useToastEvent<UpdateAvailablePayload>(
+    EVENTS.updateAvailable,
+    10000,
+  );
 
   if (!update) return null;
 

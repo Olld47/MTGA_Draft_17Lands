@@ -1,7 +1,8 @@
 import { act, render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { DatasetsUpdatedPayload } from "../api/events";
+import { setLanguage } from "../i18n/useLanguage";
 import { DatasetUpdateToast } from "./DatasetUpdateToast";
 
 // The component subscribes through @tauri-apps listen(), which has no backend
@@ -27,6 +28,12 @@ describe("DatasetUpdateToast", () => {
     handler = undefined;
   });
 
+  // The language store is module-level; restore the English default so a
+  // language switch here cannot leak into later tests (suite order-insensitive).
+  afterEach(() => {
+    setLanguage("en");
+  });
+
   it("renders nothing before the background check fires", () => {
     render(<DatasetUpdateToast />);
 
@@ -39,5 +46,16 @@ describe("DatasetUpdateToast", () => {
     act(() => handler?.({ updatedCount: 2 }));
 
     expect(screen.getByText("2 datasets updated")).toBeInTheDocument();
+  });
+
+  it("re-translates the visible message when the language switches", () => {
+    render(<DatasetUpdateToast />);
+
+    act(() => handler?.({ updatedCount: 2 }));
+    expect(screen.getByText("2 datasets updated")).toBeInTheDocument();
+
+    act(() => setLanguage("zh"));
+
+    expect(screen.getByText("已更新 2 个数据集")).toBeInTheDocument();
   });
 });
