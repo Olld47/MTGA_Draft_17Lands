@@ -93,7 +93,7 @@ def requests_mock(monkeypatch):
     return _install
 
 
-def _release(tag, html_url="https://github.com/unrealities/MTGA_Draft_17Lands/releases"):
+def _release(tag, html_url="https://github.com/Olld47/MTGA_Draft_17Lands/releases"):
     return {"tag_name": tag, "html_url": html_url}
 
 
@@ -185,4 +185,4 @@ def test_the_request_uses_a_descriptive_user_agent(emit, requests_mock):
 
     headers = stub.call_args.kwargs["headers"]["User-Agent"]
     assert headers.startswith(f"MTGADraftTool/{DESKTOP_VERSION}")
-    assert "unrealities/MTGA_Draft_17Lands" in headers
+    assert "Olld47/MTGA_Draft_17Lands" in headers

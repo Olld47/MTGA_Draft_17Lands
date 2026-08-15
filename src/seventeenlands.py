@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 class Seventeenlands:
     URL_BASE = "https://www.17lands.com"
     HEADERS = {
-        "User-Agent": "MTGADraftTool/3.38 (Educational Tool; https://github.com/unrealities/MTGA_Draft_17Lands)"
+        "User-Agent": "MTGADraftTool/3.38 (Educational Tool; https://github.com/Olld47/MTGA_Draft_17Lands)"
     }
     CACHE_DIR = os.path.join(BASE_DIR, "Temp", "RawCache")
     ARCHETYPES = ["All", "WU", "UB", "BR", "RG", "WG", "WB", "UR", "BG", "WR", "UG"]

@@ -3,9 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Dataset Schema - API Documentation</title>
+    <title data-i18n="docs.title">Dataset Schema - API Documentation</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="styles.css?v=3" />
     <style>
       /* Smooth expanding for details elements */
       details > summary {
@@ -45,17 +45,20 @@
 
     <div class="max-w-5xl mx-auto px-4 md:px-8 py-8 flex-1 w-full">
       <div class="mb-8 pb-6 border-b border-slate-800">
-        <h1 class="text-3xl font-bold text-slate-100 mb-2">
+        <h1 class="text-3xl font-bold text-slate-100 mb-2" data-i18n="docs.title">
           📖 Dataset Schema & API
         </h1>
-        <p class="text-slate-400 text-sm">
+        <p class="text-slate-400 text-sm" data-i18n="docs.subtitle">
           Interactive documentation for the .json.gz data files.
         </p>
       </div>
 
       <!-- Overview -->
       <div class="mb-10">
-        <p class="text-slate-300 leading-relaxed text-lg">
+        <p
+          class="text-slate-300 leading-relaxed text-lg"
+          data-i18n-html="docs.intro"
+        >
           The ETL pipeline produces a compressed JSON dataset
           (<code>.json.gz</code>) for each specific MTG Arena event. These files
           combine MTGA local client IDs, Scryfall metadata, Scryfall community
@@ -76,7 +79,7 @@
             >GET</span
           >
           <code class="text-slate-200 font-mono text-sm sm:text-base break-all"
-            >https://unrealities.github.io/MTGA_Draft_17Lands/<span
+            >https://olld47.github.io/MTGA_Draft_17Lands/<span
               class="text-blue-400"
               >{set}</span
             >_<span class="text-emerald-400">{format}</span>_<span
@@ -94,8 +97,10 @@
           <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
             <div class="bg-slate-900/50 p-4 rounded border border-slate-700">
               <div class="font-mono text-blue-400 font-bold mb-1">{set}</div>
-              <div class="text-xs text-slate-500 mb-2">string • required</div>
-              <div class="text-sm text-slate-300">
+              <div class="text-xs text-slate-500 mb-2" data-i18n="docs.pathRequired">
+                string • required
+              </div>
+              <div class="text-sm text-slate-300" data-i18n-html="docs.setParam">
                 The 3-letter MTG expansion code (e.g.,
                 <code class="text-slate-400">BLB</code>,
                 <code class="text-slate-400">OTJ</code>).
@@ -105,8 +110,10 @@
               <div class="font-mono text-emerald-400 font-bold mb-1">
                 {format}
               </div>
-              <div class="text-xs text-slate-500 mb-2">string • required</div>
-              <div class="text-sm text-slate-300">
+              <div class="text-xs text-slate-500 mb-2" data-i18n="docs.pathRequired">
+                string • required
+              </div>
+              <div class="text-sm text-slate-300" data-i18n-html="docs.formatParam">
                 Event type (e.g.,
                 <code class="text-slate-400">PremierDraft</code>,
                 <code class="text-slate-400">TradDraft</code>).
@@ -116,8 +123,10 @@
               <div class="font-mono text-amber-400 font-bold mb-1">
                 {user_group}
               </div>
-              <div class="text-xs text-slate-500 mb-2">string • required</div>
-              <div class="text-sm text-slate-300">
+              <div class="text-xs text-slate-500 mb-2" data-i18n="docs.pathRequired">
+                string • required
+              </div>
+              <div class="text-sm text-slate-300" data-i18n-html="docs.userGroupParam">
                 Player skill bracket (e.g.,
                 <code class="text-slate-400">All</code>,
                 <code class="text-slate-400">Top</code>).
@@ -130,6 +139,7 @@
       <!-- Interactive Schemas -->
       <h2
         class="text-2xl font-bold text-slate-100 mb-6 flex items-center gap-2"
+        data-i18n="docs.dataModels"
       >
         <svg
           class="w-6 h-6 text-blue-400"
@@ -163,6 +173,7 @@
               >
               <span
                 class="text-xs bg-slate-700 text-slate-300 px-2 py-0.5 rounded"
+                data-i18n="docs.rootObject"
                 >Root Object</span
               >
             </div>
@@ -184,9 +195,15 @@
             <table class="w-full text-left text-sm">
               <thead class="text-slate-400 border-b border-slate-700/50">
                 <tr>
-                  <th class="pb-2 font-semibold w-1/4">Property</th>
-                  <th class="pb-2 font-semibold w-1/4">Type</th>
-                  <th class="pb-2 font-semibold">Description</th>
+                  <th class="pb-2 font-semibold w-1/4" data-i18n="docs.colProperty">
+                    Property
+                  </th>
+                  <th class="pb-2 font-semibold w-1/4" data-i18n="docs.colType">
+                    Type
+                  </th>
+                  <th class="pb-2 font-semibold" data-i18n="docs.colDescription">
+                    Description
+                  </th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-slate-700/30">
@@ -213,7 +230,7 @@
                       Meta</a
                     >
                   </td>
-                  <td class="py-3 text-slate-400">
+                  <td class="py-3 text-slate-400" data-i18n="docs.metaDesc">
                     Information about when the dataset was compiled.
                   </td>
                 </tr>
@@ -225,7 +242,7 @@
                       >float</span
                     >&gt;
                   </td>
-                  <td class="py-3 text-slate-400">
+                  <td class="py-3 text-slate-400" data-i18n-html="docs.colorRatingsDesc">
                     Baseline win rates for each color archetype in the format.
                     Keyed by normalized WUBRG strings (e.g., <code>"UB"</code>,
                     <code>"WUBRG"</code>).
@@ -241,7 +258,7 @@
                       >Card</a
                     >&gt;
                   </td>
-                  <td class="py-3 text-slate-400">
+                  <td class="py-3 text-slate-400" data-i18n-html="docs.cardRatingsDesc">
                     Dictionary of all cards in the set, keyed by the
                     <strong>MTG Arena GrpId</strong> (as a string).
                   </td>
@@ -282,44 +299,50 @@
             <table class="w-full text-left text-sm">
               <thead class="text-slate-400 border-b border-slate-700/50">
                 <tr>
-                  <th class="pb-2 font-semibold w-1/4">Property</th>
-                  <th class="pb-2 font-semibold w-1/4">Type</th>
-                  <th class="pb-2 font-semibold">Description</th>
+                  <th class="pb-2 font-semibold w-1/4" data-i18n="docs.colProperty">
+                    Property
+                  </th>
+                  <th class="pb-2 font-semibold w-1/4" data-i18n="docs.colType">
+                    Type
+                  </th>
+                  <th class="pb-2 font-semibold" data-i18n="docs.colDescription">
+                    Description
+                  </th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-slate-700/30">
                 <tr>
                   <td class="py-3 font-mono text-slate-200">version</td>
                   <td class="py-3 text-emerald-400">float</td>
-                  <td class="py-3 text-slate-400">
+                  <td class="py-3 text-slate-400" data-i18n-html="docs.metaVersionDesc">
                     Schema version (e.g. <code>3.0</code>)
                   </td>
                 </tr>
                 <tr>
                   <td class="py-3 font-mono text-slate-200">start_date</td>
                   <td class="py-3 text-amber-400">date</td>
-                  <td class="py-3 text-slate-400">
+                  <td class="py-3 text-slate-400" data-i18n="docs.metaStartDateDesc">
                     Start of 17Lands telemetry range.
                   </td>
                 </tr>
                 <tr>
                   <td class="py-3 font-mono text-slate-200">end_date</td>
                   <td class="py-3 text-amber-400">date</td>
-                  <td class="py-3 text-slate-400">
+                  <td class="py-3 text-slate-400" data-i18n="docs.metaEndDateDesc">
                     End of 17Lands telemetry range.
                   </td>
                 </tr>
                 <tr>
                   <td class="py-3 font-mono text-slate-200">game_count</td>
                   <td class="py-3 text-emerald-400">integer</td>
-                  <td class="py-3 text-slate-400">
+                  <td class="py-3 text-slate-400" data-i18n="docs.metaGameCountDesc">
                     Total number of games analyzed to build this dataset.
                   </td>
                 </tr>
                 <tr>
                   <td class="py-3 font-mono text-slate-200">collection_date</td>
                   <td class="py-3 text-amber-400">datetime</td>
-                  <td class="py-3 text-slate-400">
+                  <td class="py-3 text-slate-400" data-i18n="docs.metaCollectionDateDesc">
                     When the ETL pipeline actually compiled the file.
                   </td>
                 </tr>
@@ -359,51 +382,57 @@
             <table class="w-full text-left text-sm">
               <thead class="text-slate-400 border-b border-slate-700/50">
                 <tr>
-                  <th class="pb-2 font-semibold w-1/4">Property</th>
-                  <th class="pb-2 font-semibold w-1/4">Type</th>
-                  <th class="pb-2 font-semibold">Description</th>
+                  <th class="pb-2 font-semibold w-1/4" data-i18n="docs.colProperty">
+                    Property
+                  </th>
+                  <th class="pb-2 font-semibold w-1/4" data-i18n="docs.colType">
+                    Type
+                  </th>
+                  <th class="pb-2 font-semibold" data-i18n="docs.colDescription">
+                    Description
+                  </th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-slate-700/30">
                 <tr>
                   <td class="py-3 font-mono text-slate-200">name</td>
                   <td class="py-3 text-amber-400">string</td>
-                  <td class="py-3 text-slate-400">
+                  <td class="py-3 text-slate-400" data-i18n="docs.cardNameDesc">
                     Sanitized English card name.
                   </td>
                 </tr>
                 <tr>
                   <td class="py-3 font-mono text-slate-200">cmc</td>
                   <td class="py-3 text-emerald-400">integer</td>
-                  <td class="py-3 text-slate-400">
+                  <td class="py-3 text-slate-400" data-i18n="docs.cardCmcDesc">
                     Converted Mana Cost (Mana Value).
                   </td>
                 </tr>
                 <tr>
                   <td class="py-3 font-mono text-slate-200">mana_cost</td>
                   <td class="py-3 text-amber-400">string</td>
-                  <td class="py-3 text-slate-400">
+                  <td class="py-3 text-slate-400" data-i18n-html="docs.cardManaCostDesc">
                     Formatted mana cost (e.g., <code>"{1}{W}{U}"</code>).
                   </td>
                 </tr>
                 <tr>
                   <td class="py-3 font-mono text-slate-200">types</td>
                   <td class="py-3 text-purple-400">array[string]</td>
-                  <td class="py-3 text-slate-400">
+                  <td class="py-3 text-slate-400" data-i18n-html="docs.cardTypesDesc">
                     Supertypes (e.g., <code>["Creature", "Artifact"]</code>).
                   </td>
                 </tr>
                 <tr>
                   <td class="py-3 font-mono text-slate-200">subtypes</td>
                   <td class="py-3 text-purple-400">array[string]</td>
-                  <td class="py-3 text-slate-400">
+                  <td class="py-3 text-slate-400" data-i18n-html="docs.cardSubtypesDesc">
                     Tribes/Types (e.g., <code>["Human", "Ninja"]</code>).
                   </td>
                 </tr>
                 <tr>
                   <td class="py-3 font-mono text-slate-200">rarity</td>
                   <td class="py-3 text-amber-400">string</td>
-                  <td class="py-3 text-slate-400">
+                  <td class="py-3 text-slate-400" data-i18n-html="docs.cardRarityDesc">
                     <code>common</code>, <code>uncommon</code>,
                     <code>rare</code>, <code>mythic</code>.
                   </td>
@@ -411,7 +440,7 @@
                 <tr>
                   <td class="py-3 font-mono text-slate-200">colors</td>
                   <td class="py-3 text-purple-400">array[string]</td>
-                  <td class="py-3 text-slate-400">
+                  <td class="py-3 text-slate-400" data-i18n-html="docs.cardColorsDesc">
                     Color identity (e.g., <code>["W", "B"]</code>).
                   </td>
                 </tr>
@@ -422,7 +451,7 @@
                     tags
                   </td>
                   <td class="py-3 text-purple-400">array[string]</td>
-                  <td class="py-3 text-slate-400">
+                  <td class="py-3 text-slate-400" data-i18n-html="docs.cardTagsDesc">
                     Scryfall Oracle tags indicating the card's role (e.g.,
                     <code>["removal", "evasion", "fixing_ramp"]</code>).
                   </td>
@@ -430,7 +459,7 @@
                 <tr>
                   <td class="py-3 font-mono text-slate-200">image</td>
                   <td class="py-3 text-purple-400">array[string]</td>
-                  <td class="py-3 text-slate-400">
+                  <td class="py-3 text-slate-400" data-i18n="docs.cardImageDesc">
                     List of image URLs (arrays handle double-faced cards).
                   </td>
                 </tr>
@@ -461,7 +490,7 @@
                       ArchetypeMetrics</a
                     >&gt;
                   </td>
-                  <td class="py-3 text-slate-400">
+                  <td class="py-3 text-slate-400" data-i18n-html="docs.cardDeckColorsDesc">
                     Contains 17Lands telemetry data isolated by deck archetype
                     (e.g. <code>"All Decks"</code>, <code>"UB"</code>).
                   </td>
@@ -502,9 +531,15 @@
             <table class="w-full text-left text-sm">
               <thead class="text-slate-400 border-b border-slate-700/50">
                 <tr>
-                  <th class="pb-2 font-semibold w-1/4">Property</th>
-                  <th class="pb-2 font-semibold w-1/4">Type</th>
-                  <th class="pb-2 font-semibold">Description</th>
+                  <th class="pb-2 font-semibold w-1/4" data-i18n="docs.colProperty">
+                    Property
+                  </th>
+                  <th class="pb-2 font-semibold w-1/4" data-i18n="docs.colType">
+                    Type
+                  </th>
+                  <th class="pb-2 font-semibold" data-i18n="docs.colDescription">
+                    Description
+                  </th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-slate-700/30">
@@ -513,7 +548,7 @@
                     gihwr
                   </td>
                   <td class="py-3 text-emerald-400">float</td>
-                  <td class="py-3 text-slate-300">
+                  <td class="py-3 text-slate-300" data-i18n-html="docs.metricsGihwrDesc">
                     <strong>Games in Hand Win Rate (%).</strong> The win rate
                     when the card was drawn or in the opening hand. The most
                     standard metric of power.
@@ -522,7 +557,7 @@
                 <tr>
                   <td class="py-3 font-mono text-blue-400 font-bold">alsa</td>
                   <td class="py-3 text-emerald-400">float</td>
-                  <td class="py-3 text-slate-300">
+                  <td class="py-3 text-slate-300" data-i18n-html="docs.metricsAlsaDesc">
                     <strong>Average Last Seen At.</strong> (1.0 - 15.0)
                     Indicates how highly the community values picking this card.
                   </td>
@@ -530,7 +565,7 @@
                 <tr>
                   <td class="py-3 font-mono text-blue-400 font-bold">ata</td>
                   <td class="py-3 text-emerald-400">float</td>
-                  <td class="py-3 text-slate-300">
+                  <td class="py-3 text-slate-300" data-i18n-html="docs.metricsAtaDesc">
                     <strong>Average Taken At.</strong> Similar to ALSA, but
                     restricted only to when users of 17Lands actively picked it.
                   </td>
@@ -538,16 +573,16 @@
                 <tr>
                   <td class="py-3 font-mono text-purple-400 font-bold">iwd</td>
                   <td class="py-3 text-emerald-400">float</td>
-                  <td class="py-3 text-slate-300">
+                  <td class="py-3 text-slate-300" data-i18n-html="docs.metricsIwdDesc">
                     <strong>Improvement When Drawn (%).</strong>
-                    <code>GIHWR - GNSWR</code>. Highly positive IWDs (> 4.0%)
-                    strongly indicate "Bomb" level cards.
+                    <code>GIHWR - GNSWR</code>. Highly positive IWDs (&gt;
+                    4.0%) strongly indicate "Bomb" level cards.
                   </td>
                 </tr>
                 <tr>
                   <td class="py-3 font-mono text-amber-400">ohwr</td>
                   <td class="py-3 text-emerald-400">float</td>
-                  <td class="py-3 text-slate-400">
+                  <td class="py-3 text-slate-400" data-i18n-html="docs.metricsOhwrDesc">
                     <strong>Opening Hand Win Rate (%).</strong> High values here
                     usually indicate aggressive 1 or 2-drops.
                   </td>
@@ -555,7 +590,7 @@
                 <tr>
                   <td class="py-3 font-mono text-amber-400">gpwr</td>
                   <td class="py-3 text-emerald-400">float</td>
-                  <td class="py-3 text-slate-400">
+                  <td class="py-3 text-slate-400" data-i18n-html="docs.metricsGpwrDesc">
                     <strong>Games Played Win Rate (%).</strong> The win rate of
                     decks that included this card, regardless of if it was ever
                     drawn.
@@ -564,7 +599,7 @@
                 <tr>
                   <td class="py-3 font-mono text-slate-400">samples</td>
                   <td class="py-3 text-emerald-400">integer</td>
-                  <td class="py-3 text-slate-400">
+                  <td class="py-3 text-slate-400" data-i18n="docs.metricsSamplesDesc">
                     Total number of games this card was drawn in this specific
                     archetype. Use this to determine if the win rate is
                     statistically noisy.
@@ -579,6 +614,7 @@
 
     <!-- INJECT_FOOTER -->
 
+    <script src="i18n.js?v=3"></script>
     <script>
       function highlightSchema(id) {
         const el = document.getElementById(id)

@@ -26,7 +26,7 @@ document.addEventListener('DOMContentLoaded', () => {
         })
         .catch(e => {
             console.error(e);
-            if (statusEl) statusEl.innerHTML = `<span class="text-red-400 font-bold">Error loading calendar:</span><br>${e.message}`;
+            if (statusEl) statusEl.innerHTML = `<span class="text-red-400 font-bold">${I18N.t('calendar.loadingError')}</span><br>${e.message}`;
         });
 
     document.getElementById('prev-month').addEventListener('click', () => {
@@ -40,6 +40,12 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
+// Re-render month/day names, hover titles, and fallback strings when the
+// visitor switches language (the fetched events data itself never changes).
+document.addEventListener('mtga:langchange', () => {
+    renderCalendar();
+});
+
 // Safely parses YYYY-MM-DD to a local Date object without timezone shift bugs
 function parseDateStr(str) {
     if (!str) return new Date();
@@ -51,9 +57,10 @@ function renderCalendar() {
     try {
         const year = currentDate.getFullYear();
         const month = currentDate.getMonth();
+        const lang = I18N.getLang();
 
-        const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-        document.getElementById('month-label').textContent = `${monthNames[month]} ${year}`;
+        document.getElementById('month-label').textContent =
+            `${new Date(year, month, 1).toLocaleDateString(lang, { month: 'long' })} ${year}`;
 
         const daysInMonth = new Date(year, month + 1, 0).getDate();
         const firstDayIndex = new Date(year, month, 1).getDay();
@@ -85,7 +92,7 @@ function renderCalendar() {
             const formats = ev.formats || ['Default'];
             formats.forEach(fmt => {
                 instances.push({
-                    set: ev.set_code || "Unknown",
+                    set: ev.set_code || I18N.t('calendar.unknown'),
                     format: fmt,
                     start: start,
                     end: end
@@ -139,7 +146,9 @@ function renderCalendar() {
         container.innerHTML = '';
 
         // A. Draw Headers (Row 1)
-        const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        const days = Array.from({ length: 7 }, (_, i) =>
+            new Date(2024, 0, i).toLocaleDateString(lang, { weekday: 'short' })
+        );
         days.forEach((d, i) => {
             const div = document.createElement('div');
             div.className = 'calendar-cell header';
@@ -220,7 +229,10 @@ function renderCalendar() {
                     }
 
                     // Hover text
-                    bar.title = `${ins.set} ${ins.format} (${ins.start.toLocaleDateString()} to ${ins.end.toLocaleDateString()})`;
+                    bar.title = `${ins.set} ${ins.format} (${I18N.t('calendar.range', {
+                        start: ins.start.toLocaleDateString(lang),
+                        end: ins.end.toLocaleDateString(lang),
+                    })})`;
 
                     container.appendChild(bar);
                 }
@@ -230,7 +242,7 @@ function renderCalendar() {
         console.error("Calendar Render Error:", err);
         const statusEl = document.getElementById('calendar-status');
         if (statusEl) {
-            statusEl.innerHTML = `<span class="text-red-400 font-bold">Render Error:</span><br>${err.message}`;
+            statusEl.innerHTML = `<span class="text-red-400 font-bold">${I18N.t('calendar.renderError')}</span><br>${err.message}`;
         }
     }
 }

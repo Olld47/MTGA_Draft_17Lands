@@ -11,34 +11,48 @@
           >MTGA <span class="text-blue-500">Draft Tool</span></span
         >
       </div>
-      <div class="flex gap-2 flex-wrap justify-center" id="global-nav-links">
+      <div class="flex gap-2 flex-wrap justify-center items-center" id="global-nav-links">
         <a
           href="index.html"
           class="nav-link text-sm bg-slate-800 hover:bg-slate-700 text-slate-300 px-4 py-2 rounded-lg border border-slate-700 transition"
+          data-i18n="nav.app"
           >App & Downloads</a
         >
         <a
           href="releases.html"
           class="nav-link text-sm bg-slate-800 hover:bg-slate-700 text-slate-300 px-4 py-2 rounded-lg border border-slate-700 transition"
+          data-i18n="nav.releases"
           >Releases</a
         >
         <a
           href="warehouse.html"
           class="nav-link text-sm bg-slate-800 hover:bg-slate-700 text-slate-300 px-4 py-2 rounded-lg border border-slate-700 transition"
+          data-i18n="nav.warehouse"
           >Data Warehouse</a
         >
         <a
           href="calendar.html"
           class="nav-link text-sm bg-slate-800 hover:bg-slate-700 text-slate-300 px-4 py-2 rounded-lg border border-slate-700 transition"
+          data-i18n="nav.calendar"
           >Schedule</a
         >
         <a
           href="docs.html"
           class="nav-link text-sm bg-slate-800 hover:bg-slate-700 text-slate-300 px-4 py-2 rounded-lg border border-slate-700 transition"
+          data-i18n="nav.docs"
           >API Docs</a
         >
+        <select
+          id="lang-switcher"
+          class="text-sm bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-2 rounded-lg border border-slate-700 transition cursor-pointer"
+          data-i18n-title="nav.language"
+          aria-label="Language"
+        >
+          <option value="en">English</option>
+          <option value="zh">中文</option>
+        </select>
         <a
-          href="https://github.com/unrealities/MTGA_Draft_17Lands"
+          href="https://github.com/Olld47/MTGA_Draft_17Lands"
           target="_blank"
           class="text-sm bg-slate-800 hover:bg-slate-700 text-slate-300 px-4 py-2 rounded-lg border border-slate-700 transition flex items-center gap-2"
         >

@@ -12,8 +12,8 @@ CARD_RATINGS_INTER_DELAY_SECONDS = 1
 CARD_RATINGS_ATTEMPT_MAX = 5
 
 # --- Remote ETL Pipeline ---
-REMOTE_MANIFEST_URL = "https://unrealities.github.io/MTGA_Draft_17Lands/manifest.json"
-REMOTE_DATASET_BASE_URL = "https://unrealities.github.io/MTGA_Draft_17Lands/"
+REMOTE_MANIFEST_URL = "https://olld47.github.io/MTGA_Draft_17Lands/manifest.json"
+REMOTE_DATASET_BASE_URL = "https://olld47.github.io/MTGA_Draft_17Lands/"
 # 17Lands set/format catalog: live_formats_by_expansion names the expansions
 # (and formats) currently playable on MTGA — the source of truth for which
 # cloud datasets a fresh install should download.

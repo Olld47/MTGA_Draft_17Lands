@@ -92,3 +92,10 @@ th.sortable.desc::after {
 .event-bar:hover {
   filter: brightness(1.2);
 }
+
+/* Language switcher in the nav bar (aligns with the adjacent buttons) */
+#lang-switcher {
+  min-height: 38px;
+  appearance: auto;
+  -webkit-appearance: auto;
+}

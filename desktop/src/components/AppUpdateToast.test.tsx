@@ -33,7 +33,7 @@ vi.mock("../api/client", () => ({
 }));
 
 const releaseUrl =
-  "https://github.com/unrealities/MTGA_Draft_17Lands/releases/tag/v0.40.0";
+  "https://github.com/Olld47/MTGA_Draft_17Lands/releases/tag/v0.40.0";
 
 describe("AppUpdateToast", () => {
   beforeEach(() => {

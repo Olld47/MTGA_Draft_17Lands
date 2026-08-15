@@ -5,45 +5,58 @@ let currentSort = { col: 'set', dir: 'asc' };
 let showOnlyActive = true; // Toggle state for the Warehouse list
 
 document.addEventListener('DOMContentLoaded', () => {
+    // One-time listeners (re-attaching on every language switch would stack).
+    if (document.getElementById('activity-table')) {
+        setupSortListeners();
+        setupSearchListener();
+    }
+    initApp();
+});
+
+// Re-render data-driven content (localized dates, badges, fallback strings)
+// when the visitor switches language via the nav switcher.
+document.addEventListener('mtga:langchange', () => {
+    initApp();
+});
+
+function initApp() {
     // 1. Data Warehouse Dashboard Logic
     if (document.getElementById('activity-table')) {
         fetchReport();
         fetchManifest();
-        setupSortListeners();
-        setupSearchListener();
     }
 
     // 2. Landing Page Version Badge Logic
     const latestVersionEl = document.getElementById('latest-version');
     if (latestVersionEl) {
-        fetch('https://api.github.com/repos/unrealities/MTGA_Draft_17Lands/releases/latest')
+        fetch('https://api.github.com/repos/Olld47/MTGA_Draft_17Lands/releases/latest')
             .then(res => res.json())
             .then(data => {
                 if (data.tag_name) {
                     latestVersionEl.textContent = formatVersion(data.tag_name);
                 } else {
-                    latestVersionEl.textContent = 'View Releases';
+                    latestVersionEl.textContent = I18N.t('app.viewReleases');
                 }
             }).catch(e => {
                 console.error("Failed to fetch latest version:", e);
-                latestVersionEl.textContent = 'View Releases';
+                latestVersionEl.textContent = I18N.t('app.viewReleases');
             });
     }
 
     // 3. Past Releases Page Logic
     const releasesListEl = document.getElementById('releases-list');
     if (releasesListEl) {
-        fetch('https://api.github.com/repos/unrealities/MTGA_Draft_17Lands/releases')
+        fetch('https://api.github.com/repos/Olld47/MTGA_Draft_17Lands/releases')
             .then(res => res.json())
             .then(data => {
                 releasesListEl.innerHTML = '';
                 if (!Array.isArray(data)) {
-                    releasesListEl.innerHTML = '<p class="text-rose-400 p-8 text-center bg-slate-800/50 rounded-xl border border-slate-700">Failed to load releases (API Rate Limit exceeded). Please check GitHub directly.</p>';
+                    releasesListEl.innerHTML = `<p class="text-rose-400 p-8 text-center bg-slate-800/50 rounded-xl border border-slate-700">${I18N.t('app.releasesRateLimit')}</p>`;
                     return;
                 }
 
                 data.forEach((rel, i) => {
-                    const dateStr = new Date(rel.published_at).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+                    const dateStr = new Date(rel.published_at).toLocaleDateString(I18N.getLang(), { year: 'numeric', month: 'long', day: 'numeric' });
                     const ver = formatVersion(rel.tag_name);
                     const bodyHtml = formatMarkdown(rel.body);
                     const assetsHtml = renderAssets(rel.assets);
@@ -56,14 +69,14 @@ document.addEventListener('DOMContentLoaded', () => {
                                 <div class="flex flex-col md:flex-row md:items-center justify-between mb-4 border-b border-slate-700/50 pb-4">
                                     <div>
                                         <div class="flex items-center gap-2 mb-2">
-                                            <span class="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-widest">Latest Release</span>
+                                            <span class="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-widest">${I18N.t('app.latestRelease')}</span>
                                         </div>
                                         <h2 class="text-2xl font-bold text-white flex items-center gap-3">
                                             ${rel.name} <span class="bg-blue-600/20 text-blue-400 border border-blue-500/30 px-2 py-0.5 rounded text-xs font-mono">${ver}</span>
                                         </h2>
-                                        <p class="text-slate-400 text-sm mt-1">Published on ${dateStr}</p>
+                                        <p class="text-slate-400 text-sm mt-1">${I18N.t('app.publishedOn', { date: dateStr })}</p>
                                     </div>
-                                    <a href="${rel.html_url}" target="_blank" class="mt-4 md:mt-0 text-sm bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg transition text-center border border-slate-600 shadow-sm">View on GitHub</a>
+                                    <a href="${rel.html_url}" target="_blank" class="mt-4 md:mt-0 text-sm bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg transition text-center border border-slate-600 shadow-sm">${I18N.t('app.viewOnGithub')}</a>
                                 </div>
                                 <div class="text-slate-300 text-sm leading-relaxed font-sans">${bodyHtml}</div>
                                 
@@ -72,7 +85,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 </div>
                             </div>
                             
-                            <h2 class="text-xl font-bold text-slate-200 mb-4 mt-4 border-b border-slate-800 pb-2">Previous Releases</h2>
+                            <h2 class="text-xl font-bold text-slate-200 mb-4 mt-4 border-b border-slate-800 pb-2">${I18N.t('app.previousReleases')}</h2>
                         `;
                     } else {
                         // Older Releases (Collapsed Accordion)
@@ -99,10 +112,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 });
             }).catch(e => {
-                releasesListEl.innerHTML = '<p class="text-rose-400 p-8 text-center bg-slate-800/50 rounded-xl border border-slate-700">Failed to load releases. Please check GitHub directly.</p>';
+                releasesListEl.innerHTML = `<p class="text-rose-400 p-8 text-center bg-slate-800/50 rounded-xl border border-slate-700">${I18N.t('app.releasesFailed')}</p>`;
             });
     }
-});
+}
 
 // Helper: Converts MTGA_Draft_Tool_V0413 into v4.13
 function formatVersion(tag) {
@@ -187,7 +200,7 @@ function fetchReport() {
             let secs = Math.floor(dur % 60);
             let durStr = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
 
-            document.getElementById('last-updated').innerHTML = `Last ETL Run: <span class="text-slate-300">${new Date(run.completed_at).toLocaleString()}</span>`;
+            document.getElementById('last-updated').innerHTML = `${I18N.t('app.lastEtlRun')} <span class="text-slate-300">${new Date(run.completed_at).toLocaleString(I18N.getLang())}</span>`;
             document.getElementById('duration').textContent = durStr;
             document.getElementById('api-reqs').textContent = api.total_requests || 0;
 
@@ -259,7 +272,7 @@ function renderActivityTable() {
     tbody.innerHTML = '';
 
     if (activityData.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" class="p-4 text-center text-slate-500">No active sets scheduled for today.</td></tr>';
+        tbody.innerHTML = `<tr><td colspan="7" class="p-4 text-center text-slate-500">${I18N.t('app.noActiveSets')}</td></tr>`;
         return;
     }
 
@@ -273,7 +286,7 @@ function renderActivityTable() {
                 <td class="p-4 text-right text-emerald-400/90">${u.game_count.toLocaleString()}</td>
                 <td class="p-4 text-right text-slate-400">${u.size_kb}</td>
                 <td class="p-4 text-center">
-                    <a href="${u.filename}" download class="inline-block bg-blue-600/20 hover:bg-blue-600/40 text-blue-400 border border-blue-500/30 rounded py-1 px-3 text-xs font-semibold transition shadow-sm">Download</a>
+                    <a href="${u.filename}" download class="inline-block bg-blue-600/20 hover:bg-blue-600/40 text-blue-400 border border-blue-500/30 rounded py-1 px-3 text-xs font-semibold transition shadow-sm">${I18N.t('app.download')}</a>
                 </td>
             </tr>
         `;
@@ -304,8 +317,8 @@ function renderManifestList(dataArray) {
     // Render the Active vs Archive Toggle
     const toggleHTML = `
         <div class="flex gap-2 mb-4 px-1 sticky top-0 bg-slate-800/90 py-2 backdrop-blur-sm z-10 border-b border-slate-700/50">
-            <button id="btn-active" class="flex-1 py-1.5 text-xs font-bold rounded ${showOnlyActive ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-400 hover:bg-slate-600'} transition">Active on Arena</button>
-            <button id="btn-archive" class="flex-1 py-1.5 text-xs font-bold rounded ${!showOnlyActive ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-400 hover:bg-slate-600'} transition">Historical Archive</button>
+            <button id="btn-active" class="flex-1 py-1.5 text-xs font-bold rounded ${showOnlyActive ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-400 hover:bg-slate-600'} transition">${I18N.t('app.activeOnArena')}</button>
+            <button id="btn-archive" class="flex-1 py-1.5 text-xs font-bold rounded ${!showOnlyActive ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-400 hover:bg-slate-600'} transition">${I18N.t('app.historicalArchive')}</button>
         </div>
     `;
     listEl.innerHTML = toggleHTML;
@@ -332,12 +345,12 @@ function renderManifestList(dataArray) {
         existingItems.forEach(el => el.remove());
 
         if (filteredData.length === 0) {
-            listEl.innerHTML += '<p class="no-items-msg p-4 text-center text-slate-500 text-sm">No datasets found for this view.</p>';
+            listEl.innerHTML += `<p class="no-items-msg p-4 text-center text-slate-500 text-sm">${I18N.t('app.noDatasetsFound')}</p>`;
             return;
         }
 
         filteredData.forEach(ds => {
-            const formatStr = ds.id.split('_')[1] || "Format";
+            const formatStr = ds.id.split('_')[1] || I18N.t('app.formatFallback');
             const userStr = ds.id.split('_')[2] || "All";
 
             const dateStr = (ds.start_date && ds.end_date)
@@ -358,7 +371,7 @@ function renderManifestList(dataArray) {
                         <span class="text-xs text-slate-400 whitespace-nowrap">${ds.size_kb} KB</span>
                     </div>
                     <a href="${ds.filename}" download class="text-xs bg-blue-600/20 hover:bg-blue-600/40 text-blue-400 border border-blue-500/30 rounded py-1.5 px-2 mt-2 text-center transition opacity-0 group-hover:opacity-100">
-                        Download .json.gz
+                        ${I18N.t('app.downloadJson')}
                     </a>
                 </div>
             `;

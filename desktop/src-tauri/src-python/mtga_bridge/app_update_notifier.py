@@ -21,10 +21,10 @@ logger = logging.getLogger(__name__)
 
 EVENT_APP_UPDATE_AVAILABLE = "update://available"
 UPDATE_LATEST_URL = (
-    "https://api.github.com/repos/unrealities/MTGA_Draft_17Lands/releases/latest"
+    "https://api.github.com/repos/Olld47/MTGA_Draft_17Lands/releases/latest"
 )
 RELEASES_FALLBACK_URL = (
-    "https://github.com/unrealities/MTGA_Draft_17Lands/releases"
+    "https://github.com/Olld47/MTGA_Draft_17Lands/releases"
 )
 
 # GitHub's releases/latest never returns prereleases, and the capture strips any
@@ -71,7 +71,7 @@ def check_app_update(runtime, emit, delay: float = 3.0) -> None:
             headers={
                 "User-Agent": (
                     f"MTGADraftTool/{DESKTOP_VERSION} "
-                    "(Educational Tool; https://github.com/unrealities/"
+                    "(Educational Tool; https://github.com/Olld47/"
                     "MTGA_Draft_17Lands)"
                 )
             },

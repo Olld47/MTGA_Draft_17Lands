@@ -8,20 +8,23 @@
     <!-- About Section -->
     <div>
       <strong class="text-slate-200 text-lg mb-4 block">MTGA Draft Tool</strong>
-      <p class="text-sm leading-relaxed mb-4">
+      <p
+        class="text-sm leading-relaxed mb-4"
+        data-i18n="footer.about"
+      >
         An open-source desktop overlay. Not affiliated with Wizards of the
         Coast. This project minimizes API load by aggregating data into single
         daily files via an automated ETL pipeline.
       </p>
       <p class="text-sm leading-relaxed">
-        Draft telemetry provided by
+        <span data-i18n="footer.telemetry">Draft telemetry provided by</span>
         <a
           href="https://www.17lands.com"
           target="_blank"
           class="text-blue-400 hover:text-blue-300 underline font-semibold"
           >17Lands</a
         >.<br />
-        Card metadata sourced from
+        <span data-i18n="footer.metadata">Card metadata sourced from</span>
         <a
           href="https://scryfall.com"
           target="_blank"
@@ -33,37 +36,43 @@
 
     <!-- Project Links -->
     <div>
-      <strong class="text-slate-200 text-lg mb-4 block">Project Links</strong>
+      <strong class="text-slate-200 text-lg mb-4 block" data-i18n="footer.projectLinks"
+        >Project Links</strong
+      >
       <ul class="space-y-3 text-sm">
         <li>
           <a
-            href="https://github.com/unrealities/MTGA_Draft_17Lands"
+            href="https://github.com/Olld47/MTGA_Draft_17Lands"
             target="_blank"
             class="hover:text-blue-400 transition flex items-center gap-2"
+            data-i18n="footer.sourceCode"
             >🔗 Source Code (GitHub)</a
           >
         </li>
         <li>
           <a
-            href="https://github.com/unrealities/MTGA_Draft_17Lands/releases"
+            href="https://github.com/Olld47/MTGA_Draft_17Lands/releases"
             target="_blank"
             class="hover:text-blue-400 transition flex items-center gap-2"
+            data-i18n="footer.downloadReleases"
             >📦 Download Releases</a
           >
         </li>
         <li>
           <a
-            href="https://github.com/unrealities/MTGA_Draft_17Lands/issues"
+            href="https://github.com/Olld47/MTGA_Draft_17Lands/issues"
             target="_blank"
             class="hover:text-blue-400 transition flex items-center gap-2"
+            data-i18n="footer.reportIssue"
             >🐛 Report an Issue / Bug</a
           >
         </li>
         <li>
           <a
-            href="https://github.com/unrealities/MTGA_Draft_17Lands/discussions"
+            href="https://github.com/Olld47/MTGA_Draft_17Lands/discussions"
             target="_blank"
             class="hover:text-blue-400 transition flex items-center gap-2"
+            data-i18n="footer.joinDiscussion"
             >💬 Join the Discussion</a
           >
         </li>
@@ -72,10 +81,13 @@
 
     <!-- Support Section -->
     <div>
-      <strong class="text-slate-200 text-lg mb-4 block"
+      <strong class="text-slate-200 text-lg mb-4 block" data-i18n="footer.support"
         >Support the Creators</strong
       >
-      <p class="text-sm leading-relaxed mb-6">
+      <p
+        class="text-sm leading-relaxed mb-6"
+        data-i18n="footer.supportText"
+      >
         This tool is completely free, but it relies on platforms that pay for
         expensive servers. If you find this useful, please consider supporting
         them!
@@ -85,6 +97,7 @@
           href="https://www.patreon.com/17lands"
           target="_blank"
           class="bg-[#FF424D]/10 hover:bg-[#FF424D]/20 text-[#FF424D] border border-[#FF424D]/30 px-4 py-2.5 rounded-lg text-sm font-bold transition flex items-center justify-center"
+          data-i18n="footer.support17lands"
         >
           ❤️ Support 17Lands on Patreon
         </a>
@@ -92,6 +105,7 @@
           href="https://www.patreon.com/scryfall"
           target="_blank"
           class="bg-violet-600/10 hover:bg-violet-600/20 text-violet-400 border border-violet-500/30 px-4 py-2.5 rounded-lg text-sm font-bold transition flex items-center justify-center"
+          data-i18n="footer.supportScryfall"
         >
           💜 Support Scryfall on Patreon
         </a>

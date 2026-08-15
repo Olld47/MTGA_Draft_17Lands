@@ -6,7 +6,7 @@ OUTPUT_DIR = os.getenv(
 )
 
 # --- API ETIQUETTE & CONFIG ---
-USER_AGENT = "MTGADraftTool-ETL/2.1 (https://github.com/unrealities/MTGA_Draft_17Lands)"
+USER_AGENT = "MTGADraftTool-ETL/2.1 (https://github.com/Olld47/MTGA_Draft_17Lands)"
 HEADERS = {
     "User-Agent": USER_AGENT,
     "Accept": "application/json",
