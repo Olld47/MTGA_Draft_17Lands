@@ -17,7 +17,8 @@ MTGA 轮抓工具桌面版（React + TypeScript + Tauri 2 + 内嵌 Python）正�
 
 ArenaScanner 显式状态机与持久化抽取（DraftSession）、引擎参数单源、七个模块收敛到 src 纯层共享、进程级可变状态收敛、同步失败可观测、tkinter 测试污染根除、常量与命令拆分——架构评审 12 项全部 resolved，全套 Python 测试 1924 passing，前端 vitest / tsc 干净。
 
-**English**
+<details>
+<summary><b>English</b></summary>
 
 #### Desktop Release
 
@@ -34,6 +35,8 @@ Reconnect no longer loses state: signals, recap decisions and event-id validatio
 #### Architecture Review Complete
 
 All 12 architecture-review items resolved: explicit scanner state machine and persistence extraction (DraftSession), single-source engine parameters, seven modules converged into shared pure-layer code, process-global state eliminated, sync-failure observability, tkinter test-pollution fix, constants/commands split. Full Python suite 1924 passing; frontend vitest/tsc clean.
+
+</details>
 
 ---
 
