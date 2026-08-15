@@ -131,19 +131,29 @@ class TestSuggestDeckPanel:
         assert "Not enough spells drafted yet" in panel.var_archetype.get()
 
     def test_handle_builder_error(self, root, mock_draft):
-        """Verify that if the AI engine throws an exception, the UI reports it cleanly."""
+        """Verify that if the AI engine throws an exception, the UI reports it
+        cleanly (the error is caught and settled by the shared actions layer)."""
         panel = SuggestDeckPanel(root, mock_draft, Configuration())
+        panel.sim_executor.submit = lambda fn, *args, **kwargs: fn(*args, **kwargs)
 
-        panel._handle_builder_error("Test Exception")
+        with patch(
+            "src.advisor.deck_builder.suggest_deck", side_effect=RuntimeError("boom")
+        ):
+            panel.refresh()
+            root.update()
 
-        assert panel.var_archetype.get() == "Builder Error"
+        assert "Builder error" in panel.var_archetype.get()
         assert len(panel.suggestions) == 0
 
     def test_finalize_build_empty(self, root, mock_draft):
-        """Verify that if the AI engine returns an empty dict, the UI handles it cleanly."""
+        """Verify that if the AI engine returns an empty dict, the UI handles
+        it cleanly (message from the shared actions layer, building flag off)."""
         panel = SuggestDeckPanel(root, mock_draft, Configuration())
+        panel.sim_executor.submit = lambda fn, *args, **kwargs: fn(*args, **kwargs)
 
-        panel._finalize_build({})
+        with patch("src.advisor.deck_builder.suggest_deck", return_value={}):
+            panel.refresh()
+            root.update()
 
         assert "Not enough on-color playables" in panel.var_archetype.get()
         assert panel.is_building is False
@@ -227,11 +237,7 @@ class TestSuggestDeckPanel:
         mock_tooltip.assert_called_once()
         assert mock_tooltip.call_args[0][1]["name"] == "Mosswood Dreadknight"
 
-    @patch(
-        "src.ui.windows.suggest_deck.copy_deck",
-        return_value="Deck\n1 Mosswood Dreadknight",
-    )
-    def test_copy_to_clipboard(self, mock_copy, root, mock_draft, mock_variants):
+    def test_copy_to_clipboard(self, root, mock_draft, mock_variants):
         panel = SuggestDeckPanel(root, mock_draft, Configuration())
         panel.suggestions = mock_variants
         panel.var_archetype.set("BG Consistent")

@@ -291,6 +291,17 @@ def test_calculate_releases_lock_during_engine_run(env):
     assert acquired_by_other_thread == [True]
 
 
+def test_calculate_skips_while_building(env):
+    """A build already in flight (is_building set) must not start a second
+    engine run — the bridge checks the shared flag before snapshotting."""
+    session = _session(env)
+    session.actions.is_building = True
+    with patch("src.advisor.deck_builder.suggest_deck") as engine:
+        session.calculate()
+    engine.assert_not_called()
+    assert session.is_building is True
+
+
 # --- progress streaming ------------------------------------------------------
 
 

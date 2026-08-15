@@ -20,7 +20,8 @@ from PIL import Image, ImageTk
 
 from src import constants
 from src.advisor.mana_base import get_strict_colors, is_castable
-from src.card_logic import copy_deck, get_functional_cmc
+from src.card_logic import get_functional_cmc
+from src.suggest_actions import SuggestActions, playable_spell_message
 from src.ui.styles import Theme
 from src.ui.components import DynamicTreeviewManager, CardToolTip, AutoScrollbar
 from src.utils import bind_scroll
@@ -41,12 +42,13 @@ class SuggestDeckPanel(ttk.Frame):
         self.on_export_custom = on_export_custom
         self.app_context = app_context
 
-        self.suggestions: Dict[str, Any] = {}
+        # Shared action orchestration (ticket 09: the bridge delegates to the
+        # same layer — src/suggest_actions.py is the single implementation).
+        self.actions = SuggestActions()
+
         self.current_deck_list: List[Dict] = []
         self.current_sb_list: List[Dict] = []
         self.current_archetype_key: str = ""
-
-        self.is_building = False
 
         self.image_executor = ThreadPoolExecutor(max_workers=4)
         self.sim_executor = ThreadPoolExecutor(max_workers=1)
@@ -54,6 +56,24 @@ class SuggestDeckPanel(ttk.Frame):
         self.hand_frames = []
 
         self._build_ui()
+
+    # --- shared state (delegated to the actions layer) -----------------------
+
+    @property
+    def suggestions(self) -> Dict[str, Any]:
+        return self.actions.suggestions
+
+    @suggestions.setter
+    def suggestions(self, value: Dict[str, Any]):
+        self.actions.suggestions = value
+
+    @property
+    def is_building(self) -> bool:
+        return self.actions.is_building
+
+    @is_building.setter
+    def is_building(self, value: bool):
+        self.actions.is_building = value
 
     @property
     def table(self) -> ttk.Treeview:
@@ -864,16 +884,12 @@ class SuggestDeckPanel(ttk.Frame):
     def _calculate_suggestions(self):
         raw_pool = self.draft.retrieve_taken_cards()
 
-        playable_spells = [
-            c for c in (raw_pool or []) if "Land" not in c.get("types", [])
-        ]
-
-        if not playable_spells or len(playable_spells) < 22:
-            msg = (
-                f"Not enough spells drafted yet (Have {len(playable_spells)}, Need 22)."
-            )
-            self._update_dropdown_options([msg])
-            self.var_archetype.set(msg)
+        # Instant feedback via the shared guard — the message text and the
+        # 22-spell threshold are the actions layer's single source.
+        guard = playable_spell_message(raw_pool)
+        if guard is not None:
+            self._update_dropdown_options([guard])
+            self.var_archetype.set(guard)
             if getattr(self, "app_context", None) and hasattr(
                 self.app_context, "loading_overlay"
             ):
@@ -900,7 +916,6 @@ class SuggestDeckPanel(ttk.Frame):
             if hasattr(self, "orchestrator")
             else self.draft.retrieve_current_limited_event()
         )
-        dataset_name = self.configuration.card_data.latest_dataset
 
         def _progress_cb(msg):
             if not self.winfo_exists():
@@ -932,60 +947,37 @@ class SuggestDeckPanel(ttk.Frame):
                 self.after(0, _update_ui)
 
         def _worker():
-            try:
-                from src.advisor.deck_builder import suggest_deck
-
-                raw_results = suggest_deck(
-                    raw_pool,
-                    metrics,
-                    self.configuration,
-                    event_type,
-                    _progress_cb,
-                    dataset_name,
-                )
-                self.after(0, lambda: self._finalize_build(raw_results))
-            except Exception as e:
-                self.after(0, lambda: self._handle_builder_error(str(e)))
+            # The actions layer owns the pipeline (guard, engine call, error
+            # and empty-result settling, snap-to-strongest) and resets the
+            # building flag on every path.
+            ok, message = self.actions.calculate(
+                raw_pool,
+                metrics,
+                event_type,
+                self.configuration,
+                progress=_progress_cb,
+            )
+            self.after(0, lambda: self._finalize_build(ok, message))
 
         self.sim_executor.submit(_worker)
 
-    def _finalize_build(self, sorted_decks):
-        self.is_building = False
+    def _finalize_build(self, ok: bool, message: str):
         if getattr(self, "app_context", None) and hasattr(
             self.app_context, "loading_overlay"
         ):
             self.app_context.loading_overlay.hide()
 
-        if not sorted_decks:
-            msg = "Not enough on-color playables to form a 40-card deck (Need 22)."
-            self.suggestions = {}
-            self._update_dropdown_options([msg])
-            self.var_archetype.set(msg)
+        if not ok:
+            self._update_dropdown_options([message])
+            self.var_archetype.set(message)
             self._clear_table()
             return
 
-        self.suggestions = sorted_decks
-        dropdown_labels = list(sorted_decks.keys())
+        dropdown_labels = list(self.suggestions.keys())
         self._update_dropdown_options(dropdown_labels)
 
         # Always snap to the mathematically strongest deck once analysis completes
         self._on_deck_selection_change(dropdown_labels[0])
-
-    def _handle_builder_error(self, error_msg):
-        self.is_building = False
-        if getattr(self, "app_context", None) and hasattr(
-            self.app_context, "loading_overlay"
-        ):
-            self.app_context.loading_overlay.hide()
-
-        msg = "Builder Error"
-        self.suggestions = {}
-        self._update_dropdown_options([msg])
-        self.var_archetype.set(msg)
-        self._clear_table()
-        import logging
-
-        logging.getLogger(__name__).error(f"Suggest Deck Error: {error_msg}")
 
     def _update_dropdown_options(self, options: List[str]):
         menu = self.om_archetype["menu"]
@@ -997,6 +989,7 @@ class SuggestDeckPanel(ttk.Frame):
 
     def _on_deck_selection_change(self, label: str):
         if label in self.suggestions:
+            self.actions.select(label)
             self.var_archetype.set(label)
             self._render_deck(label)
 
@@ -1295,10 +1288,8 @@ class SuggestDeckPanel(ttk.Frame):
     def _copy_to_clipboard(self):
         selection = self.var_archetype.get()
         if selection in self.suggestions:
-            deck_data = self.suggestions[selection]
-            export_text = copy_deck(
-                deck_data.get("deck_cards", []), deck_data.get("sideboard_cards", [])
-            )
+            self.actions.select(selection)
+            export_text = self.actions.export_text()
             self.clipboard_clear()
             self.clipboard_append(export_text)
 
