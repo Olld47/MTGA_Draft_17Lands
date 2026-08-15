@@ -1,0 +1,259 @@
+# Builds & publishes the desktop (PyTauri) bundles as a GitHub **pre-release**
+# for testing the release package on the `pre-release` branch.
+#
+# Mirrors publish-release.yml (the real release path) leg-for-leg so a package
+# validated here is built the same way the release artifact is built there:
+# same inline build jobs (continue-on-error stays legal), same artifact names,
+# same body generation (release_notes.txt top chunk + SHA-256 tables + the
+# macOS Gatekeeper note), same softprops/action-gh-release@v3 publish step.
+#
+# Differences from the real release:
+# - triggers on the `pre-release` branch (push or manual workflow_dispatch)
+# - the release is tagged `v<version>-pre` and created with `prerelease: true`
+#   so it never becomes the "Latest" release and never collides with the
+#   future `v<version>` tag; the app's update check ignores prerelease tags
+# - re-running (re-push) overwrites the same pre-release tag's assets
+#
+# Known duplication: the inline body-generation python is copied from
+# publish-release.yml. Deliberate for now — the pre-release harness must not
+# touch the critical release path. Converge into a shared script when the
+# pre-release flow proves out.
+
+name: Build & Publish Pre-Release
+
+on:
+  push:
+    branches:
+      - pre-release
+  workflow_dispatch:
+
+permissions:
+  contents: write # Required to create the GitHub Release
+
+jobs:
+  build-desktop-macos:
+    runs-on: macos-14
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: desktop -> target
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: desktop
+        run: npm ci
+
+      # Downloads python-build-standalone into desktop/src-tauri/pyembed.
+      # Kept in the script so local and CI builds cannot drift.
+      - name: Download python-build-standalone
+        run: desktop/scripts/macos/download-py.sh aarch64-apple-darwin
+
+      # Installs mtga-bridge and the repo-root src package into the embedded
+      # interpreter, then runs `tauri build` with the bundle overlay config.
+      - name: Build and bundle
+        run: desktop/scripts/macos/build.sh
+
+      - name: Upload bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: mtga-draft-desktop-macos-aarch64
+          path: |
+            desktop/target/bundle-release/bundle/dmg/*.dmg
+            desktop/target/bundle-release/bundle/macos/*.app
+          if-no-files-found: error
+
+  build-desktop-windows:
+    runs-on: windows-2022
+    continue-on-error: true
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: desktop -> target
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: desktop
+        run: npm ci
+
+      # Downloads python-build-standalone into desktop/src-tauri/pyembed.
+      # Kept in the script so local and CI builds cannot drift.
+      - name: Download python-build-standalone
+        shell: pwsh
+        run: .\desktop\scripts\windows\download-py.ps1 x86_64-pc-windows-msvc
+
+      # Installs mtga-bridge and the repo-root src package into the embedded
+      # interpreter, then runs `tauri build` with the bundle overlay config.
+      - name: Build and bundle
+        shell: pwsh
+        run: .\desktop\scripts\windows\build.ps1
+
+      # The .exe is not launched — it opens a window and would hang the runner.
+      # Instead assert the contract that a bundle can silently violate: the
+      # embedded interpreter must land in the same directory as the .exe, since
+      # that is where the loader looks for python3*.dll.
+      - name: Verify the embedded interpreter is bundled
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $exe = Get-ChildItem -Recurse -Filter "mtga-draft-desktop.exe" `
+            -Path desktop\target\bundle-release | Select-Object -First 1
+          if (-not $exe) { throw "no mtga-draft-desktop.exe produced" }
+          Write-Host "found $($exe.FullName)"
+
+          $pydll = Get-ChildItem -Path $exe.DirectoryName -Filter "python3*.dll"
+          if (-not $pydll) {
+            Get-ChildItem $exe.DirectoryName | Format-Table Name
+            throw "no python3*.dll beside the exe — the interpreter is missing"
+          }
+          Write-Host "embedded interpreter: $($pydll.Name)"
+
+      - name: Upload bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: mtga-draft-desktop-windows-x86_64
+          path: |
+            desktop/target/bundle-release/bundle/msi/*.msi
+            desktop/target/bundle-release/bundle/nsis/*.exe
+          if-no-files-found: error
+
+  publish:
+    needs: [build-desktop-macos, build-desktop-windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download macOS bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: mtga-draft-desktop-macos-aarch64
+          path: release_assets/macos
+          if-no-files-found: warn
+      - name: Download Windows bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: mtga-draft-desktop-windows-x86_64
+          path: release_assets/windows
+          if-no-files-found: warn
+      - name: Generate Release Body
+        id: prep_release
+        run: |
+          python -c "
+          import hashlib, json, os, re
+
+          with open('desktop/src-tauri/tauri.conf.json', encoding='utf-8') as f:
+              version = json.load(f)['version']
+          # Pre-release tag: v<version>-pre, never collides with the real
+          # v<version> release tag and never becomes "Latest".
+          tag_name = f'v{version}-pre'
+
+          with open(os.environ.get('GITHUB_OUTPUT', ''), 'a') as f:
+              f.write(f'tag_name={tag_name}\n')
+
+          # Extract top chunk of release_notes.txt
+          with open('release_notes.txt', encoding='utf-8') as f:
+              content = f.read()
+          match = re.search(
+              r'(===================== RELEASE NOTES .*? =====================\n.*?)(?=\n===================== RELEASE NOTES|$)',
+              content, re.DOTALL,
+          )
+          notes = match.group(1).strip() if match else ''
+
+          def sha256(path):
+              h = hashlib.sha256()
+              with open(path, 'rb') as f:
+                  for chunk in iter(lambda: f.read(65536), b''):
+                      h.update(chunk)
+              return h.hexdigest()
+
+          def assets(platform, suffixes):
+              d = os.path.join('release_assets', platform)
+              if not os.path.isdir(d):
+                  return []
+              return sorted(
+                  os.path.join(d, name)
+                  for name in os.listdir(d)
+                  if name.endswith(suffixes)
+              )
+
+          lines = [notes, '']
+          for platform, suffixes in (
+              ('macos', ('.dmg',)),
+              ('windows', ('.msi', '.exe')),
+          ):
+              files = assets(platform, suffixes)
+              if not files:
+                  continue
+              lines.append(f'## {platform.capitalize()}')
+              lines.append('')
+              for path in files:
+                  lines.append(f'**{os.path.basename(path)}**')
+                  lines.append(f'SHA256: \`{sha256(path)}\`')
+                  lines.append('')
+          lines.append(
+              '*⚠️ macOS Gatekeeper bypass: because this app is unsigned, macOS '
+              'may flag it as damaged or malware. If so, extract the app to your '
+              'Applications folder and run \`xattr -cr /Applications/mtga-draft-desktop.app\`.*'
+          )
+          lines.append('')
+          lines.append(
+              '*Note: verify these executables and their SHA256 hashes — on Windows '
+              'run \`CertUtil -hashfile <file> SHA256\` in a Command Prompt.*'
+          )
+
+          with open('release_body.md', 'w', encoding='utf-8') as f:
+              f.write('\n'.join(lines))
+          "
+      - name: Publish Pre-Release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ steps.prep_release.outputs.tag_name }}
+          target_commitish: ${{ github.sha }}
+          prerelease: true
+          files: |
+            release_assets/macos/*.dmg
+            release_assets/windows/*.msi
+            release_assets/windows/*.exe
+          body_path: release_body.md
+          generate_release_notes: true
+          overwrite_files: true

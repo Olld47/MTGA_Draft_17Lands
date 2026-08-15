@@ -394,6 +394,32 @@ UI_SCALE_INDEX_HTML = os.path.join(DESKTOP, "index.html")
 UI_SCALE_VITE_CONFIG = os.path.join(DESKTOP, "vite.config.ts")
 
 
+def test_pre_release_workflow_guards_its_deliberate_differences():
+    """publish-pre-release.yml mirrors publish-release.yml to test the release
+    package on the pre-release branch, but must keep its three deliberate
+    differences: trigger on pre-release only, tag v<version>-pre, and publish
+    as prerelease — reverting any of them to the real-release shape would fire
+    the harness on ordinary work or collide with the future v<version> tag.
+    The release-notes extraction regex must stay in sync with the real release
+    path (the `\$` -> `$` fix applies to both)."""
+    pre = _read(os.path.join(WORKFLOWS, "publish-pre-release.yml"))
+    release = _read(PUBLISH_WORKFLOW)
+
+    assert _push_branches(pre) == {"pre-release"}
+    assert "workflow_dispatch:" in pre
+    assert "softprops/action-gh-release@v3" in pre
+    assert "prerelease: true" in pre
+    assert "f'v{version}-pre'" in pre
+    assert "body_path: release_body.md" in pre
+    assert "generate_release_notes: true" in pre
+
+    notes_regex = (
+        r"(===================== RELEASE NOTES .*? =====================\n.*?)"
+        r"(?=\n===================== RELEASE NOTES|$)"
+    )
+    assert notes_regex in pre and notes_regex in release
+
+
 def test_ui_scale_clamp_bounds_agree_across_pre_paint_and_settings():
     """
     If the two sides' clamp bounds drift apart, a corrupted/legacy stored
