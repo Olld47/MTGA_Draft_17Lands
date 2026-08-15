@@ -5,7 +5,9 @@ aggregator re-exports every public name so the 79 historical callers of
 `from src.constants import X` keep working unchanged.
 
 Editing a constant should touch only its domain module — never this file.
-`bump_version.py` rewrites versions.py; `.coveragerc` measures the package.
+Desktop version single source: `desktop/src-tauri/tauri.conf.json`, rewritten
+by `bump_desktop_version.py`; `versions.py` holds only the config migration
+marker. `.coveragerc` measures the package.
 """
 
 from src.constants.cards import *
