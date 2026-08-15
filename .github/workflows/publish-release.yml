@@ -187,7 +187,7 @@ jobs:
           with open('release_notes.txt', encoding='utf-8') as f:
               content = f.read()
           match = re.search(
-              r'(===================== RELEASE NOTES .*? =====================\n.*?)(?=\n===================== RELEASE NOTES|\$)',
+              r'(===================== RELEASE NOTES .*? =====================\n.*?)(?=\n===================== RELEASE NOTES|$)',
               content, re.DOTALL,
           )
           notes = match.group(1).strip() if match else ''
@@ -238,7 +238,7 @@ jobs:
               f.write('\n'.join(lines))
           "
       - name: Publish Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ steps.prep_release.outputs.tag_name }}
           target_commitish: ${{ github.sha }}
