@@ -35,7 +35,7 @@
 |---|---|---|
 | 平台 | macOS（arm64）· Windows（x86_64） | Windows · macOS · Linux |
 | 界面 | Tauri 2 内的 React + TypeScript | ttkbootstrap 主题 tkinter |
-| 版本序列 | v0.x（`desktop/`） | v4.x（`src/constants.py`） |
+| 版本序列 | v1.x（`desktop/`） | v4.x（`src/constants.py`） |
 | 分发方式 | Releases 页提供 `.dmg` / `.app` · `.msi` / `.exe` | PyInstaller 按需构建 |
 
 入口的分派方式（`main.py`）：

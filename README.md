@@ -35,7 +35,7 @@ The **PyTauri desktop app** — a native [Tauri 2](https://tauri.app/) window ru
 |---|---|---|
 | Platforms | macOS (arm64) · Windows (x86_64) | Windows · macOS · Linux |
 | UI | React + TypeScript inside Tauri 2 | ttkbootstrap themed tkinter |
-| Version series | v0.x (`desktop/`) | v4.x (`src/constants.py`) |
+| Version series | v1.x (`desktop/`) | v4.x (`src/constants.py`) |
 | Distribution | `.dmg` / `.app` · `.msi` / `.exe` on Releases | PyInstaller, built on demand |
 
 How the entry point is chosen (`main.py`):
