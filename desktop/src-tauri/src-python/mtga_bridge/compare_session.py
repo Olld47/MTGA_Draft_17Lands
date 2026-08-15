@@ -1,22 +1,26 @@
 """
 mtga_bridge.compare_session
-Headless port of src/ui/windows/compare.py::ComparePanel. Owns the mutable
-compare_list (the set of cards the user has pinned for side-by-side
-comparison) and renders each as a full CardVM under the active deck-color
-filter, including 17Lands stats and tier ratings. Pure — no tkinter, no
-pytauri.
+Comparison-workspace adapter for the desktop bridge. Loads the card database
+and display context from the scanner/config, delegates every mutation and
+lookup to the shared src.compare_actions (the single implementation both this
+bridge and the legacy tkinter panel consume — ticket 09 convergence), and
+maps the list to view-models for the frontend.
 
-The tkinter panel maintained compare_list as an instance attr and re-rendered
-a Treeview after each mutation; here each mutation is followed by build_state()
-returning a CompareStateVM the frontend re-renders from.
+No tkinter, no pytauri. The mutable compare_list lives in CompareActions;
+this session owns only the scanner/config context and the view-model mapping.
+The list stays readable as an instance attribute (delegating property) so the
+command surface and existing callers are unchanged.
 """
 
 import logging
 from typing import Dict, List, Optional
 
-from src import constants
-from src.card_data import CardData
-from src.card_logic import filter_options
+from src.compare_actions import (
+    CompareActions,
+    available_names,
+    find_card,
+    resolve_active_filter,
+)
 
 from mtga_bridge.snapshot import card_to_vm
 from mtga_bridge.viewmodels import CompareStateVM
@@ -25,13 +29,25 @@ logger = logging.getLogger(__name__)
 
 
 class CompareSession:
-    """Stateful comparison workspace. One instance per runtime, reused across
-    commands. scanner/config supply the card database + display context."""
+    """Stateful comparison-workspace adapter. One instance per runtime, reused
+    across commands. scanner/config supply the card database + display
+    context; the mutable compare_list is owned by the shared CompareActions
+    layer."""
 
     def __init__(self, scanner, config):
         self.scanner = scanner
         self.config = config
-        self.compare_list: List[CardData] = []
+        self.actions = CompareActions()
+
+    # State stays readable through the old attribute name (delegation, not a
+    # copy) so callers that read compare_list keep working unchanged.
+    @property
+    def compare_list(self) -> List[Dict]:
+        return self.actions.compare_list
+
+    @compare_list.setter
+    def compare_list(self, value: List[Dict]) -> None:
+        self.actions.compare_list = value
 
     # --- card database -------------------------------------------------------
 
@@ -43,49 +59,33 @@ class CompareSession:
 
     def available_names(self) -> List[str]:
         """Sorted, unique card names for the autocomplete search box."""
-        names = {v.get("name", "") for v in self._card_map().values()}
-        names.discard("")
-        return sorted(names)
+        return available_names(self._card_map())
 
     def _find_card(self, name: str) -> Optional[Dict]:
-        typed = (name or "").strip().lower()
-        if not typed:
-            return None
-        return next(
-            (d for d in self._card_map().values() if d.get("name", "").lower() == typed),
-            None,
-        )
+        return find_card(self._card_map(), name)
 
     # --- mutations -----------------------------------------------------------
 
     def add_card(self, name: str) -> bool:
-        """Port of ComparePanel._add_card: resolves the name in the dataset and
-        appends it unless already present. Returns True if added."""
-        found = self._find_card(name)
-        if not found:
-            return False
-        if any(c.get("name") == found.get("name") for c in self.compare_list):
-            return False
-        self.compare_list.append(found)
-        return True
+        """Resolves the name in the dataset and appends it unless already
+        present. Returns True if added."""
+        return self.actions.add_card(self._card_map(), name)
 
     def remove_card(self, name: str) -> None:
-        self.compare_list = [c for c in self.compare_list if c.get("name") != name]
+        self.actions.remove_card(name)
 
     def clear(self) -> None:
-        self.compare_list = []
+        self.actions.clear()
 
     # --- serialization -------------------------------------------------------
 
     def _active_filter(self) -> str:
-        """Port of ComparePanel._update_content's color resolution: the deck
-        filter applied against the current pool."""
+        """The deck filter applied against the current pool."""
         raw_pool = self.scanner.retrieve_taken_cards()
         metrics = self.scanner.retrieve_set_metrics()
-        colors = filter_options(
+        return resolve_active_filter(
             raw_pool, self.config.settings.deck_filter, metrics, self.config
         )
-        return colors[0] if colors else constants.FILTER_OPTION_ALL_DECKS
 
     def build_state(self) -> CompareStateVM:
         active = self._active_filter()

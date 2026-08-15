@@ -6,9 +6,10 @@ Professional Card Comparison Workspace.
 import tkinter
 from tkinter import ttk
 from src import constants
+from src.card_logic import format_win_rate, row_color_tag
+from src.compare_actions import CompareActions, available_names, resolve_active_filter
 from src.ui.styles import Theme
 from src.ui.components import DynamicTreeviewManager, AutocompleteEntry, CardToolTip
-from src.card_logic import format_win_rate, row_color_tag
 
 
 class ComparePanel(ttk.Frame):
@@ -16,7 +17,7 @@ class ComparePanel(ttk.Frame):
         super().__init__(parent)
         self.draft = draft_manager
         self.configuration = configuration
-        self.compare_list = []
+        self.actions = CompareActions()
         self._build_ui()
         self.refresh()
 
@@ -24,11 +25,15 @@ class ComparePanel(ttk.Frame):
     def table(self) -> ttk.Treeview:
         return self.table_manager.tree if hasattr(self, "table_manager") else None
 
+    # State is owned by the shared src.compare_actions.CompareActions layer;
+    # this property keeps the existing read sites working unchanged (ticket 09).
+    @property
+    def compare_list(self) -> list:
+        return self.actions.compare_list
+
     def refresh(self):
         card_map = self.draft.set_data.get_card_ratings() or {}
-        self.entry_card.set_completion_list(
-            [v.get("name", "") for v in card_map.values()]
-        )
+        self.entry_card.set_completion_list(available_names(card_map))
         self._update_content()
 
     def _build_ui(self):
@@ -63,26 +68,21 @@ class ComparePanel(ttk.Frame):
         self.table_manager.pack(fill="both", expand=True)
 
     def _add_card(self, event=None):
-        typed = self.entry_card.get().strip().lower()
-        if not typed:
+        typed = self.entry_card.get()
+        if not typed.strip():
             return
         card_map = self.draft.set_data.get_card_ratings() or {}
-        found = next(
-            (d for d in card_map.values() if d.get("name", "").lower() == typed), None
-        )
-        if found and found not in self.compare_list:
-            self.compare_list.append(found)
+        if self.actions.add_card(card_map, typed):
             self._update_content()
             self.entry_card.delete(0, tkinter.END)
 
     def add_external_card(self, card_data):
         """Allows external tabs (like the Dashboard) to quickly push a card here for comparison."""
-        if card_data not in self.compare_list:
-            self.compare_list.append(card_data)
+        if self.actions.add_card_data(card_data):
             self._update_content()
 
     def _clear_list(self):
-        self.compare_list.clear()
+        self.actions.clear()
         self._update_content()
 
     def _update_content(self):
@@ -94,18 +94,15 @@ class ComparePanel(ttk.Frame):
             t.bind("<ButtonRelease-1>", self._on_selection, add="+")
             t._selection_bound = True
 
-        from src.card_logic import filter_options
-
         raw_pool = self.draft.retrieve_taken_cards()
         metrics = self.draft.retrieve_set_metrics()
         tier_data = self.draft.retrieve_tier_data()
-        colors = filter_options(
+        active_color = resolve_active_filter(
             raw_pool,
             self.configuration.settings.deck_filter,
             metrics,
             self.configuration,
         )
-        active_color = colors[0] if colors else "All Decks"
 
         for item in t.get_children():
             t.delete(item)
