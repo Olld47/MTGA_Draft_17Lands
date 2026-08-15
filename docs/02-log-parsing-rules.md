@@ -182,8 +182,9 @@ Every state and transition above has an explicit counterpart in
   (the fields remain the source of truth; the phase is a view driven by the
   dispatch, exposed as `ArenaScanner.phase`).
 - Event handlers: `_search_pack_notify` / `_search_pack_bot` / `_search_pick_human`
-  / `_search_pick_v1` / `_search_pick_bot` / `_search_card_pool`, plus
-  `_mark_draft_complete` for the terminal `DECK_SELECT_COMPLETED` transition.
+  / `_search_pick_v1` / `_search_pick_bot` / `_search_card_pool`. The terminal
+  `DECK_SELECT_COMPLETED` transition dispatches to `_search_pack_bot`, which calls
+  `_mark_draft_complete` as its completion helper.
 - `ScannerEvent.EVENT_JOIN` rows document the `Idle/Done → Drafting` edge; the
   transition itself is applied inside `draft_start_search` / `__check_event`.
 
