@@ -524,7 +524,7 @@ def test_card_text_access_uses_shared_helper():
     pattern = re.compile(r'get\("oracle_text",\s*""\)+\.lower\(\)')
     offenders = {}
     for path in targets:
-        for lineno, line in enumerate(path.read_text().splitlines(), 1):
+        for lineno, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
             if pattern.search(line):
                 offenders.setdefault(str(path), []).append(lineno)
     assert not offenders, (
@@ -550,7 +550,7 @@ def test_no_call_site_stringifies_oracle_text_to_none():
     pattern = re.compile(r'str\(\s*[^)]*\bget\("oracle_text"')
     offenders = {}
     for path in targets:
-        for lineno, line in enumerate(path.read_text().splitlines(), 1):
+        for lineno, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
             if pattern.search(line):
                 offenders.setdefault(str(path), []).append(lineno)
     assert not offenders, (

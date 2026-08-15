@@ -17,13 +17,16 @@ import re
 REPO_ROOT = os.path.dirname(os.path.abspath(__file__))
 
 # Every place the desktop version is written, as (path relative to REPO_ROOT,
-# regex, count). Eight files, nine literals: package-lock.json repeats it for
-# the root package entry, and mtga_bridge/version.py is the literal the
-# app-update check reads. Dependency version keys follow in the same files, so
-# only the leading `count` matches belong to the app. desktop/Cargo.toml is
-# absent on purpose — its [workspace.package] version is 0.1.0 and src-tauri
-# does not inherit it.
+# regex, count). Nine files, ten literals: desktop-version.lock is the CI
+# anchor — the consistency guard reads it on every run, so a version bump that
+# misses a site fails tests instead of shipping a mismatched bundle.
+# package-lock.json repeats the version for the root package entry, and
+# mtga_bridge/version.py is the literal the app-update check reads. Dependency
+# version keys follow in the same files, so only the leading `count` matches
+# belong to the app. desktop/Cargo.toml is absent on purpose — its
+# [workspace.package] version is 0.1.0 and src-tauri does not inherit it.
 VERSION_SITES = [
+    ("desktop-version.lock", r'(?m)^(\d+\.\d+(?:\.\d+)?)$', 1),
     (os.path.join("desktop", "package.json"), r'"version":\s*"([^"]+)"', 1),
     (os.path.join("desktop", "package-lock.json"), r'"version":\s*"([^"]+)"', 2),
     (os.path.join("desktop", "pyproject.toml"), r'(?m)^version\s*=\s*"([^"]+)"', 1),

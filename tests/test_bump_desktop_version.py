@@ -2,7 +2,7 @@
 tests/test_bump_desktop_version.py
 
 Tests the one-command desktop version bump (bump_desktop_version.py). The script
-is the single place that knows the 8 files / 9 literals of the desktop version;
+is the single place that knows the 9 files / 10 literals of the desktop version;
 this module pins its rewrite contract on fixture strings (not real files), and
 runs bump_all once against a throwaway temp dir.
 
@@ -160,8 +160,8 @@ def test_bump_changelog_raises_without_heading():
 
 
 def test_version_sites_shape():
-    assert len(bdv.VERSION_SITES) == 8
-    assert sum(count for _, _, count in bdv.VERSION_SITES) == 9
+    assert len(bdv.VERSION_SITES) == 9
+    assert sum(count for _, _, count in bdv.VERSION_SITES) == 10
     for rel, pattern, count in bdv.VERSION_SITES:
         assert not os.path.isabs(rel), f"{rel} must be repo-root-relative"
         assert count in (1, 2)
@@ -191,19 +191,19 @@ def test_bump_all_rewrites_every_site_and_changelog(tmp_path, monkeypatch):
     tmp_sites = []
     for rel, pattern, count in sites:
         path = tmp_path / rel
-        path.write_text(contents[rel])
+        path.write_text(contents[rel], encoding="utf-8")
         tmp_sites.append((str(path), pattern, count))
 
     monkeypatch.setattr(bdv, "VERSION_SITES", tmp_sites)
     monkeypatch.setattr(bdv, "CHANGELOG", str(tmp_path / "CHANGELOG.md"))
-    (tmp_path / "CHANGELOG.md").write_text(CHANGELOG)
+    (tmp_path / "CHANGELOG.md").write_text(CHANGELOG, encoding="utf-8")
 
     bdv.bump_all("0.40.0")
 
     for rel, _, _ in sites:
-        text = (tmp_path / rel).read_text()
+        text = (tmp_path / rel).read_text(encoding="utf-8")
         assert text.count("0.39.0") == 0, f"{rel} still holds the old version"
-    assert "## [v0.40]" in (tmp_path / "CHANGELOG.md").read_text()
+    assert "## [v0.40]" in (tmp_path / "CHANGELOG.md").read_text(encoding="utf-8")
 
 
 def test_bump_all_raises_when_a_site_never_replaces(tmp_path, monkeypatch):

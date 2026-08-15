@@ -43,13 +43,15 @@ DOWNLOAD_SCRIPT = {
 TARGET_DIRS = {"app": "macos", "dmg": "dmg", "msi": "msi", "nsis": "nsis"}
 
 PUBLISH_WORKFLOW = os.path.join(WORKFLOWS, "publish-release.yml")
-CHANGELOG = os.path.join(REPO_ROOT, "CHANGELOG.md")
 
 # Every place the desktop version is written now lives in
-# bump_desktop_version.VERSION_SITES (eight files, nine literals) — the single
-# definition shared with the one-command bump script. The consistency test
-# below reads the expected version from tauri.conf.json, the single source of
-# truth, and checks every site against it.
+# bump_desktop_version.VERSION_SITES (nine files, ten literals) — the single
+# definition shared with the one-command bump script. desktop-version.lock is
+# the CI anchor: it is committed and read by the consistency test on every
+# run, so a version bump that misses a site fails here instead of shipping a
+# mismatched bundle. The consistency test below reads the expected version
+# from tauri.conf.json, the single source of truth, and checks every site
+# against it.
 VERSION_SITES = bump_desktop_version.VERSION_SITES
 
 
@@ -284,27 +286,19 @@ def test_icons_are_not_the_tauri_template_defaults():
 
 def test_desktop_version_is_consistent_across_manifests():
     """
-    The desktop app carries its version in nine literals across eight files.
+    The desktop app carries its version in ten literals across nine files.
     tauri.conf.json is the single source of truth — it names the .dmg/.msi,
     fills Info.plist, and drives the release tag. Every other literal exists to
     be consistent with it, and bump_desktop_version.py rewrites them all from
     one input, so a stale one is invisible until someone reads it and believes
     it (or a release is named after it).
 
-    The topmost CHANGELOG heading must agree with the single source too,
-    because agreeing-but-stale is the failure that actually happened: the
-    changelog reached v0.12 while all nine sat at 0.7.0 from v0.7, and CI
-    published bundles named 0.7.0 five releases running.
+    desktop-version.lock is the committed anchor for this guard: it holds the
+    same literal as every manifest, and because it is checked out in CI (unlike
+    CHANGELOG.md, which is gitignored and local-only), a version bump that
+    misses a site fails the build here instead of shipping a mismatched bundle.
     """
     expected = json.loads(_read(TAURI_CONF))["version"]
-
-    heading = re.search(r"(?m)^## \[v(\d+)\.(\d+)(?:\.(\d+))?\]", _read(CHANGELOG))
-    assert heading, "no '## [vX.Y]' heading found in CHANGELOG.md"
-    changelog_major_minor = f"{heading.group(1)}.{heading.group(2)}"
-    assert changelog_major_minor == ".".join(expected.split(".")[:2]), (
-        f"CHANGELOG says v{changelog_major_minor}, "
-        f"tauri.conf.json says {expected}"
-    )
 
     for rel, pattern, count in VERSION_SITES:
         path = os.path.join(REPO_ROOT, rel)

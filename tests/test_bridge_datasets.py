@@ -183,7 +183,10 @@ def test_listing_flags_stale_when_the_newest_dataset_is_old(config, sets_folder)
     than today must surface on the Datasets page, not stay silent."""
     path = sets_folder / "TEST_PremierDraft_All_Data.json"
     path.write_text("{}")
-    old = time.time() - 8 * 86400
+    # 60s of slack: Windows os.utime rounds the float timestamp up by up to a
+    # second, which would land `now - mtime` just under 8 days and flip the
+    # whole-day count to 7. 8 days + 60s still counts as 8.
+    old = time.time() - (8 * 86400 + 60)
     os.utime(path, (old, old))
 
     with _stub_set_list([_row(str(path))]):
@@ -199,7 +202,7 @@ def test_listing_ignores_deleted_files_when_measuring_freshness(config, sets_fol
     missing = sets_folder / "GONE_PremierDraft_All_Data.json"
     current = sets_folder / "TEST_PremierDraft_All_Data.json"
     current.write_text("{}")
-    old = time.time() - 8 * 86400
+    old = time.time() - (8 * 86400 + 60)
     os.utime(current, (old, old))
 
     with _stub_set_list([_row(str(missing)), _row(str(current))]):
