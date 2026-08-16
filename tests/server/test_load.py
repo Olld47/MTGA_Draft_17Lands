@@ -92,3 +92,32 @@ def test_deploy_web_assets_injects_i18n_messages(output_dir):
     )
     assert embedded == canonical
     assert embedded["zh"]["nav.app"] == "应用与下载"
+
+
+def test_deploy_resolves_repo_url_sentinels(output_dir):
+    """Repo URL placeholders must resolve to the canonical endpoints on deploy,
+    so a namespace/project move only touches server/config.py (and its mirror
+    src/constants/repo.py) instead of every template.
+
+    nav.html/footer.html are snippets: they keep the raw sentinels in the
+    template dir and are resolved only after being injected into a page.
+    """
+    deploy_web_assets()
+
+    # Deployed pages/scripts: every sentinel resolved, canonical URL present.
+    for name, expected in (
+        ("index.html", config.GITHUB_REPO_URL),
+        ("docs.html", config.GITHUB_PAGES_URL),
+        ("app.js", config.GITHUB_API_REPO_URL),
+    ):
+        content = (Path(config.OUTPUT_DIR) / name).read_text(encoding="utf-8")
+        for sentinel in ("__GITHUB_REPO_URL__", "__GITHUB_API_REPO_URL__", "__GITHUB_PAGES_URL__"):
+            assert sentinel not in content, f"{name}: {sentinel} not resolved"
+        assert expected in content, f"{name}: expected URL missing"
+
+    # The injected nav lands in the deployed index.html (covered above via the
+    # repo URL), so the raw snippet is expected to keep its sentinel.
+    snippet = (
+        Path(__file__).resolve().parents[2] / "server" / "templates" / "nav.html"
+    ).read_text(encoding="utf-8")
+    assert "__GITHUB_REPO_URL__" in snippet, "nav.html should keep the sentinel"

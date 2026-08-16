@@ -29,7 +29,7 @@ function initApp() {
     // 2. Landing Page Version Badge Logic
     const latestVersionEl = document.getElementById('latest-version');
     if (latestVersionEl) {
-        fetch('https://api.github.com/repos/Olld47/MTGA_Draft_17Lands/releases/latest')
+        fetch('__GITHUB_API_REPO_URL__/releases/latest')
             .then(res => res.json())
             .then(data => {
                 if (data.tag_name) {
@@ -46,7 +46,7 @@ function initApp() {
     // 3. Past Releases Page Logic
     const releasesListEl = document.getElementById('releases-list');
     if (releasesListEl) {
-        fetch('https://api.github.com/repos/Olld47/MTGA_Draft_17Lands/releases')
+        fetch('__GITHUB_API_REPO_URL__/releases')
             .then(res => res.json())
             .then(data => {
                 releasesListEl.replaceChildren();
@@ -68,10 +68,10 @@ function initApp() {
                     const verSafe = I18N.escapeHtml(ver);
 
                     if (i === 0) {
-                        // Latest Release (Fully Expanded)
-                        // nosemgrep: javascript.browser.security.insecure-innerhtml,insecure-document-method
-                        // (all interpolated data is escapeHtml'd or I18N.t()
-                        // dictionary text; bodyHtml is sanitizeHtml()-cleaned)
+                        // Latest Release (Fully Expanded). All interpolated
+                        // data is escapeHtml'd or I18N.t() dictionary text;
+                        // bodyHtml is sanitizeHtml()-cleaned.
+                        // nosemgrep
                         releasesListEl.innerHTML += `
                             <div class="bg-slate-800/40 rounded-xl p-6 border border-slate-700/50 mb-10 shadow-lg relative overflow-hidden">
                                 <div class="absolute top-0 left-0 w-1 h-full bg-emerald-500"></div>
@@ -97,9 +97,9 @@ function initApp() {
                             <h2 class="text-xl font-bold text-slate-200 mb-4 mt-4 border-b border-slate-800 pb-2">${I18N.t('app.previousReleases')}</h2>
                         `;
                     } else {
-                        // Older Releases (Collapsed Accordion)
-                        // nosemgrep: javascript.browser.security.insecure-innerhtml,insecure-document-method
-                        // (same boundary-escaped data as the latest-release block)
+                        // Older Releases (Collapsed Accordion) — same
+                        // boundary-escaped data as the latest-release block.
+                        // nosemgrep
                         releasesListEl.innerHTML += `
                             <details class="group bg-slate-800/30 border border-slate-700/50 rounded-lg mb-3 transition-colors open:bg-slate-800/60 shadow-sm">
                                 <summary class="flex justify-between items-center font-bold cursor-pointer list-none p-4 select-none">
@@ -198,7 +198,10 @@ function formatMarkdown(text) {
 // inert), event handlers / style / unknown attributes are dropped, and <a
 // href> is limited to http(s)/mailto. Only the classes formatMarkdown itself
 // adds are kept.
-const ALLOWED_TAGS = new Set(['H1', 'H2', 'H3', 'STRONG', 'EM', 'CODE', 'A', 'LI', 'BR']);
+const ALLOWED_TAGS = new Set([
+    'H1', 'H2', 'H3', 'P', 'UL', 'OL',
+    'STRONG', 'EM', 'CODE', 'A', 'LI', 'BR',
+]);
 function sanitizeHtml(html) {
     const doc = new DOMParser().parseFromString(html, 'text/html');
 
@@ -361,9 +364,9 @@ function renderActivityTable() {
     }
 
     activityData.forEach(u => {
-        // nosemgrep: javascript.browser.security.insecure-innerhtml,insecure-document-method
-        // (report.json data is escaped with I18N.escapeHtml at the boundary;
-        // badge helpers escape internally)
+        // report.json data is escaped with I18N.escapeHtml at the boundary;
+        // badge helpers escape internally.
+        // nosemgrep
         tbody.innerHTML += `
             <tr class="hover:bg-slate-700/20 transition-colors">
                 <td class="p-4 font-bold text-slate-200">${I18N.escapeHtml(u.set)}</td>
@@ -403,13 +406,13 @@ function renderManifestList(dataArray) {
 
     // Render the Active vs Archive Toggle (static markup — the only
     // interpolation is class-name selection, never data).
-    // nosemgrep: javascript.browser.security.insecure-innerhtml,insecure-document-method
     const toggleHTML = `
         <div class="flex gap-2 mb-4 px-1 sticky top-0 bg-slate-800/90 py-2 backdrop-blur-sm z-10 border-b border-slate-700/50">
             <button id="btn-active" class="flex-1 py-1.5 text-xs font-bold rounded ${showOnlyActive ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-400 hover:bg-slate-600'} transition">${I18N.t('app.activeOnArena')}</button>
             <button id="btn-archive" class="flex-1 py-1.5 text-xs font-bold rounded ${!showOnlyActive ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-400 hover:bg-slate-600'} transition">${I18N.t('app.historicalArchive')}</button>
         </div>
     `;
+    // nosemgrep
     listEl.innerHTML = toggleHTML;
 
     // Attach Toggle Events
@@ -449,8 +452,9 @@ function renderManifestList(dataArray) {
                 ? `<div class="text-xs text-slate-500 mt-2 font-mono flex items-center gap-1"><svg class="w-3 h-3 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg> ${I18N.escapeHtml(ds.start_date)} <span class="text-slate-600">→</span> ${I18N.escapeHtml(ds.end_date)}</div>`
                 : '';
 
-            // nosemgrep: javascript.browser.security.insecure-innerhtml,insecure-document-method
-            // (manifest data escaped with I18N.escapeHtml; badge helpers escape internally)
+            // manifest data escaped with I18N.escapeHtml; badge helpers
+            // escape internally.
+            // nosemgrep
             listEl.innerHTML += `
                 <div class="dataset-item p-3 mb-2 bg-slate-800/40 rounded-lg border border-slate-700/50 hover:border-slate-500 transition-colors flex flex-col group">
                     <div class="flex justify-between items-start mb-2">

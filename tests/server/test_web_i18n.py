@@ -25,7 +25,9 @@ HTML_SNIPPETS = ["nav.html", "footer.html"]
 JS_FILES = ["app.js", "calendar.js"]
 
 ATTR_RE = re.compile(r'data-i18n(?:-html|-placeholder|-title)?="([a-z][a-zA-Z0-9.]*)"')
-T_CALL_RE = re.compile(r"I18N\.t\('([a-z][a-zA-Z0-9.]*)")
+# I18N.t() keys may be single- or double-quoted — either must be covered so
+# future call sites can't silently bypass the coverage guard.
+T_CALL_RE = re.compile(r"I18N\.t\((['\"])([a-z][a-zA-Z0-9.]*)")
 
 
 def _load_i18n_dicts():
@@ -71,7 +73,9 @@ def test_js_t_calls_exist_in_en_dict():
         {
             key
             for name in JS_FILES
-            for key in T_CALL_RE.findall((TEMPLATES_DIR / name).read_text(encoding="utf-8"))
+            for _quote, key in T_CALL_RE.findall(
+                (TEMPLATES_DIR / name).read_text(encoding="utf-8")
+            )
         }
         - en_keys
     )

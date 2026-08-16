@@ -80,9 +80,9 @@
       el.textContent = t(el.dataset.i18n);
     });
     document.querySelectorAll('[data-i18n-html]').forEach((el) => {
-      // nosemgrep: javascript.browser.security.insecure-innerhtml,insecure-document-method
       // (the value is the developer-authored dictionary entry — the <strong>/
       // <code> markup is intentional and never user input)
+      // nosemgrep
       el.innerHTML = t(el.dataset.i18nHtml);
     });
     document.querySelectorAll('[data-i18n-placeholder]').forEach((el) => {

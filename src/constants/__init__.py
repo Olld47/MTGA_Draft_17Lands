@@ -19,6 +19,7 @@ from src.constants.event_strings import *
 from src.constants.fixing import *
 from src.constants.limited import *
 from src.constants.paths import *
+from src.constants.repo import *
 from src.constants.sets import *
 from src.constants.ui import *
 from src.constants.versions import *

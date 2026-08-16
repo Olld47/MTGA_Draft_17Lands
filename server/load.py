@@ -116,6 +116,15 @@ def deploy_web_assets():
     with open(i18n_messages_path, "r", encoding="utf-8") as f:
         i18n_messages_json = json.dumps(json.load(f), ensure_ascii=False)
 
+    # Repo URL sentinels (templates carry __GITHUB_*_URL__ placeholders) are
+    # resolved from the single ETL source here, so a namespace/project move
+    # touches server/config.py + src/constants/repo.py only.
+    sentinel_replacements = {
+        "__GITHUB_REPO_URL__": config.GITHUB_REPO_URL,
+        "__GITHUB_API_REPO_URL__": config.GITHUB_API_REPO_URL,
+        "__GITHUB_PAGES_URL__": config.GITHUB_PAGES_URL,
+    }
+
     # Process and copy static templates (HTML, CSS, JS)
     if os.path.exists(template_dir):
         for filename in os.listdir(template_dir):
@@ -126,19 +135,14 @@ def deploy_web_assets():
             dest_file = os.path.join(config.OUTPUT_DIR, filename)
 
             if os.path.isfile(src_file):
-                if filename.endswith(".html"):
-                    with open(src_file, "r", encoding="utf-8") as f:
-                        content = f.read()
+                with open(src_file, "r", encoding="utf-8") as f:
+                    content = f.read()
 
+                if filename.endswith(".html"):
                     # Inject the unified layout components
                     content = content.replace("<!-- INJECT_NAV -->", nav_content)
                     content = content.replace("<!-- INJECT_FOOTER -->", footer_content)
-
-                    with open(dest_file, "w", encoding="utf-8") as f:
-                        f.write(content)
                 elif filename == "i18n.js":
-                    with open(src_file, "r", encoding="utf-8") as f:
-                        content = f.read()
                     # Embed the dictionary as a double-escaped JSON string
                     # literal: the JS literal evaluation unescapes the first
                     # layer, the script's single JSON.parse() the second —
@@ -146,9 +150,11 @@ def deploy_web_assets():
                     content = content.replace(
                         '"__I18N_MESSAGES__"', json.dumps(i18n_messages_json)
                     )
-                    with open(dest_file, "w", encoding="utf-8") as f:
-                        f.write(content)
-                else:
-                    shutil.copy2(src_file, dest_file)
+
+                for sentinel, value in sentinel_replacements.items():
+                    content = content.replace(sentinel, value)
+
+                with open(dest_file, "w", encoding="utf-8") as f:
+                    f.write(content)
 
     logger.info("Web assets deployed successfully.")

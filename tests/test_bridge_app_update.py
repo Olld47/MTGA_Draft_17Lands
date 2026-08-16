@@ -14,6 +14,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from src.constants import GITHUB_REPO_URL
+
 # Make the bridge package importable from the root test run
 BRIDGE_PATH = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
@@ -93,7 +95,7 @@ def requests_mock(monkeypatch):
     return _install
 
 
-def _release(tag, html_url="https://github.com/Olld47/MTGA_Draft_17Lands/releases"):
+def _release(tag, html_url=f"{GITHUB_REPO_URL}/releases"):
     return {"tag_name": tag, "html_url": html_url}
 
 
