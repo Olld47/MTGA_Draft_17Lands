@@ -1,3 +1,36 @@
+===================== RELEASE NOTES 1.0.4 =====================
+### Highlights
+
+#### 修复更新后配置/数据重置：数据目录不再写进 .app 包内
+
+打包版此前把数据目录解析进应用包内部（bundle 的 site-packages）：构建脚本把仓库根 `src` 包装进内嵌解释器，导致「源码检出」误判，BASE_DIR / Sets / Logs / Temp / config.json 全部落在 .app 内——更新应用（替换 .app）即全部清空，表现为配置与数据重置。本版修复判定逻辑：源码检出需同时具备工程标记（`pyproject.toml` + `main.py`），打包应用改为写入每用户数据目录（macOS `~/Library/Application Support/MTGA_Draft_Tool`），跨更新持久保留；同时兼容符号链接 editable 安装。
+
+<details>
+<summary><b>English</b></summary>
+
+#### Fix config/data reset after updates: writable state no longer lands inside the .app bundle
+
+Packaged builds previously resolved their data directory into the bundle itself (site-packages): the build installs the repo-root `src` package into the embedded interpreter, so the "source checkout" probe matched, and BASE_DIR / Sets / Logs / Temp / config.json all landed inside the .app — replacing the app on update wiped everything, i.e. a config/data reset. This release hardens the detection: a directory only counts as a source checkout when it also carries the poetry project markers (`pyproject.toml`, `main.py`). Packaged apps now write to the per-user data directory (macOS `~/Library/Application Support/MTGA_Draft_Tool`) and keep settings across updates; symlinked editable installs are resolved to the real checkout.
+
+</details>
+
+---
+
+以下是详细内容：
+
+**v1.0.4 (2026-08-16)**
+
+### 修复 | Fix
+
+- `find_repo_root()` 判定源码检出需 `src/constants` + `pyproject.toml` + `main.py` 三者齐备——打包应用 site-packages 只含 `src/`，正确走 bundle 分支，数据写入每用户数据目录，跨更新持久
+- `find_repo_root()` 先 `realpath(__file__)` 再向上遍历：符号链接 editable 安装不再回退到用户数据目录
+
+### 架构 | Architecture
+
+- 根因（真实 bundle 内嵌 Python 复现）：`ensure_runtime_paths` 源码分支 `os.chdir(site-packages)` + pytauri standalone 不设 `sys.frozen` → `resolve_base_dir()` 落到 `os.getcwd()` = 包内
+- `test_find_repo_root_returns_none_when_bundled` 改为真实 bundle 布局；新增标记守卫与符号链接 editable 安装回归测试
+- 全套 Python 1718 passing（顺序无关）
+
 ===================== RELEASE NOTES 1.0.3 =====================
 ### Highlights
 

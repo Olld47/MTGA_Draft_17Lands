@@ -36,7 +36,11 @@ def find_repo_root() -> Optional[str]:
     Returns None when running from a bundle, where `src` lives in the embedded
     interpreter's site-packages rather than above this file.
     """
-    current = os.path.dirname(os.path.abspath(__file__))
+    # realpath first: an editable install may symlink mtga_bridge into
+    # site-packages while the checkout lives elsewhere — walking from the link
+    # location misses src/constants + markers and silently falls back to the
+    # per-user data dir.
+    current = os.path.dirname(os.path.realpath(__file__))
     while True:
         if (
             os.path.isdir(os.path.join(current, "src", "constants"))

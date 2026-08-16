@@ -202,7 +202,33 @@ def test_find_repo_root_requires_project_markers(tmp_path):
 
     (tmp_path / "main.py").write_text("")
     with patch.object(paths, "__file__", str(tmp_path / "mtga_bridge" / "paths.py")):
-        assert paths.find_repo_root() == str(tmp_path)
+        assert os.path.realpath(paths.find_repo_root()) == os.path.realpath(
+            str(tmp_path)
+        )
+
+
+def test_find_repo_root_follows_symlinked_editable_install(tmp_path):
+    """An editable install may symlink `mtga_bridge` into site-packages while
+    the rest of the package tree stays in the checkout. The walk must resolve
+    the link back to the real checkout root — starting from the link location
+    alone misses src/constants + markers and silently falls back to the
+    per-user data dir (config/data "reset" after an update)."""
+    repo_root = tmp_path / "repo"
+    (repo_root / "src" / "constants").mkdir(parents=True)
+    (repo_root / "pyproject.toml").write_text("[project]\n")
+    (repo_root / "main.py").write_text("")
+    # Source tree as installed editable: <checkout>/desktop/src-tauri/src-python/mtga_bridge
+    pkg = repo_root / "desktop" / "src-tauri" / "src-python" / "mtga_bridge"
+    pkg.mkdir(parents=True)
+    # venv OUTSIDE the checkout, linked back into it
+    sp = tmp_path / "venv" / "lib" / "site-packages"
+    sp.mkdir(parents=True)
+    (sp / "mtga_bridge").symlink_to(pkg, target_is_directory=True)
+
+    with patch.object(paths, "__file__", str(sp / "mtga_bridge" / "paths.py")):
+        assert os.path.realpath(paths.find_repo_root()) == os.path.realpath(
+            str(repo_root)
+        )
 
 
 # --- ensure_runtime_paths --------------------------------------------------
