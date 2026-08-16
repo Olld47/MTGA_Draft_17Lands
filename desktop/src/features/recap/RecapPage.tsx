@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { getDraftRecord, getRecap, openUrl } from "../../api/client";
 import { EVENTS, on, type RefreshPayload } from "../../api/events";
 import type { DraftRecord, Recap, RecapCard, RecapRole } from "../../api/types";
-import { tagChip } from "../../components/cardColumns";
+import { roleChip } from "../../components/cardColumns";
 import { ManaCurveChart } from "../dashboard/ManaCurveChart";
 import { useLanguage } from "../../i18n/useLanguage";
 import { navigateTab } from "../../state/navigation";
@@ -32,8 +32,7 @@ function RoleChips({ roles }: { roles: RecapRole[] }) {
     <div className="recap-chips">
       {roles.map((r) => (
         <span key={r.key || r.label}>
-          {lang === "zh" && r.key ? tagChip(r.key, "zh", t, r.label) : r.label}{" "}
-          <b>{r.count}</b>
+          {roleChip(r, lang, t)} <b>{r.count}</b>
         </span>
       ))}
     </div>

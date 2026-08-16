@@ -1,5 +1,5 @@
 import type { DeckRow, DeckStats } from "../../api/types";
-import { cardNameColor, formatWinRate, tagChip } from "../../components/cardColumns";
+import { cardNameColor, formatWinRate, roleChip } from "../../components/cardColumns";
 import { CardHoverTip, hoverDataFromDeckRow } from "../../components/CardHover";
 import {
   GROUP_OPTIONS,
@@ -73,10 +73,7 @@ export function DeckStatsView({ stats }: { stats: DeckStats }) {
         <div className="recap-chips">
           {stats.tags.map((tag) => (
             <span key={tag.key || tag.label}>
-              {lang === "zh" && tag.key
-                ? tagChip(tag.key, "zh", t, tag.label)
-                : tag.label}{" "}
-              <b>{tag.count}</b>
+              {roleChip(tag, lang, t)} <b>{tag.count}</b>
             </span>
           ))}
         </div>

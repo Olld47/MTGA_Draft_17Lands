@@ -12,6 +12,7 @@ import {
   nameColumn,
   RESULT_FORMAT_GRADE,
   RESULT_FORMAT_RATING,
+  roleChip,
   tagChip,
 } from "./cardColumns";
 
@@ -210,5 +211,31 @@ describe("tagChip", () => {
     expect(en.cell(tagged)).toBe("🎯 🦅");
     expect(zh.cell(tagged)).toBe("🎯 解场 🦅 穿透");
     expect(cardColumn("tags", undefined, lookup("zh"), "zh").cell(card())).toBe("—");
+  });
+});
+
+describe("roleChip", () => {
+  const role = (
+    over: Partial<{ key: string; label: string; count: number }> = {},
+  ) => ({
+    key: "removal",
+    label: "🎯 Removal",
+    count: 2,
+    ...over,
+  });
+
+  it("keeps the backend label in English", () => {
+    expect(roleChip(role(), "en", lookup("en"))).toBe("🎯 Removal");
+  });
+  it("translates known tags in Chinese", () => {
+    expect(roleChip(role(), "zh", lookup("zh"))).toBe("🎯 解场");
+  });
+  it("falls back to the backend label for unknown or missing keys", () => {
+    expect(
+      roleChip(role({ key: "mystery", label: "Mystery" }), "zh", lookup("zh")),
+    ).toBe("Mystery");
+    expect(roleChip(role({ key: "", label: "Mystery" }), "zh", lookup("zh"))).toBe(
+      "Mystery",
+    );
   });
 });

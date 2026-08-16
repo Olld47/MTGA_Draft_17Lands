@@ -1,4 +1,4 @@
-import type { Card, SetMetrics } from "../api/types";
+import type { Card, RecapRole, SetMetrics } from "../api/types";
 import { ManaCost } from "./ManaCost";
 import type { Column } from "./DataTable";
 import type { Lang } from "../i18n/locales";
@@ -77,6 +77,15 @@ export function tagChip(
     }
   }
   return fallback ?? TAG_ICONS[tag] ?? tag;
+}
+
+/** Localized recap-role chip label (RecapRole from the recap and deck-stats
+ *  views). Single wrapper over tagChip so both views share one behavior: zh
+ *  translates known tags (emoji + Chinese) and falls back to the backend
+ *  label for unknown/empty keys; en always keeps the backend "🎯 Removal"
+ *  label unchanged. */
+export function roleChip(role: RecapRole, lang: Lang, t: Translate): string {
+  return tagChip(role.key, lang, t, role.label);
 }
 
 /** (grade, z-score threshold) pairs in descending order — a TS port of

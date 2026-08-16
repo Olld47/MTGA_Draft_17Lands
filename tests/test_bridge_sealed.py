@@ -137,6 +137,37 @@ def test_build_stats_counts_and_basics():
     assert white.count == 3
 
 
+def test_build_stats_tags_ship_key_label_count():
+    deck = [
+        {"name": "Doom Blade", "cmc": 2, "types": ["Instant"], "colors": ["B"],
+         "mana_cost": "{1}{B}", "count": 2, "tags": ["removal"]},
+        {"name": "Flying Men", "cmc": 1, "types": ["Creature"], "colors": ["U"],
+         "mana_cost": "{U}", "count": 3, "tags": ["evasion"]},
+        # Lands never contribute role tags, even when one carries them.
+        {"name": "Plains", "cmc": 0, "types": ["Land", "Basic"], "colors": [],
+         "count": 5, "tags": ["removal"]},
+    ]
+    stats = build_stats(deck)
+    by_key = {r.key: r for r in stats.tags}
+    # each tag ships its raw key (frontend localization), mapped label, count.
+    assert set(by_key) == {"removal", "evasion"}
+    assert by_key["removal"].label == constants.TAG_VISUALS["removal"]
+    assert by_key["removal"].count == 2
+    assert by_key["evasion"].label == constants.TAG_VISUALS["evasion"]
+    assert by_key["evasion"].count == 3
+
+
+def test_build_stats_unmapped_tag_falls_back_to_raw_key():
+    deck = [
+        {"name": "Odd Card", "cmc": 2, "types": ["Creature"], "colors": ["G"],
+         "mana_cost": "{1}{G}", "count": 1, "tags": ["mystery"]},
+    ]
+    stats = build_stats(deck)
+    assert [(r.key, r.label, r.count) for r in stats.tags] == [
+        ("mystery", "mystery", 1)
+    ]
+
+
 def test_build_stats_empty_returns_zeroes():
     stats = build_stats([])
     assert stats.total_cards == 0
