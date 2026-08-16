@@ -165,12 +165,47 @@ function formatMarkdown(text) {
     html = html.replace(/(<\/li>)<br>/gim, '$1');
 
     // Sanitize the rendered HTML: release bodies are third-party-authored, so
-    // strip any raw script blocks and event-handler attributes that survived
-    // the markdown pass (the parser intentionally keeps <strong>/<code>/<a>).
-    html = html.replace(/<script[\s\S]*?<\/script>/gi, '');
-    html = html.replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '');
+    // keep only the tags/attributes the markdown pass generates (h2/h3/strong/
+    // em/code/a/li/br + class) and unwrap or drop everything else — raw
+    // <script>/<iframe>/<object> blocks, event-handler attributes, style
+    // attributes, and non-http(s)/mailto hrefs cannot survive this pass.
+    return sanitizeHtml(html);
+}
 
-    return html;
+// Allowlist sanitizer for release-note HTML. Parse with DOMParser, then walk
+// every element: disallowed tags are unwrapped (their text content stays,
+// inert), event handlers / style / unknown attributes are dropped, and <a
+// href> is limited to http(s)/mailto. Only the classes formatMarkdown itself
+// adds are kept.
+const ALLOWED_TAGS = new Set(['H1', 'H2', 'H3', 'STRONG', 'EM', 'CODE', 'A', 'LI', 'BR']);
+function sanitizeHtml(html) {
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+
+    const process = (node) => {
+        if (node.nodeType !== 1) return; // text/comment nodes pass through
+        if (!ALLOWED_TAGS.has(node.tagName)) {
+            // Unwrap, then process the moved children — a nested <input>/<img>
+            // inside a stripped <form>/<p> must not survive.
+            const children = [...node.childNodes];
+            node.replaceWith(...children);
+            children.forEach(process);
+            return;
+        }
+        [...node.attributes].forEach((attr) => {
+            const name = attr.name.toLowerCase();
+            if (name.startsWith('on')) {
+                node.removeAttribute(attr.name);
+            } else if (name === 'href' && !/^(https?:|mailto:)/i.test(attr.value)) {
+                node.removeAttribute('href');
+            } else if (name !== 'class' && name !== 'href') {
+                node.removeAttribute(attr.name);
+            }
+        });
+        [...node.children].forEach(process);
+    };
+
+    [...doc.body.children].forEach(process);
+    return doc.body.innerHTML;
 }
 
 // Helper: Render Download Buttons for Assets
