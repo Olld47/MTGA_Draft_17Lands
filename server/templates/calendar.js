@@ -26,7 +26,7 @@ document.addEventListener('DOMContentLoaded', () => {
         })
         .catch(e => {
             console.error(e);
-            if (statusEl) statusEl.innerHTML = `<span class="text-red-400 font-bold">${I18N.t('calendar.loadingError')}</span><br>${e.message}`;
+            if (statusEl) statusEl.innerHTML = `<span class="text-red-400 font-bold">${I18N.t('calendar.loadingError')}</span><br>${I18N.escapeHtml(e.message)}`;
         });
 
     document.getElementById('prev-month').addEventListener('click', () => {
@@ -51,6 +51,17 @@ function parseDateStr(str) {
     if (!str) return new Date();
     const [y, m, d] = str.split('-').map(Number);
     return new Date(y, m - 1, d);
+}
+
+// Localized Sun..Sat labels for the calendar header. Index i maps to
+// new Date(2024, 0, i).getDay() === i: 2024-01-01 is a Monday, so index 0 is
+// the preceding Sunday — the same reference-date trick used across JS
+// libraries to get weekday names without a hand-maintained table (a table
+// would drift from the locale's own conventions, e.g. zh "周日" vs "星期天").
+function weekdayLabels(lang) {
+    return Array.from({ length: 7 }, (_, i) =>
+        new Date(2024, 0, i).toLocaleDateString(lang, { weekday: 'short' })
+    );
 }
 
 function renderCalendar() {
@@ -146,9 +157,7 @@ function renderCalendar() {
         container.innerHTML = '';
 
         // A. Draw Headers (Row 1)
-        const days = Array.from({ length: 7 }, (_, i) =>
-            new Date(2024, 0, i).toLocaleDateString(lang, { weekday: 'short' })
-        );
+        const days = weekdayLabels(lang);
         days.forEach((d, i) => {
             const div = document.createElement('div');
             div.className = 'calendar-cell header';
@@ -242,7 +251,7 @@ function renderCalendar() {
         console.error("Calendar Render Error:", err);
         const statusEl = document.getElementById('calendar-status');
         if (statusEl) {
-            statusEl.innerHTML = `<span class="text-red-400 font-bold">${I18N.t('calendar.renderError')}</span><br>${err.message}`;
+            statusEl.innerHTML = `<span class="text-red-400 font-bold">${I18N.t('calendar.renderError')}</span><br>${I18N.escapeHtml(err.message)}`;
         }
     }
 }

@@ -104,6 +104,18 @@ def deploy_web_assets():
         with open(footer_path, "r", encoding="utf-8") as f:
             footer_content = f.read()
 
+    # i18n.js carries the message dictionary via a deploy-time sentinel —
+    # i18n-messages.json is the canonical source (tests json.load() it
+    # directly), so the shipped JS stays static and key validation never
+    # depends on parsing the script.
+    i18n_messages_path = os.path.join(template_dir, "i18n-messages.json")
+    if not os.path.exists(i18n_messages_path):
+        raise FileNotFoundError(
+            "missing i18n-messages.json — required to deploy i18n.js"
+        )
+    with open(i18n_messages_path, "r", encoding="utf-8") as f:
+        i18n_messages_json = json.dumps(json.load(f), ensure_ascii=False)
+
     # Process and copy static templates (HTML, CSS, JS)
     if os.path.exists(template_dir):
         for filename in os.listdir(template_dir):
@@ -122,6 +134,16 @@ def deploy_web_assets():
                     content = content.replace("<!-- INJECT_NAV -->", nav_content)
                     content = content.replace("<!-- INJECT_FOOTER -->", footer_content)
 
+                    with open(dest_file, "w", encoding="utf-8") as f:
+                        f.write(content)
+                elif filename == "i18n.js":
+                    with open(src_file, "r", encoding="utf-8") as f:
+                        content = f.read()
+                    # Embed the dictionary as a double-escaped JSON string
+                    # literal; JSON.parse() in the script restores it.
+                    content = content.replace(
+                        '"__I18N_MESSAGES__"', json.dumps(i18n_messages_json)
+                    )
                     with open(dest_file, "w", encoding="utf-8") as f:
                         f.write(content)
                 else:

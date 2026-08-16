@@ -2,8 +2,11 @@ import pytest
 import os
 import json
 import gzip
+import re
+from pathlib import Path
 from unittest.mock import patch
-from server.load import save_dataset, save_manifest, atomic_write
+from server.load import save_dataset, save_manifest, atomic_write, deploy_web_assets
+from server import config
 
 
 @pytest.fixture
@@ -56,3 +59,36 @@ def test_save_manifest(output_dir):
     assert filepath.exists()
     with open(filepath, "r") as f:
         assert json.load(f)["active_sets"] == ["M10"]
+
+
+def test_deploy_web_assets_injects_i18n_messages(output_dir):
+    """deploy_web_assets embeds i18n-messages.json into the shipped i18n.js.
+
+    The sentinel must be fully replaced and the embedded JSON must round-trip
+    to exactly the canonical dictionary — the site's translations ship in the
+    script, and any drift means users see raw keys.
+    """
+    deploy_web_assets()
+
+    deployed = Path(config.OUTPUT_DIR) / "i18n.js"
+    assert deployed.exists()
+    content = deployed.read_text(encoding="utf-8")
+    assert '"__I18N_MESSAGES__"' not in content, "sentinel not replaced"
+
+    match = re.search(r'JSON\.parse\("((?:[^"\\]|\\.)*)"\)', content)
+    assert match is not None, "no JSON.parse message load in deployed i18n.js"
+    # The capture is a JS string literal body; decode it as a JSON string
+    # first, then parse the embedded dictionary JSON.
+    inner_json = json.loads('"' + match.group(1) + '"')
+    embedded = json.loads(inner_json)
+
+    canonical = json.loads(
+        (
+            Path(__file__).resolve().parents[2]
+            / "server"
+            / "templates"
+            / "i18n-messages.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert embedded == canonical
+    assert embedded["zh"]["nav.app"] == "应用与下载"

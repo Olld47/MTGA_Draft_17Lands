@@ -30,7 +30,7 @@ The GitHub Pages site is fully bilingual: an English/中文 switcher in the nav 
 
 ### 新增 | New
 
-- 官网中英文切换：`i18n.js` 双语字典（en/zh 各 135 键对称）、导航栏 English/中文 切换器、`?lang=` 参数 / 浏览器语言自动识别；语言偏好存于站点自有键 `mtga-draft-tool-site.lang`（localStorage 按 origin 隔离，与桌面端 `mtga.lang` 分开）
+- 官网中英文切换：双语字典（en/zh 各 135 键对称，存于 `i18n-messages.json`、部署时注入 `i18n.js`）、导航栏 English/中文 切换器、`?lang=` 参数 / 浏览器语言自动识别；语言偏好存于站点自有键 `mtga-draft-tool-site.lang`（localStorage 按 origin 隔离，与桌面端 `mtga.lang` 分开）
 - 版本历史 / 数据仓库 / 赛事日历动态内容本地化：日期、月份与星期、事件悬停区间按语言格式化
 
 ### 改进 | Improved
@@ -46,7 +46,7 @@ The GitHub Pages site is fully bilingual: an English/中文 switcher in the nav 
 
 ### 架构 | Architecture
 
-- 新增 `tests/server/test_web_i18n.py`：官网 i18n 键覆盖守卫（HTML / JS 键覆盖、en-zh 对称、脚本加载顺序），双向突变复红验证
+- 新增 `tests/server/test_web_i18n.py`：官网 i18n 键覆盖守卫（HTML / JS 键覆盖、en-zh 对称、脚本加载顺序），字典以 JSON 直接加载（`i18n-messages.json`），双向突变复红验证（删键 / 加键均使守卫转红后恢复）
 - 桌面 bundle 重建验证：内嵌 Python 全部功能文件零旧仓库残留（仅 dist-info 作者署名与 LICENSE 版权保留）
 
 ===================== RELEASE NOTES 1.0 =====================

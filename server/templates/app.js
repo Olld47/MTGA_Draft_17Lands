@@ -60,6 +60,9 @@ function initApp() {
                     const ver = formatVersion(rel.tag_name);
                     const bodyHtml = formatMarkdown(rel.body);
                     const assetsHtml = renderAssets(rel.assets);
+                    const relName = I18N.escapeHtml(rel.name);
+                    const relUrl = I18N.escapeHtml(rel.html_url);
+                    const verSafe = I18N.escapeHtml(ver);
 
                     if (i === 0) {
                         // Latest Release (Fully Expanded)
@@ -72,11 +75,11 @@ function initApp() {
                                             <span class="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-widest">${I18N.t('app.latestRelease')}</span>
                                         </div>
                                         <h2 class="text-2xl font-bold text-white flex items-center gap-3">
-                                            ${rel.name} <span class="bg-blue-600/20 text-blue-400 border border-blue-500/30 px-2 py-0.5 rounded text-xs font-mono">${ver}</span>
+                                            ${relName} <span class="bg-blue-600/20 text-blue-400 border border-blue-500/30 px-2 py-0.5 rounded text-xs font-mono">${verSafe}</span>
                                         </h2>
                                         <p class="text-slate-400 text-sm mt-1">${I18N.t('app.publishedOn', { date: dateStr })}</p>
                                     </div>
-                                    <a href="${rel.html_url}" target="_blank" class="mt-4 md:mt-0 text-sm bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg transition text-center border border-slate-600 shadow-sm">${I18N.t('app.viewOnGithub')}</a>
+                                    <a href="${relUrl}" target="_blank" class="mt-4 md:mt-0 text-sm bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg transition text-center border border-slate-600 shadow-sm">${I18N.t('app.viewOnGithub')}</a>
                                 </div>
                                 <div class="text-slate-300 text-sm leading-relaxed font-sans">${bodyHtml}</div>
                                 
@@ -93,9 +96,9 @@ function initApp() {
                             <details class="group bg-slate-800/30 border border-slate-700/50 rounded-lg mb-3 transition-colors open:bg-slate-800/60 shadow-sm">
                                 <summary class="flex justify-between items-center font-bold cursor-pointer list-none p-4 select-none">
                                     <div class="flex flex-col md:flex-row md:items-center gap-2 md:gap-4">
-                                        <span class="text-lg text-slate-300 group-hover:text-white transition-colors">${rel.name}</span>
+                                        <span class="text-lg text-slate-300 group-hover:text-white transition-colors">${relName}</span>
                                         <div class="flex items-center gap-3">
-                                            <span class="bg-slate-700 text-slate-300 border border-slate-600 px-2 py-0.5 rounded text-xs font-mono">${ver}</span>
+                                            <span class="bg-slate-700 text-slate-300 border border-slate-600 px-2 py-0.5 rounded text-xs font-mono">${verSafe}</span>
                                             <span class="text-slate-500 text-sm font-normal hidden sm:block">• ${dateStr}</span>
                                         </div>
                                     </div>
@@ -145,8 +148,11 @@ function formatMarkdown(text) {
     // Inline Code
     html = html.replace(/`(.*?)`/gim, '<code class="bg-slate-900 text-emerald-400 px-1.5 py-0.5 rounded text-xs border border-slate-700">$1</code>');
 
-    // Links
-    html = html.replace(/\[(.*?)\]\((.*?)\)/gim, '<a href="$2" target="_blank" class="text-blue-400 hover:underline">$1</a>');
+    // Links — only allow http(s)/mailto targets (javascript: etc. is dropped)
+    html = html.replace(/\[(.*?)\]\((.*?)\)/gim, (m, text, href) => {
+        const safeHref = /^(https?:|mailto:)/i.test(href.trim()) ? href.trim() : '#';
+        return `<a href="${safeHref}" target="_blank" class="text-blue-400 hover:underline">${text}</a>`;
+    });
 
     // Lists
     html = html.replace(/^\* (.*$)/gim, '<li class="ml-5 list-disc marker:text-blue-500 mb-1">$1</li>');
@@ -157,6 +163,12 @@ function formatMarkdown(text) {
 
     // Cleanup list breaks
     html = html.replace(/(<\/li>)<br>/gim, '$1');
+
+    // Sanitize the rendered HTML: release bodies are third-party-authored, so
+    // strip any raw script blocks and event-handler attributes that survived
+    // the markdown pass (the parser intentionally keeps <strong>/<code>/<a>).
+    html = html.replace(/<script[\s\S]*?<\/script>/gi, '');
+    html = html.replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '');
 
     return html;
 }
@@ -175,11 +187,13 @@ function renderAssets(assets) {
         else if (asset.name.endsWith('.txt')) { icon = '📄'; colorClass = 'bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700'; }
 
         const sizeMb = (asset.size / (1024 * 1024)).toFixed(1);
+        const assetName = I18N.escapeHtml(asset.name);
+        const assetUrl = I18N.escapeHtml(asset.browser_download_url);
 
         html += `
-            <a href="${asset.browser_download_url}" class="flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs transition-colors ${colorClass}">
+            <a href="${assetUrl}" class="flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs transition-colors ${colorClass}">
                 <span>${icon}</span>
-                <span class="font-medium truncate max-w-[150px]" title="${asset.name}">${asset.name}</span>
+                <span class="font-medium truncate max-w-[150px]" title="${assetName}">${assetName}</span>
                 <span class="opacity-60 text-[10px] ml-1">${sizeMb}MB</span>
             </a>
         `;
@@ -252,19 +266,21 @@ function fetchManifest() {
         }).catch(e => console.error("Error loading manifest:", e));
 }
 
-// Visual Badges Helper
+// Visual Badges Helper (values come from report/manifest data — escape them)
 function getFormatBadge(format) {
-    if (format.includes('Premier')) return `<span class="bg-blue-600/20 text-blue-400 border border-blue-500/30 px-2 py-0.5 rounded text-xs">${format}</span>`;
-    if (format.includes('Quick')) return `<span class="bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded text-xs">${format}</span>`;
-    if (format.includes('Trad')) return `<span class="bg-amber-600/20 text-amber-400 border border-amber-500/30 px-2 py-0.5 rounded text-xs">${format}</span>`;
-    if (format.includes('Sealed')) return `<span class="bg-purple-600/20 text-purple-400 border border-purple-500/30 px-2 py-0.5 rounded text-xs">${format}</span>`;
-    return `<span class="bg-slate-600/20 text-slate-400 border border-slate-500/30 px-2 py-0.5 rounded text-xs">${format}</span>`;
+    const safe = I18N.escapeHtml(format);
+    if (format.includes('Premier')) return `<span class="bg-blue-600/20 text-blue-400 border border-blue-500/30 px-2 py-0.5 rounded text-xs">${safe}</span>`;
+    if (format.includes('Quick')) return `<span class="bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded text-xs">${safe}</span>`;
+    if (format.includes('Trad')) return `<span class="bg-amber-600/20 text-amber-400 border border-amber-500/30 px-2 py-0.5 rounded text-xs">${safe}</span>`;
+    if (format.includes('Sealed')) return `<span class="bg-purple-600/20 text-purple-400 border border-purple-500/30 px-2 py-0.5 rounded text-xs">${safe}</span>`;
+    return `<span class="bg-slate-600/20 text-slate-400 border border-slate-500/30 px-2 py-0.5 rounded text-xs">${safe}</span>`;
 }
 
 function getUserBadge(userGroup) {
     const ug = userGroup || "All";
+    const safe = I18N.escapeHtml(ug);
     if (ug.toLowerCase() === 'top') return `<span class="bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 px-2 py-0.5 rounded text-xs font-semibold">Top</span>`;
-    return `<span class="bg-slate-700/50 text-slate-300 border border-slate-600/50 px-2 py-0.5 rounded text-xs">${ug}</span>`;
+    return `<span class="bg-slate-700/50 text-slate-300 border border-slate-600/50 px-2 py-0.5 rounded text-xs">${safe}</span>`;
 }
 
 function renderActivityTable() {
@@ -279,14 +295,14 @@ function renderActivityTable() {
     activityData.forEach(u => {
         tbody.innerHTML += `
             <tr class="hover:bg-slate-700/20 transition-colors">
-                <td class="p-4 font-bold text-slate-200">${u.set}</td>
+                <td class="p-4 font-bold text-slate-200">${I18N.escapeHtml(u.set)}</td>
                 <td class="p-4">${getFormatBadge(u.format)}</td>
                 <td class="p-4">${getUserBadge(u.user_group)}</td>
-                <td class="p-4 text-slate-400 text-sm whitespace-nowrap">${u.start_date || '?'} <span class="text-slate-600 px-1">→</span> ${u.end_date || '?'}</td>
+                <td class="p-4 text-slate-400 text-sm whitespace-nowrap">${I18N.escapeHtml(u.start_date || '?')} <span class="text-slate-600 px-1">→</span> ${I18N.escapeHtml(u.end_date || '?')}</td>
                 <td class="p-4 text-right text-emerald-400/90">${u.game_count.toLocaleString()}</td>
-                <td class="p-4 text-right text-slate-400">${u.size_kb}</td>
+                <td class="p-4 text-right text-slate-400">${I18N.escapeHtml(u.size_kb)}</td>
                 <td class="p-4 text-center">
-                    <a href="${u.filename}" download class="inline-block bg-blue-600/20 hover:bg-blue-600/40 text-blue-400 border border-blue-500/30 rounded py-1 px-3 text-xs font-semibold transition shadow-sm">${I18N.t('app.download')}</a>
+                    <a href="${I18N.escapeHtml(u.filename)}" download class="inline-block bg-blue-600/20 hover:bg-blue-600/40 text-blue-400 border border-blue-500/30 rounded py-1 px-3 text-xs font-semibold transition shadow-sm">${I18N.t('app.download')}</a>
                 </td>
             </tr>
         `;
@@ -354,23 +370,23 @@ function renderManifestList(dataArray) {
             const userStr = ds.id.split('_')[2] || "All";
 
             const dateStr = (ds.start_date && ds.end_date)
-                ? `<div class="text-xs text-slate-500 mt-2 font-mono flex items-center gap-1"><svg class="w-3 h-3 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg> ${ds.start_date} <span class="text-slate-600">→</span> ${ds.end_date}</div>`
+                ? `<div class="text-xs text-slate-500 mt-2 font-mono flex items-center gap-1"><svg class="w-3 h-3 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg> ${I18N.escapeHtml(ds.start_date)} <span class="text-slate-600">→</span> ${I18N.escapeHtml(ds.end_date)}</div>`
                 : '';
 
             listEl.innerHTML += `
                 <div class="dataset-item p-3 mb-2 bg-slate-800/40 rounded-lg border border-slate-700/50 hover:border-slate-500 transition-colors flex flex-col group">
                     <div class="flex justify-between items-start mb-2">
                         <div>
-                            <span class="font-bold text-sm text-slate-200 block mb-1">${ds.id.split('_')[0]}</span>
+                            <span class="font-bold text-sm text-slate-200 block mb-1">${I18N.escapeHtml(ds.id.split('_')[0])}</span>
                             <div class="flex gap-2">
                                 ${getFormatBadge(formatStr)}
                                 ${getUserBadge(userStr)}
                             </div>
                             ${dateStr}
                         </div>
-                        <span class="text-xs text-slate-400 whitespace-nowrap">${ds.size_kb} KB</span>
+                        <span class="text-xs text-slate-400 whitespace-nowrap">${I18N.escapeHtml(ds.size_kb)} KB</span>
                     </div>
-                    <a href="${ds.filename}" download class="text-xs bg-blue-600/20 hover:bg-blue-600/40 text-blue-400 border border-blue-500/30 rounded py-1.5 px-2 mt-2 text-center transition opacity-0 group-hover:opacity-100">
+                    <a href="${I18N.escapeHtml(ds.filename)}" download class="text-xs bg-blue-600/20 hover:bg-blue-600/40 text-blue-400 border border-blue-500/30 rounded py-1.5 px-2 mt-2 text-center transition opacity-0 group-hover:opacity-100">
                         ${I18N.t('app.downloadJson')}
                     </a>
                 </div>

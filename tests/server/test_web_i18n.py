@@ -2,11 +2,17 @@
 
 Every data-i18n attribute in the templates and every I18N.t() call in the
 static JS must resolve to a key that exists in BOTH the en and zh dictionaries
-of templates/i18n.js — a missing translation silently renders the raw key on
-the live site. These guards are the unit tests for the bilingual site; the
-equivalent checks run manually in a browser during development.
+of templates/i18n-messages.json — a missing translation silently renders the
+raw key on the live site. These guards are the unit tests for the bilingual
+site; the equivalent checks run manually in a browser during development.
+
+The dictionary is read as plain JSON (deploy_web_assets embeds it into i18n.js
+via a sentinel, so the test never has to parse the script), and the script-tag
+ordering checks match script paths only — cache-busting query strings (?v=N)
+are deliberately ignored.
 """
 
+import json
 import re
 from pathlib import Path
 
@@ -23,21 +29,24 @@ T_CALL_RE = re.compile(r"I18N\.t\('([a-z][a-zA-Z0-9.]*)")
 
 
 def _load_i18n_dicts():
-    src = (TEMPLATES_DIR / "i18n.js").read_text(encoding="utf-8")
-    en_block = re.search(r"en: \{(.*?)\n    \},", src, re.S).group(1)
-    zh_block = re.search(r"zh: \{(.*?)\n    \},", src, re.S).group(1)
-    key_re = re.compile(r"'([a-z][a-zA-Z0-9.]*)'\s*:")
-    return set(key_re.findall(en_block)), set(key_re.findall(zh_block))
+    messages = json.loads(
+        (TEMPLATES_DIR / "i18n-messages.json").read_text(encoding="utf-8")
+    )
+    return set(messages["en"]), set(messages["zh"])
 
 
 def test_every_page_loads_i18n_before_page_scripts():
-    """i18n.js must load before app.js/calendar.js — they call I18N.t()."""
+    """i18n.js must load before app.js/calendar.js — they call I18N.t().
+
+    Matches by script path only (no ?v= cache-buster), so bumping the query
+    string never breaks the ordering guard.
+    """
     for name in HTML_PAGES:
         html = (TEMPLATES_DIR / name).read_text(encoding="utf-8")
-        i18n_pos = html.find('src="i18n.js?v=3"')
+        i18n_pos = html.find('src="i18n.js')
         assert i18n_pos != -1, f"{name} is missing the i18n.js script tag"
         for js in JS_FILES:
-            js_pos = html.find(f'src="{js}?v=3"')
+            js_pos = html.find(f'src="{js}')
             if js_pos != -1:
                 assert i18n_pos < js_pos, f"{name}: i18n.js must load before {js}"
 
@@ -53,7 +62,7 @@ def test_template_keys_exist_in_en_dict():
         }
         - en_keys
     )
-    assert not missing, f"data-i18n keys missing from i18n.js en dict: {missing}"
+    assert not missing, f"data-i18n keys missing from i18n-messages.json en dict: {missing}"
 
 
 def test_js_t_calls_exist_in_en_dict():
@@ -66,7 +75,7 @@ def test_js_t_calls_exist_in_en_dict():
         }
         - en_keys
     )
-    assert not missing, f"I18N.t() keys missing from i18n.js en dict: {missing}"
+    assert not missing, f"I18N.t() keys missing from i18n-messages.json en dict: {missing}"
 
 
 def test_zh_dict_is_symmetric_with_en():
