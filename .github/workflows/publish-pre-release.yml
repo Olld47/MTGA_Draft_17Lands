@@ -12,7 +12,10 @@
 # - the release is tagged `v<version>-pre` and created with `prerelease: true`
 #   so it never becomes the "Latest" release and never collides with the
 #   future `v<version>` tag; the app's update check ignores prerelease tags
-# - re-running (re-push) overwrites the same pre-release tag's assets
+# - created as a draft and published after assets upload (GitHub's immutable
+#   releases setting rejects asset uploads to published releases); re-running
+#   (re-push) re-creates the draft when the previous run never published, and
+#   is a no-op once the tag has been published
 #
 # Known duplication: the inline body-generation python is copied from
 # publish-release.yml. Deliberate for now — the pre-release harness must not
@@ -261,6 +264,7 @@ jobs:
           tag_name: ${{ steps.prep_release.outputs.tag_name }}
           target_commitish: ${{ github.sha }}
           prerelease: true
+          draft: true
           files: |
             release_assets/macos/**/*.dmg
             release_assets/windows/**/*.msi
@@ -268,3 +272,22 @@ jobs:
           body_path: release_body.md
           generate_release_notes: true
           overwrite_files: true
+
+      # GitHub's "immutable releases" setting freezes a release the moment it
+      # is published — assets can only be uploaded while the release is a
+      # draft. softprops created the draft above; publish it here. Note this
+      # fires release.published, not release.prereleased, so downstream
+      # workflows must subscribe to release.published. Re-runs against a tag
+      # that was already published are a no-op (immutable releases cannot
+      # replace assets on a published release).
+      - name: Publish pre-release draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${{ steps.prep_release.outputs.tag_name }}"
+          if gh release view "$TAG" --repo "${{ github.repository }}" \
+              --json isDraft --jq .isDraft 2>/dev/null | grep -q true; then
+            gh release publish "$TAG" --repo "${{ github.repository }}"
+          else
+            echo "release $TAG is already published — nothing to do"
+          fi
