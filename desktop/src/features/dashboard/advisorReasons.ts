@@ -17,9 +17,17 @@ export function localizeReason(reason: string, lang: Lang): string {
 
 // Role words embedded in the VOR templates, translated consistently.
 const ROLE_ZH: Record<string, string> = {
-  "2-Drops": "2费牌",
+  "2-Drops": "前两费曲线",
   Removal: "解场",
   Evasion: "穿透",
+};
+
+// "Highly Replaceable <role>" per-role wording; 2-Drops is phrased around
+// the early curve slot, the others around the card type.
+const REPLACEABLE_ZH: Record<string, string> = {
+  "2-Drops": "易被替代的前两费曲线",
+  Removal: "解场易被替代",
+  Evasion: "穿透易被替代",
 };
 
 type Rule = [RegExp, (m: RegExpExecArray) => string];
@@ -36,7 +44,7 @@ const REASON_RULES: Rule[] = [
     /^High VOR: Scarce ([WUBRG]) (2-Drops|Removal|Evasion) \(\+(\d+)\)$/,
     (m) => `高替换价值：${m[1]}色${ROLE_ZH[m[2]]}稀缺（+${m[3]}）`,
   ],
-  [/^Highly Replaceable (2-Drops|Removal|Evasion)$/, (m) => `${ROLE_ZH[m[1]]}易被替代`],
+  [/^Highly Replaceable (2-Drops|Removal|Evasion)$/, (m) => REPLACEABLE_ZH[m[1]]],
   [/^Improves Best Deck \(\+([\d.]+)\)$/, (m) => `提升最佳套牌（+${m[1]}）`],
   [/^This is the only available option\.$/, () => "这是唯一可选的牌。"],
   [/^Basic Land \(Skip\)$/, () => "基本地（跳过）"],
@@ -58,7 +66,7 @@ const REASON_RULES: Rule[] = [
   [/^Premium Fixing$/, () => "优质调色"],
   [/^Critical: Needs Removal$/, () => "关键：需要解场"],
   [/^Removal Saturated$/, () => "解场过剩"],
-  [/^Critical: Needs 2-Drops$/, () => "关键：需要2费牌"],
+  [/^Critical: Needs 2-Drops$/, () => "关键：需要前两费曲线"],
   [/^Curve Foundation$/, () => "曲线基础"],
   [/^Wheels ~(\d+)%$/, (m) => `轮转 ~${m[1]}%`],
 ];
