@@ -104,16 +104,32 @@ def test_deploy_resolves_repo_url_sentinels(output_dir):
     """
     deploy_web_assets()
 
-    # Deployed pages/scripts: every sentinel resolved, canonical URL present.
-    for name, expected in (
-        ("index.html", config.GITHUB_REPO_URL),
-        ("docs.html", config.GITHUB_PAGES_URL),
-        ("app.js", config.GITHUB_API_REPO_URL),
-    ):
-        content = (Path(config.OUTPUT_DIR) / name).read_text(encoding="utf-8")
+    # (a) No deployed file may carry an unresolved sentinel: iterate every
+    # deployed HTML template and JS bundle, not just the ones that currently
+    # reference repo URLs — a new template that hardcodes a sentinel (or a
+    # regression in the copy loop) fails here instead of shipping broken links.
+    html_files = sorted(Path(config.OUTPUT_DIR).glob("*.html"))
+    js_files = sorted(Path(config.OUTPUT_DIR).glob("*.js"))
+    assert html_files, "No deployed HTML files found in output_dir"
+    assert js_files, "No deployed JS files found in output_dir"
+
+    all_text = []
+    for path in html_files + js_files:
+        content = path.read_text(encoding="utf-8")
+        all_text.append(content)
         for sentinel in ("__GITHUB_REPO_URL__", "__GITHUB_API_REPO_URL__", "__GITHUB_PAGES_URL__"):
-            assert sentinel not in content, f"{name}: {sentinel} not resolved"
-        assert expected in content, f"{name}: expected URL missing"
+            assert sentinel not in content, f"{path.name}: {sentinel} not resolved"
+
+    # (b) Every canonical repo URL must appear in at least one deployed
+    # artifact (repo links live in HTML via the injected nav/footer, the API
+    # endpoint in app.js, the Pages URL in docs.html — combined coverage).
+    combined = "\n".join(all_text)
+    for url in (
+        config.GITHUB_REPO_URL,
+        config.GITHUB_API_REPO_URL,
+        config.GITHUB_PAGES_URL,
+    ):
+        assert url in combined, f"Expected repo URL {url!r} not found in deployed artifacts"
 
     # The injected nav lands in the deployed index.html (covered above via the
     # repo URL), so the raw snippet is expected to keep its sentinel.
