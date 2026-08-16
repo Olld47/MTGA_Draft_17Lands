@@ -29,7 +29,7 @@ Packaged builds previously resolved their data directory into the bundle itself 
 
 - 根因（真实 bundle 内嵌 Python 复现）：`ensure_runtime_paths` 源码分支 `os.chdir(site-packages)` + pytauri standalone 不设 `sys.frozen` → `resolve_base_dir()` 落到 `os.getcwd()` = 包内
 - `test_find_repo_root_returns_none_when_bundled` 改为真实 bundle 布局；新增标记守卫与符号链接 editable 安装回归测试
-- 全套 Python 1718 passing（顺序无关）
+- 全套 1718 项 Python 测试均通过（顺序无关）
 
 ===================== RELEASE NOTES 1.0.3 =====================
 ### Highlights
