@@ -50,7 +50,7 @@ export function ComparePage({ colorTint }: { colorTint: boolean }) {
   const [query, setQuery] = useState("");
   const { resultFormat, metrics } = useStatFormat();
   const format = { resultFormat, metrics };
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const {
     fields,
     order,
@@ -97,7 +97,7 @@ export function ComparePage({ colorTint }: { colorTint: boolean }) {
   const columns: Column<Card>[] = [
     nameColumn(undefined, t),
     manaColumn(t),
-    ...order.map((f) => cardColumn(f, format, t)),
+    ...order.map((f) => cardColumn(f, format, t, lang)),
     removeColumn(remove, t),
   ];
   const menu = useCardMenu();

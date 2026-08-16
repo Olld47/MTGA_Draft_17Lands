@@ -11,6 +11,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from src import constants
 from src.recap_actions import (
     RecapData,
     build_recap_data,
@@ -347,8 +348,9 @@ def test_roles_are_labelled_from_tag_visuals(metrics):
 
     roles = _data(pool, metrics).roles
 
-    assert roles[0][1] == 4
-    assert roles[0][0] != "removal"  # mapped, not the raw tag
+    # (key, display label, count) — the key feeds frontend localization.
+    assert roles[0] == ("removal", constants.TAG_VISUALS["removal"], 4)
+    assert roles[0][1] != "removal"  # mapped, not the raw tag
 
 
 def test_an_unmapped_tag_falls_back_to_its_capitalized_name(metrics):
@@ -358,7 +360,7 @@ def test_an_unmapped_tag_falls_back_to_its_capitalized_name(metrics):
 
     roles = _data(pool, metrics).roles
 
-    assert ("Mystery", 3) in roles
+    assert ("mystery", "Mystery", 3) in roles
 
 
 def test_roles_are_ranked_and_capped_at_six(metrics):
@@ -367,7 +369,7 @@ def test_roles_are_ranked_and_capped_at_six(metrics):
         pool.append(_card(f"Tag{i} A", 60.0, tags=[f"tag{i}"]))
         pool.append(_card(f"Tag{i} B", 60.0, tags=[f"tag{i}"]))
 
-    counts = [c for _, c in _data(pool, metrics).roles]
+    counts = [c for _, _, c in _data(pool, metrics).roles]
 
     assert len(counts) == 6
     assert counts == sorted(counts, reverse=True)

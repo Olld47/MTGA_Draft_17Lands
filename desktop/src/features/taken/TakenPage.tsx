@@ -26,7 +26,7 @@ export function TakenPage({ colorTint }: { colorTint: boolean }) {
   const [taken, setTaken] = useState<TakenCards | null>(null);
   const { resultFormat, metrics } = useStatFormat();
   const format = { resultFormat, metrics };
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const { fields, order, add, remove, reset, move, initialSort, setSort } =
     useColumnConfig(
       "taken_table",
@@ -49,7 +49,7 @@ export function TakenPage({ colorTint }: { colorTint: boolean }) {
   const columns: Column<Card>[] = [
     nameColumn({ colorName: true }, t),
     manaColumn(t),
-    ...order.map((f) => cardColumn(f, format, t)),
+    ...order.map((f) => cardColumn(f, format, t, lang)),
   ];
   const menu = useCardMenu();
 

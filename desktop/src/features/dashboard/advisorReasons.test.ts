@@ -13,7 +13,7 @@ describe("localizeReason", () => {
     expect(localizeReason("Archetype Glue (+3.2)", "zh")).toBe("思路胶水（+3.2）");
     expect(localizeReason("Archetype Synergy (+2.8)", "zh")).toBe("思路协同（+2.8）");
     expect(localizeReason("High VOR: Scarce W 2-Drops (+6)", "zh")).toBe(
-      "高替换价值：W色2费牌稀缺（+6）",
+      "高替换价值：W色前两费曲线稀缺（+6）",
     );
     expect(localizeReason("High VOR: Scarce B Removal (+6)", "zh")).toBe(
       "高替换价值：B色解场稀缺（+6）",
@@ -21,7 +21,7 @@ describe("localizeReason", () => {
     expect(localizeReason("High VOR: Scarce G Evasion (+6)", "zh")).toBe(
       "高替换价值：G色穿透稀缺（+6）",
     );
-    expect(localizeReason("Highly Replaceable 2-Drops", "zh")).toBe("2费牌易被替代");
+    expect(localizeReason("Highly Replaceable 2-Drops", "zh")).toBe("易被替代的前两费曲线");
     expect(localizeReason("Highly Replaceable Removal", "zh")).toBe("解场易被替代");
     expect(localizeReason("Highly Replaceable Evasion", "zh")).toBe("穿透易被替代");
     expect(localizeReason("Improves Best Deck (+3.2)", "zh")).toBe("提升最佳套牌（+3.2）");
@@ -47,7 +47,7 @@ describe("localizeReason", () => {
     expect(localizeReason("Premium Fixing", "zh")).toBe("优质调色");
     expect(localizeReason("Critical: Needs Removal", "zh")).toBe("关键：需要解场");
     expect(localizeReason("Removal Saturated", "zh")).toBe("解场过剩");
-    expect(localizeReason("Critical: Needs 2-Drops", "zh")).toBe("关键：需要2费牌");
+    expect(localizeReason("Critical: Needs 2-Drops", "zh")).toBe("关键：需要前两费曲线");
     expect(localizeReason("Curve Foundation", "zh")).toBe("曲线基础");
     expect(localizeReason("Wheels ~80%", "zh")).toBe("轮转 ~80%");
   });

@@ -5,7 +5,7 @@ import {
   artUrl,
   cardNameColor,
   RARITY_COLOR,
-  TAG_ICONS,
+  tagChip,
 } from "./cardColumns";
 
 /** Port of src/constants.py::COLOR_NAMES_DICT — WUBRG keys to the guild/shard
@@ -147,7 +147,7 @@ function statRows(
 /** Cursor-following hover card: art + the legacy CardToolTip stat panel.
  *  Rendered by DataTable when `hoverContent` is wired (pack / taken / deck). */
 export function CardHoverTip({ data }: { data: CardHoverData }) {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const image = artUrl(data.image);
   const stats = statRows(data.stats, t);
   return (
@@ -209,8 +209,8 @@ export function CardHoverTip({ data }: { data: CardHoverData }) {
               <>
                 <div className="ch-section">{t("hover.cardRoles")}</div>
                 <div className="ch-tags">
-                  {data.tags.map((t) => (
-                    <span key={t}>{TAG_ICONS[t] ?? t}</span>
+                  {data.tags.map((tag) => (
+                    <span key={tag}>{tagChip(tag, lang, t)}</span>
                   ))}
                 </div>
               </>

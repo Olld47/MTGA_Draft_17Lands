@@ -180,7 +180,9 @@ def build_stats(deck_list: List[dict]) -> DeckStatsVM:
         curve={str(k): v for k, v in curve.items()},
         tribes=[RecapRoleVM(label=t, count=n) for t, n in top_tribes],
         tags=[
-            RecapRoleVM(label=constants.TAG_VISUALS.get(t, t), count=n)
+            RecapRoleVM(
+                key=t, label=constants.TAG_VISUALS.get(t, t), count=n
+            )
             for t, n in top_tags
         ],
         basics=basics,

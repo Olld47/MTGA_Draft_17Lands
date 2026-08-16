@@ -40,7 +40,7 @@ export function PackTable({
 }: Props) {
   const { resultFormat, metrics } = useStatFormat();
   const format = { resultFormat, metrics };
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const { fields, order, add, remove, reset, move, initialSort, setSort } =
     useColumnConfig(
       viewId,
@@ -54,7 +54,7 @@ export function PackTable({
   const columns: Column<Card>[] = [
     nameColumn({ colorName: true }, t),
     manaColumn(t),
-    ...order.map((f) => cardColumn(f, format, t)),
+    ...order.map((f) => cardColumn(f, format, t, lang)),
   ];
   const menu = useCardMenu();
 

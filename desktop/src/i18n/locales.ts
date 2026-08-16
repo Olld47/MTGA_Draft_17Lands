@@ -63,6 +63,26 @@ export const messages: Record<Lang, Record<string, string>> = {
     "hover.cardRoles": "CARD ROLES",
     "hover.games": "Games",
 
+    // Card role tags (17Lands/Scryfall otag vocabulary, mirrored in
+    // src/constants/datasets.py TAG_VISUALS). en values are the TAG_VISUALS
+    // display words; the English chips render emoji-only so these only show
+    // when a future caller routes them through t() directly.
+    "tag.removal": "Removal",
+    "tag.evasion": "Evasion",
+    "tag.card_advantage": "Advantage",
+    "tag.fixing_ramp": "Fixing",
+    "tag.fixing": "Fixing",
+    "tag.combat_trick": "Trick",
+    "tag.enhancement": "Enhance",
+    "tag.token_maker": "Tokens",
+    "tag.lifegain": "Lifegain",
+    "tag.mana_sink": "Sink",
+    "tag.protection": "Protect",
+    "tag.hate": "Hate",
+    "tag.synergy_artifacts": "Artifact Synergy",
+    "tag.synergy_graveyard": "Graveyard Synergy",
+    "tag.synergy_counters": "Counters Synergy",
+
     // Card context menu
     "ctx.compare": "🔍 Compare “{name}”",
     "ctx.copyName": "📋 Copy Name",
@@ -427,6 +447,24 @@ export const messages: Record<Lang, Record<string, string>> = {
     "hover.archetypeShare": "套牌份额",
     "hover.cardRoles": "卡牌定位",
     "hover.games": "对局数",
+
+    // Card role tags (17Lands/Scryfall otag vocabulary, mirrored in
+    // src/constants/datasets.py TAG_VISUALS)
+    "tag.removal": "解场",
+    "tag.evasion": "穿透",
+    "tag.card_advantage": "卡牌优势",
+    "tag.fixing_ramp": "调色加速",
+    "tag.fixing": "调色",
+    "tag.combat_trick": "战斗诡计",
+    "tag.enhancement": "强化",
+    "tag.token_maker": "衍生物制造",
+    "tag.lifegain": "生命回复",
+    "tag.mana_sink": "法术力水槽",
+    "tag.protection": "保护",
+    "tag.hate": "针对",
+    "tag.synergy_artifacts": "神器协同",
+    "tag.synergy_graveyard": "坟场协同",
+    "tag.synergy_counters": "指示物协同",
 
     // Card context menu
     "ctx.compare": "🔍 对比「{name}」",

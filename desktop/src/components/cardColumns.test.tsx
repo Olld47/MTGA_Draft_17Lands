@@ -2,15 +2,23 @@ import { describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
 
 import type { Card, SetMetrics } from "../api/types";
+import { messages, type Lang } from "../i18n/locales";
 import {
   artUrl,
+  cardColumn,
   cardNameColor,
   cardRowClass,
   formatWinRate,
   nameColumn,
   RESULT_FORMAT_GRADE,
   RESULT_FORMAT_RATING,
+  roleChip,
+  tagChip,
 } from "./cardColumns";
+
+/** Language-bound translator mirroring useLanguage().t's fallback chain. */
+const lookup = (lang: Lang) => (key: string) =>
+  messages[lang][key] ?? messages.en[key] ?? key;
 
 const card = (over: Partial<Card> = {}): Card => ({
   name: "Grizzly Bears",
@@ -116,9 +124,9 @@ describe("artUrl", () => {
 });
 
 describe("cardNameColor", () => {
-  it("uses the mana color for mono cards, gold for gold, grey otherwise", () => {
+  it("uses the mana color for mono cards, orange for multi, grey otherwise", () => {
     expect(cardNameColor(["W"])).toBe("var(--mana-w)");
-    expect(cardNameColor(["W", "U"])).toBe("var(--gold-foil)");
+    expect(cardNameColor(["W", "U"])).toBe("var(--mana-multi)");
     expect(cardNameColor([])).toBe("var(--gruff)");
     expect(cardNameColor(["Z"])).toBe("var(--gruff)");
   });
@@ -148,5 +156,86 @@ describe("nameColumn", () => {
   it("skips the rarity badge when rarity is unknown", () => {
     const { container } = render(<>{nameColumn().cell(card({ rarity: "" }))}</>);
     expect(container.querySelector(".card-rarity")).toBeNull();
+  });
+  it("colors elite (bomb) names with the mana color too", () => {
+    const elite = card({
+      colors: ["R"],
+      recommendation: { ...card({}).recommendation!, isElite: true },
+    });
+    const { container } = render(
+      <>{nameColumn({ colorName: true }).cell(elite)}</>,
+    );
+    expect(container.querySelector(".card-name")?.getAttribute("style")).toContain(
+      "var(--mana-r)",
+    );
+  });
+  it("leaves names uncolored without the colorName option", () => {
+    const { container } = render(<>{nameColumn().cell(card({ colors: ["G"] }))}</>);
+    expect(container.querySelector(".card-name")?.getAttribute("style")).toBeNull();
+  });
+});
+
+describe("tagChip", () => {
+  const rec = (tags: string[]) => ({
+    cardName: "Grizzly Bears",
+    baseWinRate: 0,
+    contextualScore: 0,
+    zScore: 0,
+    castProbability: 0,
+    wheelChance: 0,
+    functionalCmc: 0,
+    reasoning: [],
+    isElite: false,
+    archetypeFit: "",
+    tags,
+  });
+
+  it("keeps the legacy emoji-only chip in English", () => {
+    expect(tagChip("removal", "en", lookup("en"))).toBe("🎯");
+  });
+  it("renders emoji + translated role in Chinese", () => {
+    expect(tagChip("removal", "zh", lookup("zh"))).toBe("🎯 解场");
+    expect(tagChip("evasion", "zh", lookup("zh"))).toBe("🦅 穿透");
+    expect(tagChip("fixing_ramp", "zh", lookup("zh"))).toBe("🌈 调色加速");
+  });
+  it("passes unknown tags through as the raw key, or the fallback label", () => {
+    expect(tagChip("mystery", "en", lookup("en"))).toBe("mystery");
+    expect(tagChip("mystery", "zh", lookup("zh"))).toBe("mystery");
+    expect(tagChip("mystery", "zh", lookup("zh"), "Mystery")).toBe("Mystery");
+  });
+
+  it("localizes the DataTable tags column cell in Chinese only", () => {
+    const en = cardColumn("tags", undefined, lookup("en"), "en");
+    const zh = cardColumn("tags", undefined, lookup("zh"), "zh");
+    const tagged = card({ recommendation: rec(["removal", "evasion"]) });
+    expect(en.cell(tagged)).toBe("🎯 🦅");
+    expect(zh.cell(tagged)).toBe("🎯 解场 🦅 穿透");
+    expect(cardColumn("tags", undefined, lookup("zh"), "zh").cell(card())).toBe("—");
+  });
+});
+
+describe("roleChip", () => {
+  const role = (
+    over: Partial<{ key: string; label: string; count: number }> = {},
+  ) => ({
+    key: "removal",
+    label: "🎯 Removal",
+    count: 2,
+    ...over,
+  });
+
+  it("keeps the backend label in English", () => {
+    expect(roleChip(role(), "en", lookup("en"))).toBe("🎯 Removal");
+  });
+  it("translates known tags in Chinese", () => {
+    expect(roleChip(role(), "zh", lookup("zh"))).toBe("🎯 解场");
+  });
+  it("falls back to the backend label for unknown or missing keys", () => {
+    expect(
+      roleChip(role({ key: "mystery", label: "Mystery" }), "zh", lookup("zh")),
+    ).toBe("Mystery");
+    expect(roleChip(role({ key: "", label: "Mystery" }), "zh", lookup("zh"))).toBe(
+      "Mystery",
+    );
   });
 });

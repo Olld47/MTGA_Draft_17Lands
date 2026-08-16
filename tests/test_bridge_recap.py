@@ -402,6 +402,7 @@ def test_roles_are_labelled_from_tag_visuals(metrics):
 
     roles = build_recap(pool, metrics, "d1", "PremierDraft").roles
 
+    assert roles[0].key == "removal"  # raw key ships for frontend localization
     assert roles[0].label == constants.TAG_VISUALS["removal"]
     assert roles[0].count == 4
 
@@ -412,7 +413,7 @@ def test_an_unmapped_tag_falls_back_to_its_capitalized_name(metrics):
 
     roles = build_recap(pool, metrics, "d1", "PremierDraft").roles
 
-    assert ("Mystery", 3) in [(r.label, r.count) for r in roles]
+    assert ("mystery", "Mystery", 3) in [(r.key, r.label, r.count) for r in roles]
 
 
 def test_roles_are_ranked_and_capped_at_six(metrics):

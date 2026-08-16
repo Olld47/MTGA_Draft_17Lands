@@ -68,7 +68,10 @@ def build_recap(taken_cards, metrics, draft_id, event_type) -> RecapVM:
             for name, pack, pick, reference, delta in data.reaches
         ],
         tribes=[RecapRoleVM(label=label, count=count) for label, count in data.tribes],
-        roles=[RecapRoleVM(label=label, count=count) for label, count in data.roles],
+        roles=[
+            RecapRoleVM(key=key, label=label, count=count)
+            for key, label, count in data.roles
+        ],
         staples=[
             RecapCardVM(name=name, win_rate=round(wr, 1))
             for name, wr in data.staples

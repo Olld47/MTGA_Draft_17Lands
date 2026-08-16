@@ -1,6 +1,6 @@
 [project]
 name = "mtga-bridge"
-version = "1.0.2"
+version = "1.0.3"
 description = "pytauri bridge for the MTGA Draft Tool (the desktop client over the shared src/ engine)"
 readme = "README.md"
 authors = [
