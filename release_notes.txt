@@ -1,3 +1,50 @@
+===================== RELEASE NOTES 1.0.3 =====================
+### Highlights
+
+#### 卡牌定位标签全量汉化
+
+卡牌角色标签（解场 / 穿透 / 调色加速 / 战斗诡计 / 针对等 15 个）在中文界面全部本地化：推荐面板、悬浮卡、数据表标签列、轮抓回顾「定位」、套牌统计统一渲染为「emoji + 中文」（🎯 解场），英文界面保持原样；后端下发原始 tag key，前端统一翻译，未知标签原样透传不丢信息。
+
+#### 炸弹与多色卡名配色
+
+炸弹卡名恢复法术力色并在名字后加金色 ★ 标记（与建议面板一致）；多色卡名从金色改为专属橙色（新增 `--mana-multi` token，双主题 WCAG AA），白色卡名保持明黄柠檬黄，与多色在色相带上彻底区分，一眼可辨。
+
+<details>
+<summary><b>English</b></summary>
+
+#### Card-role tags fully localized
+
+All 15 card-role tags (removal, evasion, fixing, combat tricks, hate, etc.) now render as emoji + Chinese labels across the advisor panel, hover tooltip, table tags column, recap Roles, and deck stats; the English UI is unchanged (emoji-only chips). The backend ships the raw tag key so the frontend translates in one place; unknown tags pass through untouched.
+
+#### Bomb and multicolor card names
+
+Bomb (elite) card names are back to their per-color mana color with a gold ★ after the name (matching the advisor panel); multicolor names switched from gold to a dedicated orange token (`--mana-multi`, WCAG AA in both themes) while white keeps its bright lemon yellow — the two identities never blur.
+
+</details>
+
+---
+
+以下是详细内容：
+
+**v1.0.3 (2026-08-16)**
+
+### 新增 | New
+
+- 卡牌定位标签汉化：`tag.*` i18n 键（en/zh 对称），`tagChip()` 统一渲染入口——zh「emoji + 中文」、en 像素不变、未知标签透传
+- 新增 `--mana-multi` 橙色 token（暗色 #e07b39 / 亮色 #9a3412，两套主题均过 WCAG AA）
+
+### 改进 | Improved
+
+- 炸弹卡名恢复法术力色，卡名后追加金色 ★ 标记（与建议面板星标样式一致）
+- 多色卡名、多色行着色（tint-multi）、现开卡池筛选 M 芯片统一橙色；白色卡名保持明黄，与多色在色相带上彻底区分
+- 翻译评审微调：mana_sink → 法术力水槽、lifegain → 生命回复
+
+### 架构 | Architecture
+
+- `RecapRoleVM` 新增 `key` 字段携带原始 tag，`recap_actions` roles 改 `(key, label, count)` 三元组，前端据此本地化
+- theme tokens 测试升级：白 / 多色色相带守卫（白 35–75°、多色 10–35°）+ `--mana-multi` AA 对比对；`tagChip` 中英行为与标签列单元格测试
+- 全套 Python 1714 passing，前端 vitest 127 passing、tsc 干净
+
 ===================== RELEASE NOTES 1.0.2 =====================
 ### Highlights
 
