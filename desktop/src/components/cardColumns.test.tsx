@@ -156,6 +156,22 @@ describe("nameColumn", () => {
     const { container } = render(<>{nameColumn().cell(card({ rarity: "" }))}</>);
     expect(container.querySelector(".card-rarity")).toBeNull();
   });
+  it("colors elite (bomb) names with the mana color too", () => {
+    const elite = card({
+      colors: ["R"],
+      recommendation: { ...card({}).recommendation!, isElite: true },
+    });
+    const { container } = render(
+      <>{nameColumn({ colorName: true }).cell(elite)}</>,
+    );
+    expect(container.querySelector(".card-name")?.getAttribute("style")).toContain(
+      "var(--mana-r)",
+    );
+  });
+  it("leaves names uncolored without the colorName option", () => {
+    const { container } = render(<>{nameColumn().cell(card({ colors: ["G"] }))}</>);
+    expect(container.querySelector(".card-name")?.getAttribute("style")).toBeNull();
+  });
 });
 
 describe("tagChip", () => {

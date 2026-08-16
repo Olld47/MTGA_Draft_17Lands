@@ -212,9 +212,7 @@ export function nameColumn(
         <span
           className="card-name"
           style={
-            opts?.colorName && !c.recommendation?.isElite
-              ? { color: cardNameColor(c.colors) }
-              : undefined
+            opts?.colorName ? { color: cardNameColor(c.colors) } : undefined
           }
         >
           {c.name}

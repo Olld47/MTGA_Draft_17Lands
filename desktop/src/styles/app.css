@@ -439,7 +439,11 @@
   opacity: 0.45;
 }
 
-.data-table tr.elite .card-name {
+/* Bomb (elite) cards: gold star after the name instead of a gold name color
+   — the name itself keeps the per-color mana color (mirrors the advisor
+   panel's .advisor-rec.elite .rec-name::after marker). */
+.data-table tr.elite .card-name::after {
+  content: " ★";
   color: var(--gold-foil);
 }
 
