@@ -10,6 +10,8 @@ relocates Sets/, Logs/, Temp/ and config.json.
 import os
 import subprocess
 import sys
+import tempfile
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -174,11 +176,99 @@ def test_find_repo_root_locates_checkout():
 
 
 def test_find_repo_root_returns_none_when_bundled(tmp_path):
-    """Walking up from an embedded site-packages never reaches src/constants/."""
-    fake = tmp_path / "lib" / "python3.13" / "site-packages" / "mtga_bridge"
-    fake.mkdir(parents=True)
-    with patch.object(paths, "__file__", str(fake / "paths.py")):
+    """Real bundle layout: `src` is installed INTO site-packages next to
+    mtga_bridge (build.sh installs the repo-root package), but site-packages
+    has no poetry project markers. `src/constants` alone must NOT classify it
+    as a source checkout — that bug relocated Sets/Logs/Temp/config.json
+    inside the .app bundle, wiping them on update."""
+    sp = tmp_path / "lib" / "python3.13" / "site-packages"
+    (sp / "mtga_bridge").mkdir(parents=True)
+    (sp / "src" / "constants").mkdir(parents=True)
+    (sp / "pydantic-2.13.4.dist-info").mkdir()
+    (sp / "README.txt").write_text("This is a Python package directory\n")
+    with patch.object(paths, "__file__", str(sp / "mtga_bridge" / "paths.py")):
         assert paths.find_repo_root() is None
+
+
+def test_find_repo_root_requires_project_markers(tmp_path):
+    """A directory with `src/constants` but missing a project marker is not a
+    checkout — regression guard for the marker requirements."""
+
+    def _checkout_with(marker_files):
+        """Fresh fake checkout holding exactly `marker_files`."""
+        root = tmp_path / ("-".join(marker_files) or "none")
+        (root / "src" / "constants").mkdir(parents=True)
+        for name in marker_files:
+            (root / name).write_text("")
+        return root
+
+    # No markers at all — not a checkout.
+    root = _checkout_with([])
+    with patch.object(paths, "__file__", str(root / "mtga_bridge" / "paths.py")):
+        assert paths.find_repo_root() is None
+
+    # Only `main.py`, missing `pyproject.toml` — still not a checkout.
+    root = _checkout_with(["main.py"])
+    with patch.object(paths, "__file__", str(root / "mtga_bridge" / "paths.py")):
+        assert paths.find_repo_root() is None
+
+    # Only `pyproject.toml`, missing `main.py` — still not a checkout.
+    root = _checkout_with(["pyproject.toml"])
+    with patch.object(paths, "__file__", str(root / "mtga_bridge" / "paths.py")):
+        assert paths.find_repo_root() is None
+
+    # Both markers present — now recognized as a checkout root.
+    root = _checkout_with(["pyproject.toml", "main.py"])
+    with patch.object(paths, "__file__", str(root / "mtga_bridge" / "paths.py")):
+        assert os.path.realpath(paths.find_repo_root()) == os.path.realpath(
+            str(root)
+        )
+
+
+def _can_create_dir_symlink():
+    """True only where creating a directory symlink actually works (Windows
+    without Developer Mode / symlink privileges, or filesystems that disable
+    them, make Path.symlink_to raise or produce a dead link)."""
+    if not hasattr(os, "symlink"):
+        return False
+    with tempfile.TemporaryDirectory() as tmp:
+        base = Path(tmp)
+        target = base / "target"
+        target.mkdir()
+        link = base / "link"
+        try:
+            link.symlink_to(target, target_is_directory=True)
+        except (OSError, NotImplementedError):
+            return False
+        return link.is_dir()
+
+
+@pytest.mark.skipif(
+    not _can_create_dir_symlink(),
+    reason="Directory symlinks not supported in this environment",
+)
+def test_find_repo_root_follows_symlinked_editable_install(tmp_path):
+    """An editable install may symlink `mtga_bridge` into site-packages while
+    the rest of the package tree stays in the checkout. The walk must resolve
+    the link back to the real checkout root — starting from the link location
+    alone misses src/constants + markers and silently falls back to the
+    per-user data dir (config/data "reset" after an update)."""
+    repo_root = tmp_path / "repo"
+    (repo_root / "src" / "constants").mkdir(parents=True)
+    (repo_root / "pyproject.toml").write_text("[project]\n")
+    (repo_root / "main.py").write_text("")
+    # Source tree as installed editable: <checkout>/desktop/src-tauri/src-python/mtga_bridge
+    pkg = repo_root / "desktop" / "src-tauri" / "src-python" / "mtga_bridge"
+    pkg.mkdir(parents=True)
+    # venv OUTSIDE the checkout, linked back into it
+    sp = tmp_path / "venv" / "lib" / "site-packages"
+    sp.mkdir(parents=True)
+    (sp / "mtga_bridge").symlink_to(pkg, target_is_directory=True)
+
+    with patch.object(paths, "__file__", str(sp / "mtga_bridge" / "paths.py")):
+        assert os.path.realpath(paths.find_repo_root()) == os.path.realpath(
+            str(repo_root)
+        )
 
 
 # --- ensure_runtime_paths --------------------------------------------------
