@@ -2,8 +2,11 @@ import pytest
 import os
 import json
 import gzip
+import re
+from pathlib import Path
 from unittest.mock import patch
-from server.load import save_dataset, save_manifest, atomic_write
+from server.load import save_dataset, save_manifest, atomic_write, deploy_web_assets
+from server import config
 
 
 @pytest.fixture
@@ -56,3 +59,81 @@ def test_save_manifest(output_dir):
     assert filepath.exists()
     with open(filepath, "r") as f:
         assert json.load(f)["active_sets"] == ["M10"]
+
+
+def test_deploy_web_assets_injects_i18n_messages(output_dir):
+    """deploy_web_assets embeds i18n-messages.json into the shipped i18n.js.
+
+    The sentinel must be fully replaced and the embedded JSON must round-trip
+    to exactly the canonical dictionary — the site's translations ship in the
+    script, and any drift means users see raw keys.
+    """
+    deploy_web_assets()
+
+    deployed = Path(config.OUTPUT_DIR) / "i18n.js"
+    assert deployed.exists()
+    content = deployed.read_text(encoding="utf-8")
+    assert '"__I18N_MESSAGES__"' not in content, "sentinel not replaced"
+
+    match = re.search(r'JSON\.parse\("((?:[^"\\]|\\.)*)"\)', content)
+    assert match is not None, "no JSON.parse message load in deployed i18n.js"
+    # The capture is a JS string literal body; decode it as a JSON string
+    # first, then parse the embedded dictionary JSON.
+    inner_json = json.loads('"' + match.group(1) + '"')
+    embedded = json.loads(inner_json)
+
+    canonical = json.loads(
+        (
+            Path(__file__).resolve().parents[2]
+            / "server"
+            / "templates"
+            / "i18n-messages.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert embedded == canonical
+    assert embedded["zh"]["nav.app"] == "应用与下载"
+
+
+def test_deploy_resolves_repo_url_sentinels(output_dir):
+    """Repo URL placeholders must resolve to the canonical endpoints on deploy,
+    so a namespace/project move only touches server/config.py (and its mirror
+    src/constants/repo.py) instead of every template.
+
+    nav.html/footer.html are snippets: they keep the raw sentinels in the
+    template dir and are resolved only after being injected into a page.
+    """
+    deploy_web_assets()
+
+    # (a) No deployed file may carry an unresolved sentinel: iterate every
+    # deployed HTML template and JS bundle, not just the ones that currently
+    # reference repo URLs — a new template that hardcodes a sentinel (or a
+    # regression in the copy loop) fails here instead of shipping broken links.
+    html_files = sorted(Path(config.OUTPUT_DIR).glob("*.html"))
+    js_files = sorted(Path(config.OUTPUT_DIR).glob("*.js"))
+    assert html_files, "No deployed HTML files found in output_dir"
+    assert js_files, "No deployed JS files found in output_dir"
+
+    all_text = []
+    for path in html_files + js_files:
+        content = path.read_text(encoding="utf-8")
+        all_text.append(content)
+        for sentinel in ("__GITHUB_REPO_URL__", "__GITHUB_API_REPO_URL__", "__GITHUB_PAGES_URL__"):
+            assert sentinel not in content, f"{path.name}: {sentinel} not resolved"
+
+    # (b) Every canonical repo URL must appear in at least one deployed
+    # artifact (repo links live in HTML via the injected nav/footer, the API
+    # endpoint in app.js, the Pages URL in docs.html — combined coverage).
+    combined = "\n".join(all_text)
+    for url in (
+        config.GITHUB_REPO_URL,
+        config.GITHUB_API_REPO_URL,
+        config.GITHUB_PAGES_URL,
+    ):
+        assert url in combined, f"Expected repo URL {url!r} not found in deployed artifacts"
+
+    # The injected nav lands in the deployed index.html (covered above via the
+    # repo URL), so the raw snippet is expected to keep its sentinel.
+    snippet = (
+        Path(__file__).resolve().parents[2] / "server" / "templates" / "nav.html"
+    ).read_text(encoding="utf-8")
+    assert "__GITHUB_REPO_URL__" in snippet, "nav.html should keep the sentinel"

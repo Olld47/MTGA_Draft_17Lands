@@ -6,7 +6,15 @@ OUTPUT_DIR = os.getenv(
 )
 
 # --- API ETIQUETTE & CONFIG ---
-USER_AGENT = "MTGADraftTool-ETL/2.1 (https://github.com/unrealities/MTGA_Draft_17Lands)"
+# Single source for the ETL's repo URLs; the GitHub Pages site templates
+# receive the same values at deploy time via sentinel injection
+# (load.py::deploy_web_assets). Mirror of src/constants/repo.py for the
+# standalone ETL package.
+GITHUB_REPO_URL = "https://github.com/Olld47/MTGA_Draft_17Lands"
+GITHUB_API_REPO_URL = "https://api.github.com/repos/Olld47/MTGA_Draft_17Lands"
+GITHUB_PAGES_URL = "https://olld47.github.io/MTGA_Draft_17Lands"
+
+USER_AGENT = f"MTGADraftTool-ETL/2.1 ({GITHUB_REPO_URL})"
 HEADERS = {
     "User-Agent": USER_AGENT,
     "Accept": "application/json",

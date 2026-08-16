@@ -16,16 +16,13 @@ import re
 import time
 
 from mtga_bridge.version import DESKTOP_VERSION
+from src.constants import GITHUB_API_REPO_URL, GITHUB_REPO_URL
 
 logger = logging.getLogger(__name__)
 
 EVENT_APP_UPDATE_AVAILABLE = "update://available"
-UPDATE_LATEST_URL = (
-    "https://api.github.com/repos/unrealities/MTGA_Draft_17Lands/releases/latest"
-)
-RELEASES_FALLBACK_URL = (
-    "https://github.com/unrealities/MTGA_Draft_17Lands/releases"
-)
+UPDATE_LATEST_URL = f"{GITHUB_API_REPO_URL}/releases/latest"
+RELEASES_FALLBACK_URL = f"{GITHUB_REPO_URL}/releases"
 
 # GitHub's releases/latest never returns prereleases, and the capture strips any
 # leading "v" plus anything before the first dotted number ("v0.39.0" -> 0.39.0).
@@ -71,8 +68,7 @@ def check_app_update(runtime, emit, delay: float = 3.0) -> None:
             headers={
                 "User-Agent": (
                     f"MTGADraftTool/{DESKTOP_VERSION} "
-                    "(Educational Tool; https://github.com/unrealities/"
-                    "MTGA_Draft_17Lands)"
+                    f"(Educational Tool; {GITHUB_REPO_URL})"
                 )
             },
             timeout=5,

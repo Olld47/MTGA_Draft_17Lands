@@ -3,9 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>MTGA Draft Tool - Dataset Warehouse</title>
+    <title data-i18n="warehouse.title">MTGA Draft Tool - Dataset Warehouse</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="styles.css?v=3" />
   </head>
 
   <body
@@ -15,16 +15,20 @@
 
     <div class="max-w-6xl mx-auto px-4 md:px-8 py-8 flex-1 w-full">
       <div class="mb-8 pb-6 border-b border-slate-800">
-        <h1 class="text-3xl font-bold text-slate-100 mb-2">
+        <h1 class="text-3xl font-bold text-slate-100 mb-2" data-i18n="warehouse.title">
           📦 MTGA Dataset Warehouse
         </h1>
         <div class="flex items-center gap-3">
-          <p class="text-slate-400 text-sm" id="last-updated">
+          <p
+            class="text-slate-400 text-sm"
+            id="last-updated"
+            data-i18n="warehouse.lastUpdated"
+          >
             Checking last update time...
           </p>
           <span class="text-slate-600 text-sm">•</span>
           <p class="text-slate-400 text-sm">
-            Powered by
+            <span data-i18n="warehouse.poweredBy">Powered by</span>
             <a
               href="https://www.17lands.com"
               target="_blank"
@@ -47,6 +51,7 @@
         <div class="bg-slate-800/50 p-5 rounded-xl border border-slate-700/50">
           <h3
             class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1"
+            data-i18n="warehouse.pipelineStatus"
           >
             Pipeline Status
           </h3>
@@ -55,6 +60,7 @@
         <div class="bg-slate-800/50 p-5 rounded-xl border border-slate-700/50">
           <h3
             class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1"
+            data-i18n="warehouse.duration"
           >
             Duration
           </h3>
@@ -63,6 +69,7 @@
         <div class="bg-slate-800/50 p-5 rounded-xl border border-slate-700/50">
           <h3
             class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1"
+            data-i18n="warehouse.totalDatasets"
           >
             Total Datasets
           </h3>
@@ -73,6 +80,7 @@
         <div class="bg-slate-800/50 p-5 rounded-xl border border-slate-700/50">
           <h3
             class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1"
+            data-i18n="warehouse.apiRequests"
           >
             API Requests
           </h3>
@@ -84,7 +92,10 @@
       <div class="grid grid-cols-1 xl:grid-cols-3 gap-8">
         <!-- Left Col: Today's Activity -->
         <div class="xl:col-span-2">
-          <h2 class="text-xl font-bold text-slate-200 mb-4">
+          <h2
+            class="text-xl font-bold text-slate-200 mb-4"
+            data-i18n="warehouse.todayActivity"
+          >
             Today's Pipeline Activity
           </h2>
           <div
@@ -93,36 +104,63 @@
             <table class="w-full text-left text-sm" id="activity-table-wrapper">
               <thead class="bg-slate-800/50 text-slate-400">
                 <tr>
-                  <th class="p-4 font-semibold sortable asc" data-sort="set">
+                  <th
+                    class="p-4 font-semibold sortable asc"
+                    data-sort="set"
+                    data-i18n="warehouse.colSet"
+                  >
                     Set
                   </th>
-                  <th class="p-4 font-semibold sortable" data-sort="format">
+                  <th
+                    class="p-4 font-semibold sortable"
+                    data-sort="format"
+                    data-i18n="warehouse.colFormat"
+                  >
                     Format
                   </th>
-                  <th class="p-4 font-semibold sortable" data-sort="user_group">
+                  <th
+                    class="p-4 font-semibold sortable"
+                    data-sort="user_group"
+                    data-i18n="warehouse.colUserType"
+                  >
                     User Type
                   </th>
-                  <th class="p-4 font-semibold sortable" data-sort="start_date">
+                  <th
+                    class="p-4 font-semibold sortable"
+                    data-sort="start_date"
+                    data-i18n="warehouse.colDataRange"
+                  >
                     Data Range
                   </th>
                   <th
                     class="p-4 font-semibold text-right sortable"
                     data-sort="game_count"
+                    data-i18n="warehouse.colGames"
                   >
                     Games
                   </th>
                   <th
                     class="p-4 font-semibold text-right sortable"
                     data-sort="size_kb"
+                    data-i18n="warehouse.colSize"
                   >
                     Size (KB)
                   </th>
-                  <th class="p-4 font-semibold text-center">Download</th>
+                  <th
+                    class="p-4 font-semibold text-center"
+                    data-i18n="warehouse.colDownload"
+                  >
+                    Download
+                  </th>
                 </tr>
               </thead>
               <tbody id="activity-table" class="divide-y divide-slate-700/50">
                 <tr>
-                  <td colspan="7" class="p-4 text-center text-slate-500">
+                  <td
+                    colspan="7"
+                    class="p-4 text-center text-slate-500"
+                    data-i18n="warehouse.tableLoading"
+                  >
                     Loading data...
                   </td>
                 </tr>
@@ -133,7 +171,10 @@
 
         <!-- Right Col: Full Warehouse Manifest -->
         <div class="flex flex-col h-full">
-          <h2 class="text-xl font-bold text-slate-200 mb-4">
+          <h2
+            class="text-xl font-bold text-slate-200 mb-4"
+            data-i18n="warehouse.availableDownloads"
+          >
             Available Downloads
           </h2>
           <div
@@ -144,12 +185,16 @@
                 type="text"
                 id="manifest-search"
                 placeholder="Search sets or formats..."
+                data-i18n-placeholder="warehouse.searchPlaceholder"
                 class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-sm text-slate-300 focus:outline-none focus:border-blue-500"
               />
             </div>
 
             <div class="flex-1 overflow-y-auto p-3" id="manifest-list">
-              <p class="p-4 text-center text-slate-500 text-sm">
+              <p
+                class="p-4 text-center text-slate-500 text-sm"
+                data-i18n="warehouse.manifestLoading"
+              >
                 Loading manifest...
               </p>
             </div>
@@ -160,6 +205,7 @@
 
     <!-- INJECT_FOOTER -->
 
-    <script src="app.js"></script>
+    <script src="i18n.js?v=3"></script>
+    <script src="app.js?v=3"></script>
   </body>
 </html>

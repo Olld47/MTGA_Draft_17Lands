@@ -1987,7 +1987,7 @@ dependencies = [
 
 [[package]]
 name = "mtga-draft-desktop"
-version = "1.0.0"
+version = "1.0.2"
 dependencies = [
  "pyo3",
  "pytauri",

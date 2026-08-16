@@ -6,4 +6,4 @@ value the update check compares against. Pinned to the topmost CHANGELOG
 heading by test_desktop_version_is_consistent_across_manifests.
 """
 
-DESKTOP_VERSION = "1.0.0"
+DESKTOP_VERSION = "1.0.2"

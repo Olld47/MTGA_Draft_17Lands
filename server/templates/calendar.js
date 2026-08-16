@@ -12,6 +12,16 @@ const formatColors = {
     'Default': 'bg-slate-600 border border-slate-400 text-white'
 };
 
+// Render a fetch/render error into the calendar status area. DOM-built so the
+// message stays inert text (textContent) — no innerHTML, no escaping needed.
+function showStatusError(statusEl, label, message) {
+    statusEl.replaceChildren();
+    const span = document.createElement('span');
+    span.className = 'text-red-400 font-bold';
+    span.textContent = label;
+    statusEl.append(span, document.createElement('br'), document.createTextNode(message));
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     const statusEl = document.getElementById('calendar-status');
 
@@ -26,7 +36,7 @@ document.addEventListener('DOMContentLoaded', () => {
         })
         .catch(e => {
             console.error(e);
-            if (statusEl) statusEl.innerHTML = `<span class="text-red-400 font-bold">Error loading calendar:</span><br>${e.message}`;
+            if (statusEl) showStatusError(statusEl, I18N.t('calendar.loadingError'), e.message);
         });
 
     document.getElementById('prev-month').addEventListener('click', () => {
@@ -40,6 +50,12 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
+// Re-render month/day names, hover titles, and fallback strings when the
+// visitor switches language (the fetched events data itself never changes).
+document.addEventListener('mtga:langchange', () => {
+    renderCalendar();
+});
+
 // Safely parses YYYY-MM-DD to a local Date object without timezone shift bugs
 function parseDateStr(str) {
     if (!str) return new Date();
@@ -47,13 +63,25 @@ function parseDateStr(str) {
     return new Date(y, m - 1, d);
 }
 
+// Localized Sun..Sat labels for the calendar header. Index i maps to
+// new Date(2024, 0, i).getDay() === i: 2024-01-01 is a Monday, so index 0 is
+// the preceding Sunday — the same reference-date trick used across JS
+// libraries to get weekday names without a hand-maintained table (a table
+// would drift from the locale's own conventions, e.g. zh "周日" vs "星期天").
+function weekdayLabels(lang) {
+    return Array.from({ length: 7 }, (_, i) =>
+        new Date(2024, 0, i).toLocaleDateString(lang, { weekday: 'short' })
+    );
+}
+
 function renderCalendar() {
     try {
         const year = currentDate.getFullYear();
         const month = currentDate.getMonth();
+        const lang = I18N.getLang();
 
-        const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-        document.getElementById('month-label').textContent = `${monthNames[month]} ${year}`;
+        document.getElementById('month-label').textContent =
+            `${new Date(year, month, 1).toLocaleDateString(lang, { month: 'long' })} ${year}`;
 
         const daysInMonth = new Date(year, month + 1, 0).getDate();
         const firstDayIndex = new Date(year, month, 1).getDay();
@@ -85,7 +113,7 @@ function renderCalendar() {
             const formats = ev.formats || ['Default'];
             formats.forEach(fmt => {
                 instances.push({
-                    set: ev.set_code || "Unknown",
+                    set: ev.set_code || I18N.t('calendar.unknown'),
                     format: fmt,
                     start: start,
                     end: end
@@ -136,10 +164,10 @@ function renderCalendar() {
         const container = document.getElementById('calendar-grid');
         if (!container) throw new Error("Could not find element #calendar-grid");
 
-        container.innerHTML = '';
+        container.replaceChildren();
 
         // A. Draw Headers (Row 1)
-        const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        const days = weekdayLabels(lang);
         days.forEach((d, i) => {
             const div = document.createElement('div');
             div.className = 'calendar-cell header';
@@ -220,7 +248,10 @@ function renderCalendar() {
                     }
 
                     // Hover text
-                    bar.title = `${ins.set} ${ins.format} (${ins.start.toLocaleDateString()} to ${ins.end.toLocaleDateString()})`;
+                    bar.title = `${ins.set} ${ins.format} (${I18N.t('calendar.range', {
+                        start: ins.start.toLocaleDateString(lang),
+                        end: ins.end.toLocaleDateString(lang),
+                    })})`;
 
                     container.appendChild(bar);
                 }
@@ -230,7 +261,7 @@ function renderCalendar() {
         console.error("Calendar Render Error:", err);
         const statusEl = document.getElementById('calendar-status');
         if (statusEl) {
-            statusEl.innerHTML = `<span class="text-red-400 font-bold">Render Error:</span><br>${err.message}`;
+            showStatusError(statusEl, I18N.t('calendar.renderError'), err.message);
         }
     }
 }

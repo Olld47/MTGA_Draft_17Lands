@@ -59,7 +59,7 @@ def _upload_artifact_names(workflow_text):
     """Artifact names uploaded by jobs defined in one workflow file."""
     return set(
         re.findall(
-            r"uses:\s*actions/upload-artifact@v\d+\s*\n\s*with:\s*\n\s*name:\s*(\S+)",
+            r"uses:\s*actions/upload-artifact@v\d+(?:\.\d+)*\s*\n\s*with:\s*\n\s*name:\s*(\S+)",
             workflow_text,
         )
     )

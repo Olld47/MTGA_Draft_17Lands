@@ -3,9 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>MTGA Draft Tool - Release History</title>
+    <title data-i18n="releases.title">MTGA Draft Tool - Release History</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="styles.css?v=3" />
   </head>
 
   <body
@@ -15,10 +15,10 @@
 
     <div class="max-w-4xl mx-auto px-4 md:px-8 py-8 flex-1 w-full">
       <div class="mb-8 pb-6 border-b border-slate-800">
-        <h1 class="text-3xl font-bold text-slate-100 mb-2">
+        <h1 class="text-3xl font-bold text-slate-100 mb-2" data-i18n="releases.title">
           🚀 Release History
         </h1>
-        <p class="text-slate-400 text-sm">
+        <p class="text-slate-400 text-sm" data-i18n="releases.subtitle">
           Changelog and previous versions of the MTGA Draft Tool.
         </p>
       </div>
@@ -48,13 +48,16 @@
               d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
             ></path>
           </svg>
-          Loading release history from GitHub...
+          <span data-i18n="releases.loading"
+            >Loading release history from GitHub...</span
+          >
         </div>
       </div>
     </div>
 
     <!-- INJECT_FOOTER -->
 
-    <script src="app.js"></script>
+    <script src="i18n.js?v=3"></script>
+    <script src="app.js?v=3"></script>
   </body>
 </html>

@@ -12,7 +12,10 @@
 # - the release is tagged `v<version>-pre` and created with `prerelease: true`
 #   so it never becomes the "Latest" release and never collides with the
 #   future `v<version>` tag; the app's update check ignores prerelease tags
-# - re-running (re-push) overwrites the same pre-release tag's assets
+# - created as a draft and published after assets upload (GitHub's immutable
+#   releases setting rejects asset uploads to published releases); re-running
+#   (re-push) re-creates the draft when the previous run never published, and
+#   is a no-op once the tag has been published
 #
 # Known duplication: the inline body-generation python is copied from
 # publish-release.yml. Deliberate for now — the pre-release harness must not
@@ -35,7 +38,7 @@ jobs:
     runs-on: macos-14
     continue-on-error: true
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7.0.1
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
@@ -48,12 +51,12 @@ jobs:
           workspaces: desktop -> target
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v6
+        uses: astral-sh/setup-uv@v10.0.1
         with:
           enable-cache: true
 
       - name: Install Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7.0.0
         with:
           node-version: lts/*
           cache: npm
@@ -74,7 +77,7 @@ jobs:
         run: desktop/scripts/macos/build.sh
 
       - name: Upload bundle
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7.0.1
         with:
           name: mtga-draft-desktop-macos-aarch64
           path: |
@@ -89,7 +92,7 @@ jobs:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7.0.1
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
@@ -102,12 +105,12 @@ jobs:
           workspaces: desktop -> target
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v6
+        uses: astral-sh/setup-uv@v10.0.1
         with:
           enable-cache: true
 
       - name: Install Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7.0.0
         with:
           node-version: lts/*
           cache: npm
@@ -150,7 +153,7 @@ jobs:
           Write-Host "embedded interpreter: $($pydll.Name)"
 
       - name: Upload bundle
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7.0.1
         with:
           name: mtga-draft-desktop-windows-x86_64
           path: |
@@ -162,19 +165,17 @@ jobs:
     needs: [build-desktop-macos, build-desktop-windows]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7.0.1
       - name: Download macOS bundle
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8.0.1
         with:
           name: mtga-draft-desktop-macos-aarch64
           path: release_assets/macos
-          if-no-files-found: warn
       - name: Download Windows bundle
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8.0.1
         with:
           name: mtga-draft-desktop-windows-x86_64
           path: release_assets/windows
-          if-no-files-found: warn
       - name: Generate Release Body
         id: prep_release
         run: |
@@ -261,6 +262,7 @@ jobs:
           tag_name: ${{ steps.prep_release.outputs.tag_name }}
           target_commitish: ${{ github.sha }}
           prerelease: true
+          draft: true
           files: |
             release_assets/macos/**/*.dmg
             release_assets/windows/**/*.msi
@@ -268,3 +270,22 @@ jobs:
           body_path: release_body.md
           generate_release_notes: true
           overwrite_files: true
+
+      # GitHub's "immutable releases" setting freezes a release the moment it
+      # is published — assets can only be uploaded while the release is a
+      # draft. softprops created the draft above; publish it here. Note this
+      # fires release.published, not release.prereleased, so downstream
+      # workflows must subscribe to release.published. Re-runs against a tag
+      # that was already published are a no-op (immutable releases cannot
+      # replace assets on a published release).
+      - name: Publish pre-release draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${{ steps.prep_release.outputs.tag_name }}"
+          if gh release view "$TAG" --repo "${{ github.repository }}" \
+              --json isDraft --jq .isDraft 2>/dev/null | grep -q true; then
+            gh release edit "$TAG" --repo "${{ github.repository }}" --draft=false --latest=false
+          else
+            echo "release $TAG is already published — nothing to do"
+          fi
