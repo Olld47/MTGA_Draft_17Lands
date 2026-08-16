@@ -140,7 +140,9 @@ def deploy_web_assets():
                     with open(src_file, "r", encoding="utf-8") as f:
                         content = f.read()
                     # Embed the dictionary as a double-escaped JSON string
-                    # literal; JSON.parse() in the script restores it.
+                    # literal: the JS literal evaluation unescapes the first
+                    # layer, the script's single JSON.parse() the second —
+                    # the two levels must stay in lockstep (see i18n.js).
                     content = content.replace(
                         '"__I18N_MESSAGES__"', json.dumps(i18n_messages_json)
                     )

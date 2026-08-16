@@ -1,3 +1,55 @@
+===================== RELEASE NOTES 1.0.2 =====================
+### Highlights
+
+#### 官网安全加固
+
+数据渲染全面加固：所有第三方数据（GitHub releases / ETL 数据集 / 赛事日历）的 HTML 插值统一经 `escapeHtml` 转义，release notes 渲染改为 DOMParser 白名单净化（仅保留 markdown 生成的标签与 class，事件处理器 / style / 非 http(s)/mailto 链接全部剥离）；纯消息渲染全部改为 DOM 构建（textContent），站点不再用 innerHTML 承载任何非受控文本。i18n 字典抽离为 `i18n-messages.json`（部署期注入脚本），测试直读 JSON 做键覆盖守卫。
+
+#### 发布流程修复
+
+pre-release / release 工作流适配 GitHub "immutable releases" 设置：release 一经发布即冻结、无法再上传资产——改为先建草稿（draft）上传资产，再发布草稿（触发 `release.published`），修复了 pre-release 上传 .msi/.dmg 失败的问题。
+
+<details>
+<summary><b>English</b></summary>
+
+#### Security hardening on the website
+
+All third-party data (GitHub releases, ETL datasets, event calendar) is now HTML-escaped at the interpolation boundary, release-note rendering uses a DOMParser allowlist sanitizer (only markdown-generated tags/classes survive; event handlers, style attributes and non-http(s)/mailto links are stripped), and plain message rendering is DOM-built (textContent) — no innerHTML ever carries uncontrolled text. The i18n dictionary moved to i18n-messages.json (embedded at deploy time), with tests reading the JSON directly for key-coverage guards.
+
+#### Release pipeline fix
+
+The pre-release / release workflows now match GitHub's "immutable releases" setting: a release freezes the moment it is published, so assets must be uploaded while it is a draft. The workflows create a draft, upload assets, then publish it (firing release.published) — fixing the failed .msi/.dmg asset uploads on pre-releases.
+
+</details>
+
+---
+
+以下是详细内容：
+
+**v1.0.2 (2026-08-16)**
+
+### 新增 | New
+
+- i18n 字典抽离：`i18n-messages.json` 成为唯一字典源（en/zh 各 135 键对称），`deploy_web_assets` 部署期注入 `i18n.js` 哨兵——测试 `json.load` 直读，零正则解析
+- 新增部署注入守卫测试：部署产物内嵌字典与规范 JSON 逐字相等、哨兵必须替换
+
+### 改进 | Improved
+
+- 数据渲染 XSS 硬化：全部第三方数据插值经 `I18N.escapeHtml` 转义；release notes 渲染升级为 DOMParser 白名单净化（保留 markdown 生成标签 + class，剥 `on*` / style / 未知属性，href 仅限 http(s)/mailto）
+- 纯消息渲染改 DOM 构建（textContent）：releases 错误、数据仓库空态、日历错误等不再使用 innerHTML
+- 日历星期标签提取为文档化助手（locale 本地化，注释说明基准日原理）
+- 语言切换器 `aria-label` 随标题本地化（无障碍对齐）
+
+### 修复 | Fix
+
+- 发布流程：pre-release / release 工作流适配 immutable releases——草稿建 release → 上传资产 → 发布（触发 `release.published`），修复资产上传被拒
+- i18n `t()` 兜底：字典缺失 / 损坏时降级显示原始 key 而非抛错（哨兵未替换的原始模板亦不崩溃）
+
+### 架构 | Architecture
+
+- `tests/server/test_web_i18n.py` 守卫升级：字典 JSON 直读 + 脚本顺序断言容错缓存版本（?v=N 不再误伤）
+- 数据驱动的 innerHTML 使用点标注 `nosemgrep` 并附转义理由注释（转义在边界为既定模式）
+
 ===================== RELEASE NOTES 1.0.1 =====================
 ### Highlights
 

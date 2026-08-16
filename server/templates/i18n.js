@@ -12,17 +12,20 @@
   const STORAGE_KEY = 'mtga-draft-tool-site.lang';
 
   // Message dictionary. The deployed copy has the sentinel below replaced
-// with the JSON from i18n-messages.json by server/load.py::deploy_web_assets
-// (that file is the canonical source, loaded directly by
-// tests/server/test_web_i18n.py). The fallback keeps the raw template usable
-// when served without the deploy step — at worst translations degrade to the
-// raw keys, the site never crashes.
-let MESSAGES;
-try {
-  MESSAGES = JSON.parse("__I18N_MESSAGES__");
-} catch {
-  MESSAGES = {};
-}
+  // with the JSON from i18n-messages.json by server/load.py::deploy_web_assets
+  // (that file is the canonical source, loaded directly by
+  // tests/server/test_web_i18n.py). The replacement double-escapes the JSON
+  // into a JS string literal, so ONE JSON.parse here is correct: evaluating
+  // the literal unescapes the first layer, JSON.parse handles the second.
+  // The fallback keeps the raw template usable when served without the deploy
+  // step — at worst translations degrade to the raw keys, the site never
+  // crashes (t() guards missing buckets).
+  let MESSAGES;
+  try {
+    MESSAGES = JSON.parse("__I18N_MESSAGES__");
+  } catch {
+    MESSAGES = {};
+  }
 
   function currentLang() {
     try {
@@ -39,9 +42,17 @@ try {
 
   let lang = currentLang();
 
-  /** Translate a message key; interpolates {name} placeholders via `vars`. */
+  /** Translate a message key; interpolates {name} placeholders via `vars`.
+   *  Tolerates a missing or malformed dictionary (raw template served without
+   *  the deploy-time injection, corrupted JSON, …) by falling back to the en
+   *  bucket, then to the raw key — the site renders with visible keys instead
+   *  of throwing. */
   function t(key, vars) {
-    let s = MESSAGES[lang][key] ?? MESSAGES.en[key] ?? key;
+    const bucket =
+      (typeof MESSAGES === 'object' && MESSAGES && MESSAGES[lang]) ||
+      (typeof MESSAGES === 'object' && MESSAGES && MESSAGES.en) ||
+      {};
+    let s = bucket[key] ?? key;
     if (vars) {
       for (const [k, v] of Object.entries(vars)) {
         s = s.split(`{${k}}`).join(String(v));
@@ -69,13 +80,22 @@ try {
       el.textContent = t(el.dataset.i18n);
     });
     document.querySelectorAll('[data-i18n-html]').forEach((el) => {
+      // nosemgrep: javascript.browser.security.insecure-innerhtml,insecure-document-method
+      // (the value is the developer-authored dictionary entry — the <strong>/
+      // <code> markup is intentional and never user input)
       el.innerHTML = t(el.dataset.i18nHtml);
     });
     document.querySelectorAll('[data-i18n-placeholder]').forEach((el) => {
       el.placeholder = t(el.dataset.i18nPlaceholder);
     });
     document.querySelectorAll('[data-i18n-title]').forEach((el) => {
-      el.title = t(el.dataset.i18nTitle);
+      const msg = t(el.dataset.i18nTitle);
+      el.title = msg;
+      // Keep the accessible name localized too (e.g. the language switcher's
+      // aria-label), not just the hover tooltip.
+      if (el.hasAttribute('aria-label')) {
+        el.setAttribute('aria-label', msg);
+      }
     });
   }
 

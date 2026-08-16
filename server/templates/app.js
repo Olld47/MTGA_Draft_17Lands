@@ -49,9 +49,12 @@ function initApp() {
         fetch('https://api.github.com/repos/Olld47/MTGA_Draft_17Lands/releases')
             .then(res => res.json())
             .then(data => {
-                releasesListEl.innerHTML = '';
+                releasesListEl.replaceChildren();
                 if (!Array.isArray(data)) {
-                    releasesListEl.innerHTML = `<p class="text-rose-400 p-8 text-center bg-slate-800/50 rounded-xl border border-slate-700">${I18N.t('app.releasesRateLimit')}</p>`;
+                    releasesListEl.append(renderMessage(
+                        I18N.t('app.releasesRateLimit'),
+                        'text-rose-400 p-8 text-center bg-slate-800/50 rounded-xl border border-slate-700',
+                    ));
                     return;
                 }
 
@@ -66,6 +69,9 @@ function initApp() {
 
                     if (i === 0) {
                         // Latest Release (Fully Expanded)
+                        // nosemgrep: javascript.browser.security.insecure-innerhtml,insecure-document-method
+                        // (all interpolated data is escapeHtml'd or I18N.t()
+                        // dictionary text; bodyHtml is sanitizeHtml()-cleaned)
                         releasesListEl.innerHTML += `
                             <div class="bg-slate-800/40 rounded-xl p-6 border border-slate-700/50 mb-10 shadow-lg relative overflow-hidden">
                                 <div class="absolute top-0 left-0 w-1 h-full bg-emerald-500"></div>
@@ -92,6 +98,8 @@ function initApp() {
                         `;
                     } else {
                         // Older Releases (Collapsed Accordion)
+                        // nosemgrep: javascript.browser.security.insecure-innerhtml,insecure-document-method
+                        // (same boundary-escaped data as the latest-release block)
                         releasesListEl.innerHTML += `
                             <details class="group bg-slate-800/30 border border-slate-700/50 rounded-lg mb-3 transition-colors open:bg-slate-800/60 shadow-sm">
                                 <summary class="flex justify-between items-center font-bold cursor-pointer list-none p-4 select-none">
@@ -115,9 +123,22 @@ function initApp() {
                     }
                 });
             }).catch(e => {
-                releasesListEl.innerHTML = `<p class="text-rose-400 p-8 text-center bg-slate-800/50 rounded-xl border border-slate-700">${I18N.t('app.releasesFailed')}</p>`;
+                releasesListEl.append(renderMessage(
+                    I18N.t('app.releasesFailed'),
+                    'text-rose-400 p-8 text-center bg-slate-800/50 rounded-xl border border-slate-700',
+                ));
             });
     }
+}
+
+// Helper: Build a message paragraph via DOM (textContent keeps the message
+// inert — never innerHTML, since the text may come from dictionary/derived
+// sources).
+function renderMessage(message, className) {
+    const p = document.createElement('p');
+    p.className = className;
+    p.textContent = message;
+    return p;
 }
 
 // Helper: Converts MTGA_Draft_Tool_V0413 into v4.13
@@ -249,7 +270,13 @@ function fetchReport() {
             let secs = Math.floor(dur % 60);
             let durStr = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
 
-            document.getElementById('last-updated').innerHTML = `${I18N.t('app.lastEtlRun')} <span class="text-slate-300">${new Date(run.completed_at).toLocaleString(I18N.getLang())}</span>`;
+            const updatedEl = document.getElementById('last-updated');
+            updatedEl.replaceChildren();
+            updatedEl.append(document.createTextNode(I18N.t('app.lastEtlRun') + ' '));
+            const ts = document.createElement('span');
+            ts.className = 'text-slate-300';
+            ts.textContent = new Date(run.completed_at).toLocaleString(I18N.getLang());
+            updatedEl.append(ts);
             document.getElementById('duration').textContent = durStr;
             document.getElementById('api-reqs').textContent = api.total_requests || 0;
 
@@ -320,14 +347,23 @@ function getUserBadge(userGroup) {
 
 function renderActivityTable() {
     const tbody = document.getElementById('activity-table');
-    tbody.innerHTML = '';
+    tbody.replaceChildren();
 
     if (activityData.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="7" class="p-4 text-center text-slate-500">${I18N.t('app.noActiveSets')}</td></tr>`;
+        const tr = document.createElement('tr');
+        const td = document.createElement('td');
+        td.colSpan = 7;
+        td.className = 'p-4 text-center text-slate-500';
+        td.textContent = I18N.t('app.noActiveSets');
+        tr.append(td);
+        tbody.append(tr);
         return;
     }
 
     activityData.forEach(u => {
+        // nosemgrep: javascript.browser.security.insecure-innerhtml,insecure-document-method
+        // (report.json data is escaped with I18N.escapeHtml at the boundary;
+        // badge helpers escape internally)
         tbody.innerHTML += `
             <tr class="hover:bg-slate-700/20 transition-colors">
                 <td class="p-4 font-bold text-slate-200">${I18N.escapeHtml(u.set)}</td>
@@ -363,9 +399,11 @@ function setupSortListeners() {
 
 function renderManifestList(dataArray) {
     const listEl = document.getElementById('manifest-list');
-    listEl.innerHTML = '';
+    listEl.replaceChildren();
 
-    // Render the Active vs Archive Toggle
+    // Render the Active vs Archive Toggle (static markup — the only
+    // interpolation is class-name selection, never data).
+    // nosemgrep: javascript.browser.security.insecure-innerhtml,insecure-document-method
     const toggleHTML = `
         <div class="flex gap-2 mb-4 px-1 sticky top-0 bg-slate-800/90 py-2 backdrop-blur-sm z-10 border-b border-slate-700/50">
             <button id="btn-active" class="flex-1 py-1.5 text-xs font-bold rounded ${showOnlyActive ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-400 hover:bg-slate-600'} transition">${I18N.t('app.activeOnArena')}</button>
@@ -396,7 +434,10 @@ function renderManifestList(dataArray) {
         existingItems.forEach(el => el.remove());
 
         if (filteredData.length === 0) {
-            listEl.innerHTML += `<p class="no-items-msg p-4 text-center text-slate-500 text-sm">${I18N.t('app.noDatasetsFound')}</p>`;
+            listEl.append(renderMessage(
+                I18N.t('app.noDatasetsFound'),
+                'no-items-msg p-4 text-center text-slate-500 text-sm',
+            ));
             return;
         }
 
@@ -408,6 +449,8 @@ function renderManifestList(dataArray) {
                 ? `<div class="text-xs text-slate-500 mt-2 font-mono flex items-center gap-1"><svg class="w-3 h-3 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg> ${I18N.escapeHtml(ds.start_date)} <span class="text-slate-600">→</span> ${I18N.escapeHtml(ds.end_date)}</div>`
                 : '';
 
+            // nosemgrep: javascript.browser.security.insecure-innerhtml,insecure-document-method
+            // (manifest data escaped with I18N.escapeHtml; badge helpers escape internally)
             listEl.innerHTML += `
                 <div class="dataset-item p-3 mb-2 bg-slate-800/40 rounded-lg border border-slate-700/50 hover:border-slate-500 transition-colors flex flex-col group">
                     <div class="flex justify-between items-start mb-2">

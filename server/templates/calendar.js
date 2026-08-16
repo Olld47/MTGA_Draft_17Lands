@@ -12,6 +12,16 @@ const formatColors = {
     'Default': 'bg-slate-600 border border-slate-400 text-white'
 };
 
+// Render a fetch/render error into the calendar status area. DOM-built so the
+// message stays inert text (textContent) — no innerHTML, no escaping needed.
+function showStatusError(statusEl, label, message) {
+    statusEl.replaceChildren();
+    const span = document.createElement('span');
+    span.className = 'text-red-400 font-bold';
+    span.textContent = label;
+    statusEl.append(span, document.createElement('br'), document.createTextNode(message));
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     const statusEl = document.getElementById('calendar-status');
 
@@ -26,7 +36,7 @@ document.addEventListener('DOMContentLoaded', () => {
         })
         .catch(e => {
             console.error(e);
-            if (statusEl) statusEl.innerHTML = `<span class="text-red-400 font-bold">${I18N.t('calendar.loadingError')}</span><br>${I18N.escapeHtml(e.message)}`;
+            if (statusEl) showStatusError(statusEl, I18N.t('calendar.loadingError'), e.message);
         });
 
     document.getElementById('prev-month').addEventListener('click', () => {
@@ -154,7 +164,7 @@ function renderCalendar() {
         const container = document.getElementById('calendar-grid');
         if (!container) throw new Error("Could not find element #calendar-grid");
 
-        container.innerHTML = '';
+        container.replaceChildren();
 
         // A. Draw Headers (Row 1)
         const days = weekdayLabels(lang);
@@ -251,7 +261,7 @@ function renderCalendar() {
         console.error("Calendar Render Error:", err);
         const statusEl = document.getElementById('calendar-status');
         if (statusEl) {
-            statusEl.innerHTML = `<span class="text-red-400 font-bold">${I18N.t('calendar.renderError')}</span><br>${I18N.escapeHtml(err.message)}`;
+            showStatusError(statusEl, I18N.t('calendar.renderError'), err.message);
         }
     }
 }
