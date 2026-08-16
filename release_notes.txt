@@ -1,3 +1,54 @@
+===================== RELEASE NOTES 1.0.1 =====================
+### Highlights
+
+#### 轮抓数据源与更新检查迁移至新仓库
+
+数据集 manifest 与下载地址、桌面版本更新检查全部迁移到新仓库（Olld47）——旧 owner 的 GitHub Pages 已冻结在 6 月数据。此前应用可能下载到过期数据集；现在每日 ETL 的最新遥测（HOB / DSK 等现役赛制）实时可达，更新提示恢复可用。
+
+#### 官网中英文切换
+
+GitHub Pages 官网全站双语化：导航栏新增 English/中文 切换器，首页 / 版本历史 / 数据仓库 / 赛事日历 / API 文档五个页面全量本地化（含 schema 描述与 FAQ）；语言偏好保存在站点自己的 `mtga-draft-tool-site.lang` 键下（localStorage 按 origin 隔离，与桌面端 `mtga.lang` 互不相通），`?lang=` 参数与浏览器语言自动识别。
+
+<details>
+<summary><b>English</b></summary>
+
+#### Dataset source & update checks migrated to the new repository
+
+Dataset manifest/download URLs and the desktop update check now point at the new repository (Olld47) — the old owner's GitHub Pages froze at June data, so the app could previously fetch stale datasets. Daily ETL telemetry for active formats (HOB / DSK etc.) is now reachable, and update prompts work again.
+
+#### Bilingual website
+
+The GitHub Pages site is fully bilingual: an English/中文 switcher in the nav bar, with all five pages (home, releases, data warehouse, event calendar, API docs) localized — including schema descriptions and the FAQ. The preference is stored under the site's own key (mtga-draft-tool-site.lang) — localStorage is origin-scoped, so it never mixes with the desktop app's mtga.lang — with `?lang=` parameter and browser-language detection as fallbacks.
+
+</details>
+
+---
+
+以下是详细内容：
+
+**v1.0.1 (2026-08-15)**
+
+### 新增 | New
+
+- 官网中英文切换：`i18n.js` 双语字典（en/zh 各 135 键对称）、导航栏 English/中文 切换器、`?lang=` 参数 / 浏览器语言自动识别；语言偏好存于站点自有键 `mtga-draft-tool-site.lang`（localStorage 按 origin 隔离，与桌面端 `mtga.lang` 分开）
+- 版本历史 / 数据仓库 / 赛事日历动态内容本地化：日期、月份与星期、事件悬停区间按语言格式化
+
+### 改进 | Improved
+
+- 轮抓数据源迁移：`REMOTE_MANIFEST_URL` / `REMOTE_DATASET_BASE_URL` 改指现役站点 `olld47.github.io`（旧 unrealities 站点冻结在 6 月），每日 ETL 数据实时可达
+- 桌面更新检查改查新仓库 releases（`app_update_notifier`），修复更新提示失效；17Lands / ETL 请求 User-Agent 同步新仓库地址
+- 官网 FAQ 更新：移除已删除的 tkinter 菜单指引（File → Locate MTGA Data Folder...），改指 设置 → 位置；"Reload" 文案对齐真实 "Rescan" 按钮
+- 官网全部 GitHub 链接、releases API 与数据集下载地址指向新仓库
+
+### 修复 | Fix
+
+- 前端 CI 偶发失败：App 测试启动竞态（draft state 异步加载晚于 shell 挂载）修复，Sealed tab 断言不再撞窗口
+
+### 架构 | Architecture
+
+- 新增 `tests/server/test_web_i18n.py`：官网 i18n 键覆盖守卫（HTML / JS 键覆盖、en-zh 对称、脚本加载顺序），双向突变复红验证
+- 桌面 bundle 重建验证：内嵌 Python 全部功能文件零旧仓库残留（仅 dist-info 作者署名与 LICENSE 版权保留）
+
 ===================== RELEASE NOTES 1.0 =====================
 ### Highlights
 

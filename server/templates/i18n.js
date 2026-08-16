@@ -1,13 +1,15 @@
 // Lightweight en/zh localization for the static site.
-// Mirrors the desktop app's language preference (same localStorage key,
-// mtga.lang) so a choice made in one carries over to the other. Load this
-// script BEFORE app.js / calendar.js on every page — they call I18N.t() while
-// rendering dynamic content, and both re-render on the 'mtga:langchange'
-// event fired when the visitor switches language.
+// The preference lives under its own key (mtga-draft-tool-site.lang),
+// separate from the desktop app's mtga.lang — localStorage is origin-scoped,
+// and the Tauri webview (tauri://localhost) never shares storage with this
+// GitHub Pages site, so one key cannot carry a choice across them anyway.
+// Load this script BEFORE app.js / calendar.js on every page — they call
+// I18N.t() while rendering dynamic content, and both re-render on the
+// 'mtga:langchange' event fired when the visitor switches language.
 (function () {
   'use strict';
 
-  const STORAGE_KEY = 'mtga.lang';
+  const STORAGE_KEY = 'mtga-draft-tool-site.lang';
 
   const MESSAGES = {
     en: {
