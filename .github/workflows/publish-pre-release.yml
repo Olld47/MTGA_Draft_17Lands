@@ -287,7 +287,7 @@ jobs:
           TAG="${{ steps.prep_release.outputs.tag_name }}"
           if gh release view "$TAG" --repo "${{ github.repository }}" \
               --json isDraft --jq .isDraft 2>/dev/null | grep -q true; then
-            gh release publish "$TAG" --repo "${{ github.repository }}"
+            gh release edit "$TAG" --repo "${{ github.repository }}" --draft=false --latest=false
           else
             echo "release $TAG is already published — nothing to do"
           fi
