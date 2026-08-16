@@ -174,11 +174,35 @@ def test_find_repo_root_locates_checkout():
 
 
 def test_find_repo_root_returns_none_when_bundled(tmp_path):
-    """Walking up from an embedded site-packages never reaches src/constants/."""
-    fake = tmp_path / "lib" / "python3.13" / "site-packages" / "mtga_bridge"
-    fake.mkdir(parents=True)
-    with patch.object(paths, "__file__", str(fake / "paths.py")):
+    """Real bundle layout: `src` is installed INTO site-packages next to
+    mtga_bridge (build.sh installs the repo-root package), but site-packages
+    has no poetry project markers. `src/constants` alone must NOT classify it
+    as a source checkout — that bug relocated Sets/Logs/Temp/config.json
+    inside the .app bundle, wiping them on update."""
+    sp = tmp_path / "lib" / "python3.13" / "site-packages"
+    (sp / "mtga_bridge").mkdir(parents=True)
+    (sp / "src" / "constants").mkdir(parents=True)
+    (sp / "pydantic-2.13.4.dist-info").mkdir()
+    (sp / "README.txt").write_text("This is a Python package directory\n")
+    with patch.object(paths, "__file__", str(sp / "mtga_bridge" / "paths.py")):
         assert paths.find_repo_root() is None
+
+
+def test_find_repo_root_requires_project_markers(tmp_path):
+    """A directory with `src/constants` but missing a project marker is not a
+    checkout — regression guard for the marker requirements."""
+    fake = tmp_path / "src" / "constants"
+    fake.mkdir(parents=True)
+    with patch.object(paths, "__file__", str(tmp_path / "mtga_bridge" / "paths.py")):
+        assert paths.find_repo_root() is None
+
+    (tmp_path / "pyproject.toml").write_text("[project]\n")
+    with patch.object(paths, "__file__", str(tmp_path / "mtga_bridge" / "paths.py")):
+        assert paths.find_repo_root() is None
+
+    (tmp_path / "main.py").write_text("")
+    with patch.object(paths, "__file__", str(tmp_path / "mtga_bridge" / "paths.py")):
+        assert paths.find_repo_root() == str(tmp_path)
 
 
 # --- ensure_runtime_paths --------------------------------------------------
