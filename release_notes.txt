@@ -7,7 +7,7 @@
 
 #### 发布流程修复
 
-pre-release / release 工作流适配 GitHub "immutable releases" 设置：release 一经发布即冻结、无法再上传资产——改为先建草稿（draft）上传资产，再发布草稿（触发 `release.published`），修复了 pre-release 上传 .msi/.dmg 失败的问题。
+pre-release / release 工作流适配 GitHub "immutable releases" 设置：release 一经发布即冻结、无法再上传资产——改为先建草稿（draft）上传资产，再发布草稿（触发 `release.published`），修复了 pre-release 上传 .msi/.dmg 失败的问题。同时升级全部 9 个 workflow 的 5 个 action 至最新版并锁定完整版本号（checkout v7.0.1 / setup-node v7.0.0 / upload-artifact v7.0.1 / download-artifact v8.0.1 / setup-uv v10.0.1），修复 `setup-uv@v10` 无法解析（v8 起不再发布 major 短标签）与 download-artifact 误挂 `if-no-files-found`（仅 upload-artifact 合法）两处流水线报错。
 
 <details>
 <summary><b>English</b></summary>
@@ -18,7 +18,7 @@ All third-party data (GitHub releases, ETL datasets, event calendar) is now HTML
 
 #### Release pipeline fix
 
-The pre-release / release workflows now match GitHub's "immutable releases" setting: a release freezes the moment it is published, so assets must be uploaded while it is a draft. The workflows create a draft, upload assets, then publish it (firing release.published) — fixing the failed .msi/.dmg asset uploads on pre-releases.
+The pre-release / release workflows now match GitHub's "immutable releases" setting: a release freezes the moment it is published, so assets must be uploaded while it is a draft. The workflows create a draft, upload assets, then publish it (firing release.published) — fixing the failed .msi/.dmg asset uploads on pre-releases. All nine workflows also pin the latest full release tags for five actions (checkout v7.0.1 / setup-node v7.0.0 / upload-artifact v7.0.1 / download-artifact v8.0.1 / setup-uv v10.0.1), fixing two pipeline errors: `setup-uv@v10` could not resolve (short major tags stopped being published after v8) and `if-no-files-found` was wrongly passed to download-artifact (valid only for upload-artifact).
 
 </details>
 
@@ -43,12 +43,15 @@ The pre-release / release workflows now match GitHub's "immutable releases" sett
 ### 修复 | Fix
 
 - 发布流程：pre-release / release 工作流适配 immutable releases——草稿建 release → 上传资产 → 发布（触发 `release.published`），修复资产上传被拒
+- `astral-sh/setup-uv@v10` 无法解析：v8 起不再发布 major / minor 短标签（`v10` tag 不存在），锁定完整版本号 `v10.0.1`
+- download-artifact 步骤误挂 `if-no-files-found: warn`（仅 upload-artifact 合法输入，输入校验报 Unexpected input）——移除
 - i18n `t()` 兜底：字典缺失 / 损坏时降级显示原始 key 而非抛错（哨兵未替换的原始模板亦不崩溃）
 
 ### 架构 | Architecture
 
 - `tests/server/test_web_i18n.py` 守卫升级：字典 JSON 直读 + 脚本顺序断言容错缓存版本（?v=N 不再误伤）
 - 数据驱动的 innerHTML 使用点标注 `nosemgrep` 并附转义理由注释（转义在边界为既定模式）
+- workflow action 引用改为完整版本号（38 处，不再使用裸 major tag，杜绝短标签漂移 / 缺失）：checkout v7.0.1 / setup-node v7.0.0 / upload-artifact v7.0.1 / download-artifact v8.0.1（上传 / 下载配套同代后端）/ setup-uv v10.0.1；升级前逐一对账 release notes——setup-uv v7-v10 的 breaking（node24 runtime、`server-url` 移除、manifest 新格式、`prune-cache` 默认改 false、cache 投毒防护针对 `pull_request_target` / `workflow_run` / `release` 事件）均不影响本仓库（显式 `enable-cache: true`，publish 仅 push / workflow_dispatch 触发）
 
 ===================== RELEASE NOTES 1.0.1 =====================
 ### Highlights
