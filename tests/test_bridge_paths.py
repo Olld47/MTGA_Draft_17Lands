@@ -10,6 +10,8 @@ relocates Sets/, Logs/, Temp/ and config.json.
 import os
 import subprocess
 import sys
+import tempfile
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -191,22 +193,60 @@ def test_find_repo_root_returns_none_when_bundled(tmp_path):
 def test_find_repo_root_requires_project_markers(tmp_path):
     """A directory with `src/constants` but missing a project marker is not a
     checkout — regression guard for the marker requirements."""
-    fake = tmp_path / "src" / "constants"
-    fake.mkdir(parents=True)
-    with patch.object(paths, "__file__", str(tmp_path / "mtga_bridge" / "paths.py")):
+
+    def _checkout_with(marker_files):
+        """Fresh fake checkout holding exactly `marker_files`."""
+        root = tmp_path / ("-".join(marker_files) or "none")
+        (root / "src" / "constants").mkdir(parents=True)
+        for name in marker_files:
+            (root / name).write_text("")
+        return root
+
+    # No markers at all — not a checkout.
+    root = _checkout_with([])
+    with patch.object(paths, "__file__", str(root / "mtga_bridge" / "paths.py")):
         assert paths.find_repo_root() is None
 
-    (tmp_path / "pyproject.toml").write_text("[project]\n")
-    with patch.object(paths, "__file__", str(tmp_path / "mtga_bridge" / "paths.py")):
+    # Only `main.py`, missing `pyproject.toml` — still not a checkout.
+    root = _checkout_with(["main.py"])
+    with patch.object(paths, "__file__", str(root / "mtga_bridge" / "paths.py")):
         assert paths.find_repo_root() is None
 
-    (tmp_path / "main.py").write_text("")
-    with patch.object(paths, "__file__", str(tmp_path / "mtga_bridge" / "paths.py")):
+    # Only `pyproject.toml`, missing `main.py` — still not a checkout.
+    root = _checkout_with(["pyproject.toml"])
+    with patch.object(paths, "__file__", str(root / "mtga_bridge" / "paths.py")):
+        assert paths.find_repo_root() is None
+
+    # Both markers present — now recognized as a checkout root.
+    root = _checkout_with(["pyproject.toml", "main.py"])
+    with patch.object(paths, "__file__", str(root / "mtga_bridge" / "paths.py")):
         assert os.path.realpath(paths.find_repo_root()) == os.path.realpath(
-            str(tmp_path)
+            str(root)
         )
 
 
+def _can_create_dir_symlink():
+    """True only where creating a directory symlink actually works (Windows
+    without Developer Mode / symlink privileges, or filesystems that disable
+    them, make Path.symlink_to raise or produce a dead link)."""
+    if not hasattr(os, "symlink"):
+        return False
+    with tempfile.TemporaryDirectory() as tmp:
+        base = Path(tmp)
+        target = base / "target"
+        target.mkdir()
+        link = base / "link"
+        try:
+            link.symlink_to(target, target_is_directory=True)
+        except (OSError, NotImplementedError):
+            return False
+        return link.is_dir()
+
+
+@pytest.mark.skipif(
+    not _can_create_dir_symlink(),
+    reason="Directory symlinks not supported in this environment",
+)
 def test_find_repo_root_follows_symlinked_editable_install(tmp_path):
     """An editable install may symlink `mtga_bridge` into site-packages while
     the rest of the package tree stays in the checkout. The walk must resolve
