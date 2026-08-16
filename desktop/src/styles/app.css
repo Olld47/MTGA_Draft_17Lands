@@ -469,7 +469,7 @@
 .data-table tr.tint-b td:first-child { box-shadow: inset 3px 0 var(--mana-b); }
 .data-table tr.tint-r td:first-child { box-shadow: inset 3px 0 var(--mana-r); }
 .data-table tr.tint-g td:first-child { box-shadow: inset 3px 0 var(--mana-g); }
-.data-table tr.tint-multi td:first-child { box-shadow: inset 3px 0 var(--gold-foil-dim); }
+.data-table tr.tint-multi td:first-child { box-shadow: inset 3px 0 var(--mana-multi); }
 
 /* --- Mana symbols --- */
 
@@ -1197,7 +1197,7 @@
 
 /* Sealed pool filter bar (type + color checkboxes, legacy sealed_studio's
    filter_vars). Colored letters reuse the mana palette for WUBRG; colorless
-   and multicolor get neutral/gold accents. */
+   and multicolor get neutral/orange accents. */
 .pool-filter-bar {
   display: flex;
   flex-wrap: wrap;
@@ -1231,7 +1231,7 @@
 .pool-filter-bar .pool-color.r { color: var(--mana-r); }
 .pool-filter-bar .pool-color.g { color: var(--mana-g); }
 .pool-filter-bar .pool-color.c { color: var(--gruff); }
-.pool-filter-bar .pool-color.m { color: var(--gold-foil); }
+.pool-filter-bar .pool-color.m { color: var(--mana-multi); }
 
 .deck-stats {
   display: flex;

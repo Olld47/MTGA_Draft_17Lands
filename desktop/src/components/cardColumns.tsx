@@ -159,8 +159,9 @@ export const RARITY_COLOR: Record<string, string> = {
   common: "#8a8a8a",
 };
 
-/** Mana flair for card names: mono-color cards render in their color,
- *  multi-color in gold, colorless in grey — the legacy CardToolTip look. */
+/** Mana flair for card names: mono-color cards render in their color
+ *  (white = bright lemon yellow), multi-color in orange, colorless in grey —
+ *  the legacy CardToolTip look. */
 const CARD_NAME_COLOR: Record<string, string> = {
   w: "var(--mana-w)",
   u: "var(--mana-u)",
@@ -173,7 +174,7 @@ export function cardNameColor(colors: string[]): string {
   if (colors.length === 1) {
     return CARD_NAME_COLOR[colors[0].toLowerCase()] ?? "var(--gruff)";
   }
-  return colors.length > 1 ? "var(--gold-foil)" : "var(--gruff)";
+  return colors.length > 1 ? "var(--mana-multi)" : "var(--gruff)";
 }
 
 /** Shared row class: picked/elite state + optional color tint. */

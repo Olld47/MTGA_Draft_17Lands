@@ -107,11 +107,14 @@ PAIRS = [
     ("mana-b", "felt", AA_TEXT),
     ("mana-r", "felt", AA_TEXT),
     ("mana-g", "felt", AA_TEXT),
+    ("mana-multi", "felt", AA_TEXT),  # multicolor card names, pool filter M
     ("mana-w", "felt-hover", AA_TEXT),
     ("mana-u", "felt-hover", AA_TEXT),
     ("mana-b", "felt-hover", AA_TEXT),
     ("mana-r", "felt-hover", AA_TEXT),
     ("mana-g", "felt-hover", AA_TEXT),
+    ("mana-multi", "felt-hover", AA_TEXT),
+    ("mana-multi", "ink", AA_TEXT),
     # Pip glyphs on their own backgrounds (.mana .pip.*)
     ("mana-w-fg", "mana-w", AA_TEXT),
     ("mana-u-fg", "mana-u", AA_TEXT),
@@ -172,22 +175,26 @@ def _hsl(hex_color: str) -> tuple:
 
 
 @pytest.mark.parametrize("palette", sorted(PALETTES))
-def test_white_mana_is_vivid_yellow_distinct_from_gold(palette):
+def test_white_mana_is_vivid_yellow_and_multicolor_is_orange(palette):
     """White card names and {W} pips must read as WHITE MANA, not multicolor.
 
-    Both W and multicolor gold live in the yellow hue band — the thing that
-    tells them apart is saturation: white is a vivid lemon yellow, gold is a
-    muted brown-gold. A regression to the old cream/ochre white (whose
-    saturation nearly matched gold) made the two indistinguishable, which is
-    exactly the bug this guards against."""
+    W (bright lemon yellow) and multicolor (orange) sit in adjacent hue
+    bands — the thing that tells them apart is where each lands: white in
+    the yellow band, multicolor in the orange band below it. A regression
+    that slides either band would make the two indistinguishable. W must
+    also stay far more saturated than gold-foil (the bomb-star accent)."""
     colors = PALETTES[palette]
     w_hue, _, w_sat = _hsl(colors["mana-w"])  # rgb_to_hls → (hue, lightness, saturation)
+    m_hue, _, _ = _hsl(colors["mana-multi"])
     _, _, g_sat = _hsl(colors["gold-foil"])
 
     # White sits clearly in the yellow band...
     assert 35 <= w_hue * 360 <= 75, f"{palette}: --mana-w hue {w_hue*360:.0f}"
 
-    # ...and is far more saturated than the gold it must not resemble.
+    # ...multicolor in the orange band below it, so the two never blur.
+    assert 10 <= m_hue * 360 < 35, f"{palette}: --mana-multi hue {m_hue*360:.0f}"
+
+    # White stays far more saturated than the gold it must not resemble.
     assert w_sat - g_sat >= 0.15, (
         f"{palette}: white sat {w_sat:.2f} vs gold sat {g_sat:.2f} — too close"
     )

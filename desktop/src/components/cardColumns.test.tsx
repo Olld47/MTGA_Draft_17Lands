@@ -123,9 +123,9 @@ describe("artUrl", () => {
 });
 
 describe("cardNameColor", () => {
-  it("uses the mana color for mono cards, gold for gold, grey otherwise", () => {
+  it("uses the mana color for mono cards, orange for multi, grey otherwise", () => {
     expect(cardNameColor(["W"])).toBe("var(--mana-w)");
-    expect(cardNameColor(["W", "U"])).toBe("var(--gold-foil)");
+    expect(cardNameColor(["W", "U"])).toBe("var(--mana-multi)");
     expect(cardNameColor([])).toBe("var(--gruff)");
     expect(cardNameColor(["Z"])).toBe("var(--gruff)");
   });
