@@ -21,7 +21,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Main Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -37,7 +37,7 @@ jobs:
       - name: Checkout Historical Data (gh-pages)
         # We checkout the gh-pages branch into the build directory.
         # This allows server/main.py to read the old manifest.json and preserve inactive sets!
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         continue-on-error: true # Will fail on the very first run if gh-pages doesn't exist yet, which is fine
         with:
           ref: gh-pages
