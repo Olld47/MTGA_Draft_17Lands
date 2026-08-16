@@ -1,5 +1,5 @@
 import type { DeckRow, DeckStats } from "../../api/types";
-import { cardNameColor, formatWinRate } from "../../components/cardColumns";
+import { cardNameColor, formatWinRate, tagChip } from "../../components/cardColumns";
 import { CardHoverTip, hoverDataFromDeckRow } from "../../components/CardHover";
 import {
   GROUP_OPTIONS,
@@ -25,7 +25,7 @@ const PIP_CLASS: Record<string, string> = {
 /** Curve histogram + pips + tribes/tags, shared by the custom-deck and sealed
  *  pages (both consume the identical DeckStats view-model). */
 export function DeckStatsView({ stats }: { stats: DeckStats }) {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const maxCurve = Math.max(1, ...Object.values(stats.curve));
   return (
     <div className="deck-stats">
@@ -71,9 +71,12 @@ export function DeckStatsView({ stats }: { stats: DeckStats }) {
 
       {stats.tags.length > 0 && (
         <div className="recap-chips">
-          {stats.tags.map((t) => (
-            <span key={t.label}>
-              {t.label} <b>{t.count}</b>
+          {stats.tags.map((tag) => (
+            <span key={tag.key || tag.label}>
+              {lang === "zh" && tag.key
+                ? tagChip(tag.key, "zh", t, tag.label)
+                : tag.label}{" "}
+              <b>{tag.count}</b>
             </span>
           ))}
         </div>

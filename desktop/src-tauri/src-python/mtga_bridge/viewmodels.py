@@ -465,6 +465,7 @@ class RecapArchetypeVM(_VM):
 
 
 class RecapRoleVM(_VM):
+    key: str = ""  # raw internal tag key, for frontend localization
     label: str
     count: int
 

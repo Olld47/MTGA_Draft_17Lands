@@ -263,6 +263,8 @@ export interface RecapArchetype {
 }
 
 export interface RecapRole {
+  /** Raw internal tag key (e.g. "removal") for localized display. */
+  key: string;
   label: string;
   count: number;
 }

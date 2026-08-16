@@ -1,6 +1,7 @@
 import type { Card, SetMetrics } from "../api/types";
 import { ManaCost } from "./ManaCost";
 import type { Column } from "./DataTable";
+import type { Lang } from "../i18n/locales";
 
 /** Translate callback — mirrors useLanguage().t. Builders take it as a param so
  *  the caller's render (which subscribes to the language store) re-invokes them
@@ -57,6 +58,26 @@ export const TAG_ICONS: Record<string, string> = {
   protection: "🛡️",
   hate: "🚫",
 };
+
+/** Localized card-role tag chip. zh renders the emoji plus the translated
+ *  role (the recap chips' "🎯 Removal" shape); en keeps the legacy emoji-only
+ *  chips so the English UI is unchanged. Unknown tags pass through as the raw
+ *  key, or as `fallback` (e.g. the backend label) when one is supplied. */
+export function tagChip(
+  tag: string,
+  lang: Lang,
+  t: Translate,
+  fallback?: string,
+): string {
+  if (lang === "zh") {
+    const label = t(`tag.${tag}`);
+    if (label !== `tag.${tag}`) {
+      const icon = TAG_ICONS[tag] ?? "";
+      return icon ? `${icon} ${label}` : label;
+    }
+  }
+  return fallback ?? TAG_ICONS[tag] ?? tag;
+}
 
 /** (grade, z-score threshold) pairs in descending order — a TS port of
  *  src/constants GRADE_DEVIATION_DICT. */
@@ -268,11 +289,13 @@ export function statColumns(format?: StatFormat, t: Translate = identityT): Colu
 
 /** Build one card column by field id — the registry behind the per-table
  *  column config (useColumnConfig). The win-rate columns take the live
- *  result_format + metrics so a later table refresh re-renders them. */
+ *  result_format + metrics so a later table refresh re-renders them. `lang`
+ *  drives the tags column's chip localization. */
 export function cardColumn(
   field: string,
   format?: StatFormat,
   t: Translate = identityT,
+  lang: Lang = "en",
 ): Column<Card> {
   switch (field) {
     case "value":
@@ -324,7 +347,9 @@ export function cardColumn(
         id: "tags",
         header: t("col.tags"),
         cell: (c) =>
-          tags(c).length > 0 ? tags(c).map((t) => TAG_ICONS[t] ?? t).join(" ") : "—",
+          tags(c).length > 0
+            ? tags(c).map((tag) => tagChip(tag, lang, t)).join(" ")
+            : "—",
         sortValue: (c) => tags(c).join(" "),
       };
     }

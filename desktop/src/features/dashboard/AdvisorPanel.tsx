@@ -1,5 +1,5 @@
 import type { Recommendation } from "../../api/types";
-import { TAG_ICONS } from "../../components/cardColumns";
+import { tagChip } from "../../components/cardColumns";
 import { useLanguage } from "../../i18n/useLanguage";
 import { localizeReason } from "./advisorReasons";
 
@@ -45,8 +45,8 @@ export function AdvisorPanel({ recommendations, limit = 3 }: Props) {
           )}
           {rec.tags.length > 0 && (
             <div className="rec-tags">
-              {rec.tags.map((t) => (
-                <span key={t}>{TAG_ICONS[t] ?? t}</span>
+              {rec.tags.map((tag) => (
+                <span key={tag}>{tagChip(tag, lang, t)}</span>
               ))}
             </div>
           )}

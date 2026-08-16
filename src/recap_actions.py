@@ -71,7 +71,8 @@ class RecapData:
     steals: List[Tuple[str, int, int, float, float]] = field(default_factory=list)
     reaches: List[Tuple[str, int, int, float, float]] = field(default_factory=list)
     tribes: List[Tuple[str, int]] = field(default_factory=list)
-    roles: List[Tuple[str, int]] = field(default_factory=list)
+    # (raw tag key, display label, count) — key feeds frontend localization
+    roles: List[Tuple[str, str, int]] = field(default_factory=list)
     staples: List[Tuple[str, float]] = field(default_factory=list)
     non_basic_lands: List[Tuple[str, float]] = field(default_factory=list)
     rares: List[Tuple[str, float]] = field(default_factory=list)
@@ -166,7 +167,7 @@ def build_recap_data(taken_cards, metrics, draft_id, event_type) -> RecapData:
         if n >= 3
     ]
     roles = [
-        (constants.TAG_VISUALS.get(t, t.capitalize()), n)
+        (t, constants.TAG_VISUALS.get(t, t.capitalize()), n)
         for t, n in sorted(tags_count.items(), key=lambda x: x[1], reverse=True)[:6]
     ]
 

@@ -2,15 +2,22 @@ import { describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
 
 import type { Card, SetMetrics } from "../api/types";
+import { messages, type Lang } from "../i18n/locales";
 import {
   artUrl,
+  cardColumn,
   cardNameColor,
   cardRowClass,
   formatWinRate,
   nameColumn,
   RESULT_FORMAT_GRADE,
   RESULT_FORMAT_RATING,
+  tagChip,
 } from "./cardColumns";
+
+/** Language-bound translator mirroring useLanguage().t's fallback chain. */
+const lookup = (lang: Lang) => (key: string) =>
+  messages[lang][key] ?? messages.en[key] ?? key;
 
 const card = (over: Partial<Card> = {}): Card => ({
   name: "Grizzly Bears",
@@ -148,5 +155,44 @@ describe("nameColumn", () => {
   it("skips the rarity badge when rarity is unknown", () => {
     const { container } = render(<>{nameColumn().cell(card({ rarity: "" }))}</>);
     expect(container.querySelector(".card-rarity")).toBeNull();
+  });
+});
+
+describe("tagChip", () => {
+  const rec = (tags: string[]) => ({
+    cardName: "Grizzly Bears",
+    baseWinRate: 0,
+    contextualScore: 0,
+    zScore: 0,
+    castProbability: 0,
+    wheelChance: 0,
+    functionalCmc: 0,
+    reasoning: [],
+    isElite: false,
+    archetypeFit: "",
+    tags,
+  });
+
+  it("keeps the legacy emoji-only chip in English", () => {
+    expect(tagChip("removal", "en", lookup("en"))).toBe("🎯");
+  });
+  it("renders emoji + translated role in Chinese", () => {
+    expect(tagChip("removal", "zh", lookup("zh"))).toBe("🎯 解场");
+    expect(tagChip("evasion", "zh", lookup("zh"))).toBe("🦅 穿透");
+    expect(tagChip("fixing_ramp", "zh", lookup("zh"))).toBe("🌈 调色加速");
+  });
+  it("passes unknown tags through as the raw key, or the fallback label", () => {
+    expect(tagChip("mystery", "en", lookup("en"))).toBe("mystery");
+    expect(tagChip("mystery", "zh", lookup("zh"))).toBe("mystery");
+    expect(tagChip("mystery", "zh", lookup("zh"), "Mystery")).toBe("Mystery");
+  });
+
+  it("localizes the DataTable tags column cell in Chinese only", () => {
+    const en = cardColumn("tags", undefined, lookup("en"), "en");
+    const zh = cardColumn("tags", undefined, lookup("zh"), "zh");
+    const tagged = card({ recommendation: rec(["removal", "evasion"]) });
+    expect(en.cell(tagged)).toBe("🎯 🦅");
+    expect(zh.cell(tagged)).toBe("🎯 解场 🦅 穿透");
+    expect(cardColumn("tags", undefined, lookup("zh"), "zh").cell(card())).toBe("—");
   });
 });
