@@ -48,15 +48,347 @@ class DeckPlanner:
         progress_callback=None,
         dataset_name=None,
     ):
-        return _suggest_deck(
+        return self._build(
             taken_cards,
             metrics,
             configuration,
             event_type,
             progress_callback,
             dataset_name,
-            cache=self._cache,
         )
+
+    def _build(
+        self,
+        taken_cards: List[CardData],
+        metrics,
+        configuration,
+        event_type="PremierDraft",
+        progress_callback=None,
+        dataset_name=None,
+    ):
+        sorted_decks = {}
+        pool_size = len(taken_cards)
+        is_bo3 = "Trad" in event_type
+    
+        playable_spells = [c for c in taken_cards if "Land" not in c.get("types", [])]
+        if not playable_spells or len(playable_spells) < 15:
+            return sorted_decks
+    
+        try:
+            pool_sig = tuple(
+                sorted([f"{c.get('name', '')}:{c.get('count', 1)}" for c in taken_cards])
+            )
+            cache_key = (event_type, dataset_name, len(taken_cards), pool_sig)
+    
+            if cache_key in self._cache:
+                if progress_callback:
+                    progress_callback({"status": "Loaded optimized decks from cache."})
+                return self._cache[cache_key]
+            color_options = identify_top_pairs(taken_cards, metrics)
+            all_variants, incomplete_variants = [], []
+            seen_signatures = set()
+            simulated_cache = {}  # Cache to prevent random variance on identical decks
+    
+            def process_variant(variant_name, deck, sb, colors, arch_key):
+                if not deck:
+                    return
+                spells = [c for c in deck if "Land" not in c.get("types", [])]
+                spell_count = sum(c.get("count", 1) for c in spells)
+                if spell_count < 15:
+                    return
+    
+                pips = {c: 0 for c in constants.CARD_COLORS}
+                for card in spells:
+                    cost = card.get("mana_cost", "")
+                    if not cost:
+                        for c in card.get("colors", []):
+                            if c in pips:
+                                pips[c] += card.get("count", 1)
+                        continue
+                    for pip in re.findall(r"\{(.*?)\}", cost):
+                        for opt in [
+                            c for c in pip.split("/") if c in constants.CARD_COLORS
+                        ]:
+                            pips[opt] += card.get("count", 1)
+    
+                active_colors = sorted(
+                    [c for c, count in pips.items() if count > 0],
+                    key=lambda x: pips[x],
+                    reverse=True,
+                )
+    
+                # A deck's true color identity ignores incidental single pips from a
+                # lone gold/hybrid card (e.g. one 5-color card adding a stray white
+                # pip to a Golgari deck). Such a deck is still mechanically 2-color
+                # and should qualify as a non-soupy "safe" option.
+                identity_colors = [c for c in active_colors if pips.get(c, 0) >= 2]
+                if not identity_colors:
+                    identity_colors = active_colors[:2] if active_colors else []
+    
+                if not active_colors:
+                    true_arch_key, true_variant_name = arch_key, variant_name
+                else:
+                    if len(active_colors) == 1:
+                        true_arch_key, true_variant_name = active_colors[0], "Consistent"
+                    elif len(active_colors) == 2:
+                        if pips[active_colors[1]] <= 3:
+                            true_arch_key, true_variant_name = (
+                                active_colors[0],
+                                f"Splash {active_colors[1]}",
+                            )
+                        else:
+                            true_arch_key = "".join(
+                                sorted(
+                                    active_colors[:2],
+                                    key=lambda x: constants.CARD_COLORS.index(x),
+                                )
+                            )
+                            true_variant_name = (
+                                "Tempo" if "Tempo" in variant_name else "Consistent"
+                            )
+                    else:
+                        true_arch_key = "".join(
+                            sorted(
+                                active_colors[:2],
+                                key=lambda x: constants.CARD_COLORS.index(x),
+                            )
+                        )
+                        true_variant_name = (
+                            "Good Stuff (Soup)"
+                            if "Soup" in variant_name
+                            else f"Splash {''.join(active_colors[2:])}"
+                        )
+    
+                opt_deck, opt_sb, opt_note = deck, sb, ""
+    
+                # Generate a strict string signature of the 40-card deck
+                deck_sig = "|".join(
+                    sorted([f"{c['name']}:{c.get('count', 1)}" for c in opt_deck])
+                )
+    
+                if deck_sig in simulated_cache:
+                    opt_stats, score, breakdown = simulated_cache[deck_sig]
+                else:
+                    opt_stats = simulate_deck(opt_deck, iterations=10000)
+                    score, breakdown = calculate_holistic_score(
+                        opt_deck, active_colors, pool_size, metrics
+                    )
+    
+                    if opt_stats:
+                        mc_penalties = []
+                        if opt_stats["color_screw_t3"] > 10.0:
+                            pen = (opt_stats["color_screw_t3"] - 10.0) * 2.5
+                            score -= pen
+                            mc_penalties.append(f"Color Screw (-{pen:.1f})")
+                        if opt_stats["screw_t3"] > 22.0:
+                            pen = (opt_stats["screw_t3"] - 22.0) * 1.5
+                            score -= pen
+                            mc_penalties.append(f"Mana Screw (-{pen:.1f})")
+                        if opt_stats["flood_t5"] > 27.0:
+                            pen = (opt_stats["flood_t5"] - 27.0) * 1.5
+                            score -= pen
+                            mc_penalties.append(f"Flood Risk (-{pen:.1f})")
+    
+                        score = max(0.0, score)
+                        if mc_penalties:
+                            breakdown = (
+                                f"{breakdown} | {', '.join(mc_penalties)}"
+                                if breakdown
+                                else ", ".join(mc_penalties)
+                            )
+                    simulated_cache[deck_sig] = (opt_stats, score, breakdown)
+    
+                sig = tuple(
+                    sorted([f"{c.get('name')}:{c.get('count', 1)}" for c in opt_deck])
+                )
+                if sig in seen_signatures:
+                    return
+                seen_signatures.add(sig)
+    
+                variant_data = {
+                    "label_prefix": true_variant_name,
+                    "type": "Deck",
+                    "rating": score,
+                    "record": estimate_record(score, is_bo3),
+                    "deck_cards": opt_deck,
+                    "sideboard_cards": opt_sb,
+                    "colors": active_colors,
+                    "identity_colors": identity_colors,
+                    "breakdown": breakdown,
+                    "stats": opt_stats,
+                    "optimization_note": opt_note,
+                }
+    
+                full_label = f"{true_arch_key} {true_variant_name} [Est: {variant_data['record']}] (Power: {score:.0f})"
+                if "Incomplete Deck" not in breakdown:
+                    all_variants.append((full_label, variant_data))
+                else:
+                    incomplete_variants.append((full_label, variant_data))
+                if progress_callback:
+                    progress_callback(
+                        {"variant_label": full_label, "variant_data": variant_data}
+                    )
+    
+            for main_colors in color_options:
+                arch_key = "".join(sorted(main_colors))
+                if progress_callback:
+                    progress_callback({"status": f"Analyzing {arch_key} Archetypes..."})
+    
+                con_deck = build_variant_consistency(taken_cards, main_colors, metrics)
+                process_variant(
+                    "Consistent",
+                    con_deck,
+                    get_sideboard(taken_cards, con_deck),
+                    main_colors,
+                    arch_key,
+                )
+    
+                greedy_deck, splash_color = build_variant_greedy(
+                    taken_cards, main_colors, metrics
+                )
+                if greedy_deck:
+                    process_variant(
+                        f"Splash {splash_color}",
+                        greedy_deck,
+                        get_sideboard(taken_cards, greedy_deck),
+                        main_colors + [splash_color],
+                        arch_key,
+                    )
+    
+                tempo_deck = build_variant_curve(taken_cards, main_colors, metrics)
+                process_variant(
+                    "Tempo",
+                    tempo_deck,
+                    get_sideboard(taken_cards, tempo_deck),
+                    main_colors,
+                    arch_key,
+                )
+    
+            if progress_callback:
+                progress_callback({"status": "Analyzing Domain / Soup..."})
+            soup_deck, soup_colors = build_variant_soup(taken_cards, metrics)
+            if soup_deck:
+                soup_arch_key = (
+                    "".join(sorted(soup_colors[:3])) if soup_colors else "All Decks"
+                )
+                process_variant(
+                    "Good Stuff (Soup)",
+                    soup_deck,
+                    get_sideboard(taken_cards, soup_deck),
+                    soup_colors[:3] if soup_colors else ["All Decks"],
+                    soup_arch_key,
+                )
+    
+            # Incomplete (land-padded) variants are only worth showing when there
+            # is almost nothing else to offer.
+            if len(all_variants) >= 3:
+                final_list = list(all_variants)
+                # Always keep at least one non-soupy option: if none of the complete
+                # decks is <=2 colors, retain the best <=2-color incomplete deck so
+                # the user always has a single/dual-color suggestion (poor mana OK).
+                if not any(len(deck_identity_colors(v[1])) <= 2 for v in final_list):
+                    two_color_incomplete = [
+                        v
+                        for v in incomplete_variants
+                        if len(deck_identity_colors(v[1])) <= 2
+                    ]
+                    if two_color_incomplete:
+                        final_list.append(
+                            max(two_color_incomplete, key=lambda v: v[1]["rating"])
+                        )
+            else:
+                final_list = all_variants + incomplete_variants
+            if not final_list:
+                return {}
+    
+            final_list.sort(key=lambda x: x[1]["rating"], reverse=True)
+            best_score = final_list[0][1]["rating"]
+    
+            safe_idx = select_safe_deck_index(final_list)
+            best_safe = final_list[safe_idx] if safe_idx >= 0 else None
+    
+            filtered_list, accepted_signatures = [], []
+    
+            for label, data in final_list:
+                score, is_top_deck, is_best_safe = (
+                    data["rating"],
+                    (len(filtered_list) == 0),
+                    (best_safe is not None and label == best_safe[0]),
+                )
+                sig = {}
+                for c in data["deck_cards"]:
+                    sig[c["name"]] = sig.get(c["name"], 0) + c.get("count", 1)
+    
+                max_overlap = 0
+                for acc_sig in accepted_signatures:
+                    overlap = sum(
+                        min(count, acc_sig.get(name, 0)) for name, count in sig.items()
+                    )
+                    if overlap > max_overlap:
+                        max_overlap = overlap
+    
+                cards_diff = 40 - max_overlap
+                keep = True if (is_top_deck or is_best_safe) else False
+    
+                if not keep:
+                    if cards_diff < 3:
+                        keep = False
+                    elif cards_diff >= 10:
+                        keep = True if score >= best_score - 25.0 else False
+                    else:
+                        keep = True if score >= best_score - 50.0 else False
+    
+                if keep:
+                    filtered_list.append((label, data))
+                    accepted_signatures.append(sig)
+                    if len(filtered_list) >= 10:
+                        break
+    
+            final_list = filtered_list
+            best_safe_idx = select_safe_deck_index(final_list)
+    
+            if best_safe_idx >= 0:
+                actual_best_safe = final_list[best_safe_idx]
+    
+                old_label = actual_best_safe[0]
+                new_label = old_label.replace("Consistent", "🛡️ Safe Core").replace(
+                    "Tempo", "🛡️ Safe Tempo"
+                )
+                if "🛡️" not in new_label:
+                    parts = new_label.split(" ", 1)
+                    new_label = (
+                        f"{parts[0]} 🛡️ Safe Core {parts[1]}"
+                        if len(parts) > 1
+                        else f"🛡️ Safe Core {new_label}"
+                    )
+    
+                actual_best_safe[1]["label_prefix"] = (
+                    actual_best_safe[1]["label_prefix"]
+                    .replace("Consistent", "Safe Core")
+                    .replace("Tempo", "Safe Tempo")
+                )
+                updated_safe = (new_label, actual_best_safe[1])
+                final_list[best_safe_idx] = updated_safe
+    
+                if best_safe_idx > 0:
+                    gap = final_list[0][1]["rating"] - updated_safe[1]["rating"]
+                    if gap <= SAFE_DECK_PROMOTE_TO_TOP_GAP:
+                        final_list.insert(0, final_list.pop(best_safe_idx))
+                    elif gap <= SAFE_DECK_PROMOTE_TO_SECOND_GAP and best_safe_idx > 1:
+                        final_list.insert(1, final_list.pop(best_safe_idx))
+                    # Otherwise leave it in its natural position: still shown and
+                    # labeled, but not masquerading as a top pick.
+    
+            for label, data in final_list:
+                sorted_decks[label] = data
+    
+            self._cache[cache_key] = sorted_decks
+    
+        except Exception as e:
+            logger.error(f"Deck builder failure: {e}", exc_info=True)
+            return {}
+    
+        return sorted_decks
 
 
 _DEFAULT_PLANNER = DeckPlanner()
@@ -444,340 +776,6 @@ def suggest_deck(
         progress_callback,
         dataset_name,
     )
-
-def _suggest_deck(
-    taken_cards: List[CardData],
-    metrics,
-    configuration,
-    event_type="PremierDraft",
-    progress_callback=None,
-    dataset_name=None,
-    cache=None,
-):
-    sorted_decks = {}
-    cache = cache if cache is not None else {}
-    pool_size = len(taken_cards)
-    is_bo3 = "Trad" in event_type
-
-    playable_spells = [c for c in taken_cards if "Land" not in c.get("types", [])]
-    if not playable_spells or len(playable_spells) < 15:
-        return sorted_decks
-
-    try:
-        pool_sig = tuple(
-            sorted([f"{c.get('name', '')}:{c.get('count', 1)}" for c in taken_cards])
-        )
-        cache_key = (event_type, dataset_name, len(taken_cards), pool_sig)
-
-        if cache_key in cache:
-            if progress_callback:
-                progress_callback({"status": "Loaded optimized decks from cache."})
-            return cache[cache_key]
-        color_options = identify_top_pairs(taken_cards, metrics)
-        all_variants, incomplete_variants = [], []
-        seen_signatures = set()
-        simulated_cache = {}  # Cache to prevent random variance on identical decks
-
-        def process_variant(variant_name, deck, sb, colors, arch_key):
-            if not deck:
-                return
-            spells = [c for c in deck if "Land" not in c.get("types", [])]
-            spell_count = sum(c.get("count", 1) for c in spells)
-            if spell_count < 15:
-                return
-
-            pips = {c: 0 for c in constants.CARD_COLORS}
-            for card in spells:
-                cost = card.get("mana_cost", "")
-                if not cost:
-                    for c in card.get("colors", []):
-                        if c in pips:
-                            pips[c] += card.get("count", 1)
-                    continue
-                for pip in re.findall(r"\{(.*?)\}", cost):
-                    for opt in [
-                        c for c in pip.split("/") if c in constants.CARD_COLORS
-                    ]:
-                        pips[opt] += card.get("count", 1)
-
-            active_colors = sorted(
-                [c for c, count in pips.items() if count > 0],
-                key=lambda x: pips[x],
-                reverse=True,
-            )
-
-            # A deck's true color identity ignores incidental single pips from a
-            # lone gold/hybrid card (e.g. one 5-color card adding a stray white
-            # pip to a Golgari deck). Such a deck is still mechanically 2-color
-            # and should qualify as a non-soupy "safe" option.
-            identity_colors = [c for c in active_colors if pips.get(c, 0) >= 2]
-            if not identity_colors:
-                identity_colors = active_colors[:2] if active_colors else []
-
-            if not active_colors:
-                true_arch_key, true_variant_name = arch_key, variant_name
-            else:
-                if len(active_colors) == 1:
-                    true_arch_key, true_variant_name = active_colors[0], "Consistent"
-                elif len(active_colors) == 2:
-                    if pips[active_colors[1]] <= 3:
-                        true_arch_key, true_variant_name = (
-                            active_colors[0],
-                            f"Splash {active_colors[1]}",
-                        )
-                    else:
-                        true_arch_key = "".join(
-                            sorted(
-                                active_colors[:2],
-                                key=lambda x: constants.CARD_COLORS.index(x),
-                            )
-                        )
-                        true_variant_name = (
-                            "Tempo" if "Tempo" in variant_name else "Consistent"
-                        )
-                else:
-                    true_arch_key = "".join(
-                        sorted(
-                            active_colors[:2],
-                            key=lambda x: constants.CARD_COLORS.index(x),
-                        )
-                    )
-                    true_variant_name = (
-                        "Good Stuff (Soup)"
-                        if "Soup" in variant_name
-                        else f"Splash {''.join(active_colors[2:])}"
-                    )
-
-            opt_deck, opt_sb, opt_note = deck, sb, ""
-
-            # Generate a strict string signature of the 40-card deck
-            deck_sig = "|".join(
-                sorted([f"{c['name']}:{c.get('count', 1)}" for c in opt_deck])
-            )
-
-            if deck_sig in simulated_cache:
-                opt_stats, score, breakdown = simulated_cache[deck_sig]
-            else:
-                opt_stats = simulate_deck(opt_deck, iterations=10000)
-                score, breakdown = calculate_holistic_score(
-                    opt_deck, active_colors, pool_size, metrics
-                )
-
-                if opt_stats:
-                    mc_penalties = []
-                    if opt_stats["color_screw_t3"] > 10.0:
-                        pen = (opt_stats["color_screw_t3"] - 10.0) * 2.5
-                        score -= pen
-                        mc_penalties.append(f"Color Screw (-{pen:.1f})")
-                    if opt_stats["screw_t3"] > 22.0:
-                        pen = (opt_stats["screw_t3"] - 22.0) * 1.5
-                        score -= pen
-                        mc_penalties.append(f"Mana Screw (-{pen:.1f})")
-                    if opt_stats["flood_t5"] > 27.0:
-                        pen = (opt_stats["flood_t5"] - 27.0) * 1.5
-                        score -= pen
-                        mc_penalties.append(f"Flood Risk (-{pen:.1f})")
-
-                    score = max(0.0, score)
-                    if mc_penalties:
-                        breakdown = (
-                            f"{breakdown} | {', '.join(mc_penalties)}"
-                            if breakdown
-                            else ", ".join(mc_penalties)
-                        )
-                simulated_cache[deck_sig] = (opt_stats, score, breakdown)
-
-            sig = tuple(
-                sorted([f"{c.get('name')}:{c.get('count', 1)}" for c in opt_deck])
-            )
-            if sig in seen_signatures:
-                return
-            seen_signatures.add(sig)
-
-            variant_data = {
-                "label_prefix": true_variant_name,
-                "type": "Deck",
-                "rating": score,
-                "record": estimate_record(score, is_bo3),
-                "deck_cards": opt_deck,
-                "sideboard_cards": opt_sb,
-                "colors": active_colors,
-                "identity_colors": identity_colors,
-                "breakdown": breakdown,
-                "stats": opt_stats,
-                "optimization_note": opt_note,
-            }
-
-            full_label = f"{true_arch_key} {true_variant_name} [Est: {variant_data['record']}] (Power: {score:.0f})"
-            if "Incomplete Deck" not in breakdown:
-                all_variants.append((full_label, variant_data))
-            else:
-                incomplete_variants.append((full_label, variant_data))
-            if progress_callback:
-                progress_callback(
-                    {"variant_label": full_label, "variant_data": variant_data}
-                )
-
-        for main_colors in color_options:
-            arch_key = "".join(sorted(main_colors))
-            if progress_callback:
-                progress_callback({"status": f"Analyzing {arch_key} Archetypes..."})
-
-            con_deck = build_variant_consistency(taken_cards, main_colors, metrics)
-            process_variant(
-                "Consistent",
-                con_deck,
-                get_sideboard(taken_cards, con_deck),
-                main_colors,
-                arch_key,
-            )
-
-            greedy_deck, splash_color = build_variant_greedy(
-                taken_cards, main_colors, metrics
-            )
-            if greedy_deck:
-                process_variant(
-                    f"Splash {splash_color}",
-                    greedy_deck,
-                    get_sideboard(taken_cards, greedy_deck),
-                    main_colors + [splash_color],
-                    arch_key,
-                )
-
-            tempo_deck = build_variant_curve(taken_cards, main_colors, metrics)
-            process_variant(
-                "Tempo",
-                tempo_deck,
-                get_sideboard(taken_cards, tempo_deck),
-                main_colors,
-                arch_key,
-            )
-
-        if progress_callback:
-            progress_callback({"status": "Analyzing Domain / Soup..."})
-        soup_deck, soup_colors = build_variant_soup(taken_cards, metrics)
-        if soup_deck:
-            soup_arch_key = (
-                "".join(sorted(soup_colors[:3])) if soup_colors else "All Decks"
-            )
-            process_variant(
-                "Good Stuff (Soup)",
-                soup_deck,
-                get_sideboard(taken_cards, soup_deck),
-                soup_colors[:3] if soup_colors else ["All Decks"],
-                soup_arch_key,
-            )
-
-        # Incomplete (land-padded) variants are only worth showing when there
-        # is almost nothing else to offer.
-        if len(all_variants) >= 3:
-            final_list = list(all_variants)
-            # Always keep at least one non-soupy option: if none of the complete
-            # decks is <=2 colors, retain the best <=2-color incomplete deck so
-            # the user always has a single/dual-color suggestion (poor mana OK).
-            if not any(len(deck_identity_colors(v[1])) <= 2 for v in final_list):
-                two_color_incomplete = [
-                    v
-                    for v in incomplete_variants
-                    if len(deck_identity_colors(v[1])) <= 2
-                ]
-                if two_color_incomplete:
-                    final_list.append(
-                        max(two_color_incomplete, key=lambda v: v[1]["rating"])
-                    )
-        else:
-            final_list = all_variants + incomplete_variants
-        if not final_list:
-            return {}
-
-        final_list.sort(key=lambda x: x[1]["rating"], reverse=True)
-        best_score = final_list[0][1]["rating"]
-
-        safe_idx = select_safe_deck_index(final_list)
-        best_safe = final_list[safe_idx] if safe_idx >= 0 else None
-
-        filtered_list, accepted_signatures = [], []
-
-        for label, data in final_list:
-            score, is_top_deck, is_best_safe = (
-                data["rating"],
-                (len(filtered_list) == 0),
-                (best_safe is not None and label == best_safe[0]),
-            )
-            sig = {}
-            for c in data["deck_cards"]:
-                sig[c["name"]] = sig.get(c["name"], 0) + c.get("count", 1)
-
-            max_overlap = 0
-            for acc_sig in accepted_signatures:
-                overlap = sum(
-                    min(count, acc_sig.get(name, 0)) for name, count in sig.items()
-                )
-                if overlap > max_overlap:
-                    max_overlap = overlap
-
-            cards_diff = 40 - max_overlap
-            keep = True if (is_top_deck or is_best_safe) else False
-
-            if not keep:
-                if cards_diff < 3:
-                    keep = False
-                elif cards_diff >= 10:
-                    keep = True if score >= best_score - 25.0 else False
-                else:
-                    keep = True if score >= best_score - 50.0 else False
-
-            if keep:
-                filtered_list.append((label, data))
-                accepted_signatures.append(sig)
-                if len(filtered_list) >= 10:
-                    break
-
-        final_list = filtered_list
-        best_safe_idx = select_safe_deck_index(final_list)
-
-        if best_safe_idx >= 0:
-            actual_best_safe = final_list[best_safe_idx]
-
-            old_label = actual_best_safe[0]
-            new_label = old_label.replace("Consistent", "🛡️ Safe Core").replace(
-                "Tempo", "🛡️ Safe Tempo"
-            )
-            if "🛡️" not in new_label:
-                parts = new_label.split(" ", 1)
-                new_label = (
-                    f"{parts[0]} 🛡️ Safe Core {parts[1]}"
-                    if len(parts) > 1
-                    else f"🛡️ Safe Core {new_label}"
-                )
-
-            actual_best_safe[1]["label_prefix"] = (
-                actual_best_safe[1]["label_prefix"]
-                .replace("Consistent", "Safe Core")
-                .replace("Tempo", "Safe Tempo")
-            )
-            updated_safe = (new_label, actual_best_safe[1])
-            final_list[best_safe_idx] = updated_safe
-
-            if best_safe_idx > 0:
-                gap = final_list[0][1]["rating"] - updated_safe[1]["rating"]
-                if gap <= SAFE_DECK_PROMOTE_TO_TOP_GAP:
-                    final_list.insert(0, final_list.pop(best_safe_idx))
-                elif gap <= SAFE_DECK_PROMOTE_TO_SECOND_GAP and best_safe_idx > 1:
-                    final_list.insert(1, final_list.pop(best_safe_idx))
-                # Otherwise leave it in its natural position: still shown and
-                # labeled, but not masquerading as a top pick.
-
-        for label, data in final_list:
-            sorted_decks[label] = data
-
-        cache[cache_key] = sorted_decks
-
-    except Exception as e:
-        logger.error(f"Deck builder failure: {e}", exc_info=True)
-        return {}
-
-    return sorted_decks
 
 
 def build_variant_consistency(pool: List[CardData], colors, metrics, tier_data=None):
