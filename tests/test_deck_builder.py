@@ -29,20 +29,24 @@ def _patch_planning_variants(monkeypatch, consistency, curve=None, soup=None):
     from src.advisor import deck_builder
 
     monkeypatch.setattr(
-        deck_builder, "build_variant_consistency", lambda *args: consistency
+        deck_builder.DeckPlanner,
+        "build_consistency",
+        staticmethod(lambda *args: consistency),
     )
     monkeypatch.setattr(
-        deck_builder,
-        "build_variant_curve",
-        lambda *args: curve if curve is not None else consistency,
+        deck_builder.DeckPlanner,
+        "build_curve",
+        staticmethod(lambda *args: curve if curve is not None else consistency),
     )
     monkeypatch.setattr(
-        deck_builder, "build_variant_greedy", lambda *args: (None, None)
+        deck_builder.DeckPlanner,
+        "build_greedy",
+        staticmethod(lambda *args: (None, None)),
     )
     monkeypatch.setattr(
-        deck_builder,
-        "build_variant_soup",
-        lambda *args: soup if soup is not None else (None, []),
+        deck_builder.DeckPlanner,
+        "build_soup",
+        staticmethod(lambda *args: soup if soup is not None else (None, [])),
     )
     monkeypatch.setattr(deck_builder, "get_sideboard", lambda pool, deck: [])
     monkeypatch.setattr(
@@ -460,12 +464,11 @@ def _greedy_pool(main_g, main_b, splash_u):
 
 
 def test_greedy_splash_is_capped(mock_metrics):
-    """Regression: with thin main colors the greedy builder filled the deck
-    with every splash candidate (6 'splash' cards on 2 sources)."""
-    from src.advisor.deck_builder import build_variant_greedy
+    """Regression: with thin main colors the planner caps splash spells."""
+    from src.advisor.deck_builder import DeckPlanner
 
     pool = _greedy_pool(main_g=9, main_b=9, splash_u=6)
-    deck, splash_col = build_variant_greedy(pool, ["B", "G"], mock_metrics)
+    deck, splash_col = DeckPlanner.build_greedy(pool, ["B", "G"], mock_metrics)
 
     assert deck is not None
     assert splash_col == "U"
@@ -478,12 +481,11 @@ def test_greedy_splash_is_capped(mock_metrics):
 
 
 def test_greedy_skips_unsupported_pair_instead_of_over_splashing(mock_metrics):
-    """If the main colors can't reach ~20 spells even with a capped splash,
-    the pair isn't a real deck — skip it rather than over-splash."""
-    from src.advisor.deck_builder import build_variant_greedy
+    """The planner rejects a thin main pair rather than over-splashing."""
+    from src.advisor.deck_builder import DeckPlanner
 
     pool = _greedy_pool(main_g=7, main_b=7, splash_u=6)
-    deck, splash_col = build_variant_greedy(pool, ["B", "G"], mock_metrics)
+    deck, splash_col = DeckPlanner.build_greedy(pool, ["B", "G"], mock_metrics)
 
     assert deck is None
 
@@ -709,3 +711,15 @@ def test_public_suggest_deck_adapter_preserves_keyword_contract(
     )
 
     assert result
+
+
+def test_planner_builds_greedy_variant_through_shared_interface(mock_metrics):
+    """Variant construction is provided by the shared planning module."""
+    from src.advisor.deck_builder import DeckPlanner
+
+    pool = _greedy_pool(main_g=9, main_b=9, splash_u=6)
+
+    deck, splash_color = DeckPlanner().build_greedy(pool, ["B", "G"], mock_metrics)
+
+    assert deck is not None
+    assert splash_color == "U"

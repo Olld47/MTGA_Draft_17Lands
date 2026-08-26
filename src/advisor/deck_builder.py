@@ -234,7 +234,7 @@ class DeckPlanner:
                 if progress_callback:
                     progress_callback({"status": f"Analyzing {arch_key} Archetypes..."})
     
-                con_deck = build_variant_consistency(taken_cards, main_colors, metrics)
+                con_deck = self.build_consistency(taken_cards, main_colors, metrics)
                 process_variant(
                     "Consistent",
                     con_deck,
@@ -243,9 +243,7 @@ class DeckPlanner:
                     arch_key,
                 )
     
-                greedy_deck, splash_color = build_variant_greedy(
-                    taken_cards, main_colors, metrics
-                )
+                greedy_deck, splash_color = self.build_greedy(taken_cards, main_colors, metrics)
                 if greedy_deck:
                     process_variant(
                         f"Splash {splash_color}",
@@ -255,7 +253,7 @@ class DeckPlanner:
                         arch_key,
                     )
     
-                tempo_deck = build_variant_curve(taken_cards, main_colors, metrics)
+                tempo_deck = self.build_curve(taken_cards, main_colors, metrics)
                 process_variant(
                     "Tempo",
                     tempo_deck,
@@ -266,7 +264,7 @@ class DeckPlanner:
     
             if progress_callback:
                 progress_callback({"status": "Analyzing Domain / Soup..."})
-            soup_deck, soup_colors = build_variant_soup(taken_cards, metrics)
+            soup_deck, soup_colors = self.build_soup(taken_cards, metrics)
             if soup_deck:
                 soup_arch_key = (
                     "".join(sorted(soup_colors[:3])) if soup_colors else "All Decks"
@@ -390,6 +388,225 @@ class DeckPlanner:
     
         return sorted_decks
 
+    
+    @staticmethod
+    def build_consistency(pool: List[CardData], colors, metrics, tier_data=None):
+        candidates = [
+            c
+            for c in pool
+            if is_castable(c, colors, strict=True) and "Land" not in c.get("types", [])
+        ]
+        candidates.sort(key=lambda x: get_card_rating(x, colors, metrics), reverse=True)
+        spells, non_basic_lands = (
+            candidates[:23],
+            select_useful_lands(pool, colors, metrics),
+        )
+    
+        total_lands_needed = 40 - len(spells)
+        if len(non_basic_lands) > total_lands_needed:
+            non_basic_lands.sort(
+                key=lambda x: float(
+                    x.get("deck_colors", {}).get("All Decks", {}).get("gihwr", 0.0)
+                ),
+                reverse=True,
+            )
+            non_basic_lands = non_basic_lands[:total_lands_needed]
+    
+        needed_basics = max(0, total_lands_needed - len(non_basic_lands))
+        basics = calculate_dynamic_mana_base(
+            spells, non_basic_lands, colors, forced_count=needed_basics
+        )
+        return stack_cards(spells + non_basic_lands + basics)
+    
+    
+    @staticmethod
+    def build_greedy(pool: List[CardData], colors, metrics, tier_data=None):
+        global_mean, global_std = metrics.get_metrics("All Decks", "gihwr")
+        if global_mean == 0.0:
+            global_mean = 54.0
+        if global_std == 0.0:
+            global_std = 4.0
+    
+        fixing_sources = count_fixing(pool)
+        splash_candidates, best_rating = [], global_mean - (global_std * 0.5)
+    
+        for card in pool:
+            card_colors, mana_cost = card.get("colors", []), card.get("mana_cost", "")
+            if (
+                is_castable(card, colors, strict=True)
+                or not card_colors
+                or len(card_colors) > 1
+            ):
+                continue
+    
+            splash_col, off_color_pips = card_colors[0], 0
+            for pip in re.findall(r"\{(.*?)\}", mana_cost):
+                options = [c for c in pip.split("/") if c in constants.CARD_COLORS]
+                if options and not any(opt in colors for opt in options):
+                    off_color_pips += 1
+    
+            if off_color_pips > 1:
+                total_fixing = fixing_sources.get(splash_col, 0) + count_fixing(pool).get(
+                    splash_col, 0
+                )
+                if not (
+                    off_color_pips == 2
+                    and get_functional_cmc(card) >= 5
+                    and total_fixing >= 3
+                ):
+                    continue
+    
+            rating = get_card_rating(card, ["All Decks"], metrics)
+            if rating > best_rating and fixing_sources.get(splash_col, 0) >= 1:
+                splash_candidates.append((card, splash_col, rating))
+    
+        if not splash_candidates:
+            return None, ""
+    
+        splash_candidates.sort(key=lambda x: x[2], reverse=True)
+        best_splash_col = splash_candidates[0][1]
+        valid_splashes = [c[0] for c in splash_candidates if c[1] == best_splash_col]
+    
+        main_spells = [
+            c
+            for c in pool
+            if is_castable(c, colors, strict=True) and "Land" not in c.get("types", [])
+        ]
+        main_spells.sort(key=lambda x: get_card_rating(x, colors, metrics), reverse=True)
+    
+        # A splash is 2-3 cards depending on fixing, not a third color pillar.
+        # Filling thin main colors with unlimited splash cards produced "splash"
+        # decks with 6 off-color spells on 2 sources.
+        splash_cap = 3 if fixing_sources.get(best_splash_col, 0) >= 3 else 2
+    
+        deck_spells = main_spells[:23]
+        needed = 23 - len(deck_spells)
+        if needed > 0:
+            deck_spells.extend(valid_splashes[: min(needed, splash_cap)])
+            if sum(c.get("count", 1) for c in deck_spells) < 20:
+                # Even a capped splash can't make this pair a real deck.
+                return None, ""
+        elif valid_splashes:
+            deck_spells = main_spells[:22] + [valid_splashes[0]]
+    
+        target_colors = colors + [best_splash_col]
+        non_basic_lands = select_useful_lands(pool, target_colors, metrics)
+    
+        total_lands_needed = 40 - len(deck_spells)
+        if len(non_basic_lands) > total_lands_needed:
+            non_basic_lands.sort(
+                key=lambda x: float(
+                    x.get("deck_colors", {}).get("All Decks", {}).get("gihwr", 0.0)
+                ),
+                reverse=True,
+            )
+            non_basic_lands = non_basic_lands[:total_lands_needed]
+    
+        needed_basics = max(0, total_lands_needed - len(non_basic_lands))
+        basics = calculate_dynamic_mana_base(
+            deck_spells, non_basic_lands, target_colors, forced_count=needed_basics
+        )
+        return stack_cards(deck_spells + non_basic_lands + basics), best_splash_col
+    
+    
+    @staticmethod
+    def build_curve(pool: List[CardData], colors, metrics, tier_data=None):
+        candidates = [
+            c
+            for c in pool
+            if is_castable(c, colors, strict=True) and "Land" not in c.get("types", [])
+        ]
+    
+        def tempo_rating(card):
+            base, cmc = get_card_rating(card, colors, metrics), get_functional_cmc(card)
+            if cmc <= 2:
+                return base + 4.0
+            if cmc >= 5:
+                return base - 8.0
+            return base
+    
+        candidates.sort(key=tempo_rating, reverse=True)
+        spells, non_basic_lands = (
+            candidates[:24],
+            select_useful_lands(pool, colors, metrics),
+        )
+    
+        total_lands_needed = 40 - len(spells)
+        if len(non_basic_lands) > total_lands_needed:
+            non_basic_lands.sort(
+                key=lambda x: float(
+                    x.get("deck_colors", {}).get("All Decks", {}).get("gihwr", 0.0)
+                ),
+                reverse=True,
+            )
+            non_basic_lands = non_basic_lands[:total_lands_needed]
+    
+        needed_basics = max(0, total_lands_needed - len(non_basic_lands))
+        basics = calculate_dynamic_mana_base(
+            spells, non_basic_lands, colors, forced_count=needed_basics
+        )
+        return stack_cards(spells + non_basic_lands + basics)
+    
+    
+    @staticmethod
+    def build_soup(pool: List[CardData], metrics, tier_data=None):
+        candidates = [c for c in pool if "Land" not in c.get("types", [])]
+    
+        def soup_rating(card):
+            base, tags = (
+                get_card_rating(card, ["All Decks"], metrics, tier_data),
+                card.get("tags", []),
+            )
+            text, name = (
+                get_oracle_text(card),
+                str(card.get("name", "")).lower(),
+            )
+    
+            is_fixer = "fixing_ramp" in tags or any(
+                fn in name for fn in constants.FIXING_NAMES
+            )
+            if not is_fixer:
+                universal_phrases = [
+                    "any color",
+                    "any one color",
+                    "any type",
+                    "chosen color",
+                    "{w}, {u}, {b}, {r}, or {g}",
+                    "search your library for a basic",
+                    "create a treasure",
+                    "treasure token",
+                    "basic landcycling",
+                ]
+                if any(phrase in text for phrase in universal_phrases):
+                    is_fixer = True
+            return base + 5.0 if is_fixer else base
+    
+        candidates.sort(key=soup_rating, reverse=True)
+        spells = candidates[:23]
+        if not spells:
+            return None, []
+    
+        soup_colors = get_strict_colors(spells)
+        if not soup_colors:
+            soup_colors = ["W", "U", "B", "R", "G"]
+        non_basic_lands = select_useful_lands(pool, soup_colors, metrics)
+    
+        total_lands_needed = 40 - len(spells)
+        if len(non_basic_lands) > total_lands_needed:
+            non_basic_lands.sort(
+                key=lambda x: float(
+                    x.get("deck_colors", {}).get("All Decks", {}).get("gihwr", 0.0)
+                ),
+                reverse=True,
+            )
+            non_basic_lands = non_basic_lands[:total_lands_needed]
+    
+        needed_basics = max(0, total_lands_needed - len(non_basic_lands))
+        basics = calculate_dynamic_mana_base(
+            spells, non_basic_lands, soup_colors, forced_count=needed_basics
+        )
+        return stack_cards(spells + non_basic_lands + basics), soup_colors
+
 
 _DEFAULT_PLANNER = DeckPlanner()
 
@@ -434,7 +651,6 @@ def select_safe_deck_index(final_list):
         )
 
     return max(candidates, key=rank)
-    return -1
 
 
 def clear_deck_cache():
@@ -777,217 +993,3 @@ def suggest_deck(
         dataset_name,
     )
 
-
-def build_variant_consistency(pool: List[CardData], colors, metrics, tier_data=None):
-    candidates = [
-        c
-        for c in pool
-        if is_castable(c, colors, strict=True) and "Land" not in c.get("types", [])
-    ]
-    candidates.sort(key=lambda x: get_card_rating(x, colors, metrics), reverse=True)
-    spells, non_basic_lands = (
-        candidates[:23],
-        select_useful_lands(pool, colors, metrics),
-    )
-
-    total_lands_needed = 40 - len(spells)
-    if len(non_basic_lands) > total_lands_needed:
-        non_basic_lands.sort(
-            key=lambda x: float(
-                x.get("deck_colors", {}).get("All Decks", {}).get("gihwr", 0.0)
-            ),
-            reverse=True,
-        )
-        non_basic_lands = non_basic_lands[:total_lands_needed]
-
-    needed_basics = max(0, total_lands_needed - len(non_basic_lands))
-    basics = calculate_dynamic_mana_base(
-        spells, non_basic_lands, colors, forced_count=needed_basics
-    )
-    return stack_cards(spells + non_basic_lands + basics)
-
-
-def build_variant_greedy(pool: List[CardData], colors, metrics, tier_data=None):
-    global_mean, global_std = metrics.get_metrics("All Decks", "gihwr")
-    if global_mean == 0.0:
-        global_mean = 54.0
-    if global_std == 0.0:
-        global_std = 4.0
-
-    fixing_sources = count_fixing(pool)
-    splash_candidates, best_rating = [], global_mean - (global_std * 0.5)
-
-    for card in pool:
-        card_colors, mana_cost = card.get("colors", []), card.get("mana_cost", "")
-        if (
-            is_castable(card, colors, strict=True)
-            or not card_colors
-            or len(card_colors) > 1
-        ):
-            continue
-
-        splash_col, off_color_pips = card_colors[0], 0
-        for pip in re.findall(r"\{(.*?)\}", mana_cost):
-            options = [c for c in pip.split("/") if c in constants.CARD_COLORS]
-            if options and not any(opt in colors for opt in options):
-                off_color_pips += 1
-
-        if off_color_pips > 1:
-            total_fixing = fixing_sources.get(splash_col, 0) + count_fixing(pool).get(
-                splash_col, 0
-            )
-            if not (
-                off_color_pips == 2
-                and get_functional_cmc(card) >= 5
-                and total_fixing >= 3
-            ):
-                continue
-
-        rating = get_card_rating(card, ["All Decks"], metrics)
-        if rating > best_rating and fixing_sources.get(splash_col, 0) >= 1:
-            splash_candidates.append((card, splash_col, rating))
-
-    if not splash_candidates:
-        return None, ""
-
-    splash_candidates.sort(key=lambda x: x[2], reverse=True)
-    best_splash_col = splash_candidates[0][1]
-    valid_splashes = [c[0] for c in splash_candidates if c[1] == best_splash_col]
-
-    main_spells = [
-        c
-        for c in pool
-        if is_castable(c, colors, strict=True) and "Land" not in c.get("types", [])
-    ]
-    main_spells.sort(key=lambda x: get_card_rating(x, colors, metrics), reverse=True)
-
-    # A splash is 2-3 cards depending on fixing, not a third color pillar.
-    # Filling thin main colors with unlimited splash cards produced "splash"
-    # decks with 6 off-color spells on 2 sources.
-    splash_cap = 3 if fixing_sources.get(best_splash_col, 0) >= 3 else 2
-
-    deck_spells = main_spells[:23]
-    needed = 23 - len(deck_spells)
-    if needed > 0:
-        deck_spells.extend(valid_splashes[: min(needed, splash_cap)])
-        if sum(c.get("count", 1) for c in deck_spells) < 20:
-            # Even a capped splash can't make this pair a real deck.
-            return None, ""
-    elif valid_splashes:
-        deck_spells = main_spells[:22] + [valid_splashes[0]]
-
-    target_colors = colors + [best_splash_col]
-    non_basic_lands = select_useful_lands(pool, target_colors, metrics)
-
-    total_lands_needed = 40 - len(deck_spells)
-    if len(non_basic_lands) > total_lands_needed:
-        non_basic_lands.sort(
-            key=lambda x: float(
-                x.get("deck_colors", {}).get("All Decks", {}).get("gihwr", 0.0)
-            ),
-            reverse=True,
-        )
-        non_basic_lands = non_basic_lands[:total_lands_needed]
-
-    needed_basics = max(0, total_lands_needed - len(non_basic_lands))
-    basics = calculate_dynamic_mana_base(
-        deck_spells, non_basic_lands, target_colors, forced_count=needed_basics
-    )
-    return stack_cards(deck_spells + non_basic_lands + basics), best_splash_col
-
-
-def build_variant_curve(pool: List[CardData], colors, metrics, tier_data=None):
-    candidates = [
-        c
-        for c in pool
-        if is_castable(c, colors, strict=True) and "Land" not in c.get("types", [])
-    ]
-
-    def tempo_rating(card):
-        base, cmc = get_card_rating(card, colors, metrics), get_functional_cmc(card)
-        if cmc <= 2:
-            return base + 4.0
-        if cmc >= 5:
-            return base - 8.0
-        return base
-
-    candidates.sort(key=tempo_rating, reverse=True)
-    spells, non_basic_lands = (
-        candidates[:24],
-        select_useful_lands(pool, colors, metrics),
-    )
-
-    total_lands_needed = 40 - len(spells)
-    if len(non_basic_lands) > total_lands_needed:
-        non_basic_lands.sort(
-            key=lambda x: float(
-                x.get("deck_colors", {}).get("All Decks", {}).get("gihwr", 0.0)
-            ),
-            reverse=True,
-        )
-        non_basic_lands = non_basic_lands[:total_lands_needed]
-
-    needed_basics = max(0, total_lands_needed - len(non_basic_lands))
-    basics = calculate_dynamic_mana_base(
-        spells, non_basic_lands, colors, forced_count=needed_basics
-    )
-    return stack_cards(spells + non_basic_lands + basics)
-
-
-def build_variant_soup(pool: List[CardData], metrics, tier_data=None):
-    candidates = [c for c in pool if "Land" not in c.get("types", [])]
-
-    def soup_rating(card):
-        base, tags = (
-            get_card_rating(card, ["All Decks"], metrics, tier_data),
-            card.get("tags", []),
-        )
-        text, name = (
-            get_oracle_text(card),
-            str(card.get("name", "")).lower(),
-        )
-
-        is_fixer = "fixing_ramp" in tags or any(
-            fn in name for fn in constants.FIXING_NAMES
-        )
-        if not is_fixer:
-            universal_phrases = [
-                "any color",
-                "any one color",
-                "any type",
-                "chosen color",
-                "{w}, {u}, {b}, {r}, or {g}",
-                "search your library for a basic",
-                "create a treasure",
-                "treasure token",
-                "basic landcycling",
-            ]
-            if any(phrase in text for phrase in universal_phrases):
-                is_fixer = True
-        return base + 5.0 if is_fixer else base
-
-    candidates.sort(key=soup_rating, reverse=True)
-    spells = candidates[:23]
-    if not spells:
-        return None, []
-
-    soup_colors = get_strict_colors(spells)
-    if not soup_colors:
-        soup_colors = ["W", "U", "B", "R", "G"]
-    non_basic_lands = select_useful_lands(pool, soup_colors, metrics)
-
-    total_lands_needed = 40 - len(spells)
-    if len(non_basic_lands) > total_lands_needed:
-        non_basic_lands.sort(
-            key=lambda x: float(
-                x.get("deck_colors", {}).get("All Decks", {}).get("gihwr", 0.0)
-            ),
-            reverse=True,
-        )
-        non_basic_lands = non_basic_lands[:total_lands_needed]
-
-    needed_basics = max(0, total_lands_needed - len(non_basic_lands))
-    basics = calculate_dynamic_mana_base(
-        spells, non_basic_lands, soup_colors, forced_count=needed_basics
-    )
-    return stack_cards(spells + non_basic_lands + basics), soup_colors

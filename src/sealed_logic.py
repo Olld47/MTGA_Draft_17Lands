@@ -341,11 +341,7 @@ def generate_sealed_shells(session: SealedSession, metrics, tier_data=None) -> N
     Analyzes the SealedSession's master pool and mathematically generates
     the top 3 distinct shells, loading them directly into the session variants.
     """
-    from src.advisor.deck_builder import (
-        build_variant_consistency,
-        build_variant_greedy,
-        build_variant_curve,
-    )
+    from src.advisor.deck_builder import DeckPlanner
     from src.advisor.deck_scorer import (
         identify_top_pairs,
         calculate_holistic_score,
@@ -363,7 +359,7 @@ def generate_sealed_shells(session: SealedSession, metrics, tier_data=None) -> N
     primary_pair = top_pairs[0]
 
     # 1. Safe 2-Color (Was "Best 2-Color")
-    con_deck = build_variant_consistency(pool, primary_pair, metrics, tier_data)
+    con_deck = DeckPlanner.build_consistency(pool, primary_pair, metrics, tier_data)
     if con_deck:
         score, _ = calculate_holistic_score(
             con_deck, primary_pair, len(pool), metrics, tier_data
@@ -375,7 +371,7 @@ def generate_sealed_shells(session: SealedSession, metrics, tier_data=None) -> N
         session.active_variant_name = variant.name
 
     # 2. Greedy Splash
-    greedy_deck, splash_color = build_variant_greedy(
+    greedy_deck, splash_color = DeckPlanner.build_greedy(
         pool, primary_pair, metrics, tier_data
     )
     if greedy_deck and splash_color:
@@ -390,7 +386,7 @@ def generate_sealed_shells(session: SealedSession, metrics, tier_data=None) -> N
 
     # 3. Aggro / Tempo
     secondary_pair = top_pairs[1] if len(top_pairs) > 1 else primary_pair
-    tempo_deck = build_variant_curve(pool, secondary_pair, metrics, tier_data)
+    tempo_deck = DeckPlanner.build_curve(pool, secondary_pair, metrics, tier_data)
     if tempo_deck:
         score, _ = calculate_holistic_score(
             tempo_deck, secondary_pair, len(pool), metrics, tier_data
