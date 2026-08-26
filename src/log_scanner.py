@@ -86,23 +86,22 @@ class ArenaScanner:
         self.set_data = Dataset(retrieve_unknown, db_path)
         self.tier_list = TierList()
 
-        # Persisted draft state (ticket 12): DraftSession is the single
-        # authority for identity, pack/pick, pools/history and the log cursors.
-        # The scanner exposes the same field names as adapter properties below
-        # (no second copy) and keeps the non-persisted runtime bits it owns
-        # (data_source, _last_seen_timestamp, _phase, lock, logging, Dataset).
+        # authority for identity, pack/pick, pools/history and log cursors.
+        # Scanner behavior accesses this state explicitly through session; it
+        # owns only runtime state, log scanning, event dispatch, Dataset
+        # coordination, and phase maintenance.
         self.session = DraftSession(self.state_file)
 
         self.data_source = "None"
         self._last_seen_timestamp = "Unknown"
         self._load_state()
         self._phase = derive_scanner_phase(
-            draft_type=self.draft_type,
-            draft_label=self.draft_label,
-            draft_sets=self.draft_sets,
-            taken_cards=self.taken_cards,
-            current_pick=self.current_pick,
-            current_picked_pick=self.current_picked_pick,
+            draft_type=self.session.draft_type,
+            draft_label=self.session.draft_label,
+            draft_sets=self.session.draft_sets,
+            taken_cards=self.session.taken_cards,
+            current_pick=self.session.current_pick,
+            current_picked_pick=self.session.current_picked_pick,
         )
 
     @property
@@ -115,212 +114,6 @@ class ArenaScanner:
         """
         return self._phase
 
-    # --- DraftSession adapter properties (ticket 12) --------------------------
-    # Every persisted field lives on DraftSession (src/draft_session.py); these
-    # same-name accessors keep the pre-refactor scanner surface — direct field
-    # reads/writes by the UIs, orchestrator, bridge, and the internal scan
-    # code — intact without a second copy of the state. Both directions
-    # delegate to self.session; there is no independent backing field.
-
-    @property
-    def draft_type(self):
-        return self.session.draft_type
-
-    @draft_type.setter
-    def draft_type(self, value):
-        self.session.draft_type = value
-
-    @property
-    def draft_label(self):
-        return self.session.draft_label
-
-    @draft_label.setter
-    def draft_label(self, value):
-        self.session.draft_label = value
-
-    @property
-    def draft_sets(self):
-        return self.session.draft_sets
-
-    @draft_sets.setter
-    def draft_sets(self, value):
-        self.session.draft_sets = value
-
-    @property
-    def event_string(self):
-        return self.session.event_string
-
-    @event_string.setter
-    def event_string(self, value):
-        self.session.event_string = value
-
-    @property
-    def current_draft_id(self):
-        return self.session.current_draft_id
-
-    @current_draft_id.setter
-    def current_draft_id(self, value):
-        self.session.current_draft_id = value
-
-    @property
-    def current_transaction_id(self):
-        return self.session.current_transaction_id
-
-    @current_transaction_id.setter
-    def current_transaction_id(self, value):
-        self.session.current_transaction_id = value
-
-    @property
-    def draft_start_time(self):
-        return self.session.draft_start_time
-
-    @draft_start_time.setter
-    def draft_start_time(self, value):
-        self.session.draft_start_time = value
-
-    @property
-    def number_of_players(self):
-        return self.session.number_of_players
-
-    @number_of_players.setter
-    def number_of_players(self, value):
-        self.session.number_of_players = value
-
-    @property
-    def current_pack(self):
-        return self.session.current_pack
-
-    @current_pack.setter
-    def current_pack(self, value):
-        self.session.current_pack = value
-
-    @property
-    def current_pick(self):
-        return self.session.current_pick
-
-    @current_pick.setter
-    def current_pick(self, value):
-        self.session.current_pick = value
-
-    @property
-    def current_picked_pick(self):
-        return self.session.current_picked_pick
-
-    @current_picked_pick.setter
-    def current_picked_pick(self, value):
-        self.session.current_picked_pick = value
-
-    @property
-    def previous_scanned_pack(self):
-        return self.session.previous_scanned_pack
-
-    @previous_scanned_pack.setter
-    def previous_scanned_pack(self, value):
-        self.session.previous_scanned_pack = value
-
-    @property
-    def previous_picked_pack(self):
-        return self.session.previous_picked_pack
-
-    @previous_picked_pack.setter
-    def previous_picked_pack(self, value):
-        self.session.previous_picked_pack = value
-
-    @property
-    def taken_cards(self):
-        return self.session.taken_cards
-
-    @taken_cards.setter
-    def taken_cards(self, value):
-        self.session.taken_cards = value
-
-    @property
-    def picked_cards(self):
-        return self.session.picked_cards
-
-    @picked_cards.setter
-    def picked_cards(self, value):
-        self.session.picked_cards = value
-
-    @property
-    def pack_cards(self):
-        return self.session.pack_cards
-
-    @pack_cards.setter
-    def pack_cards(self, value):
-        self.session.pack_cards = value
-
-    @property
-    def initial_pack(self):
-        return self.session.initial_pack
-
-    @initial_pack.setter
-    def initial_pack(self, value):
-        self.session.initial_pack = value
-
-    @property
-    def sideboard(self):
-        return self.session.sideboard
-
-    @sideboard.setter
-    def sideboard(self, value):
-        self.session.sideboard = value
-
-    @property
-    def draft_history(self):
-        return self.session.draft_history
-
-    @draft_history.setter
-    def draft_history(self, value):
-        self.session.draft_history = value
-
-    @property
-    def search_offset(self):
-        return self.session.search_offset
-
-    @search_offset.setter
-    def search_offset(self, value):
-        self.session.search_offset = value
-
-    @property
-    def pick_offset(self):
-        return self.session.pick_offset
-
-    @pick_offset.setter
-    def pick_offset(self, value):
-        self.session.pick_offset = value
-
-    @property
-    def pack_offset(self):
-        return self.session.pack_offset
-
-    @pack_offset.setter
-    def pack_offset(self, value):
-        self.session.pack_offset = value
-
-    @property
-    def pool_offset(self):
-        return self.session.pool_offset
-
-    @pool_offset.setter
-    def pool_offset(self, value):
-        self.session.pool_offset = value
-
-    @property
-    def draft_start_offset(self):
-        return self.session.draft_start_offset
-
-    @draft_start_offset.setter
-    def draft_start_offset(self, value):
-        self.session.draft_start_offset = value
-
-    @property
-    def file_size(self):
-        return self.session.file_size
-
-    @file_size.setter
-    def file_size(self, value):
-        self.session.file_size = value
 
     def set_arena_file(self, filename):
         """Updates the log path and resets pointers for a clean scan."""
@@ -328,9 +121,9 @@ class ArenaScanner:
             if self.arena_file != filename:
                 logger.info(f"Scanner path updated to: {filename}")
                 self.arena_file = filename
-                self.search_offset = 0
-                self.draft_start_offset = 0
-                self.file_size = 0
+                self.session.search_offset = 0
+                self.session.draft_start_offset = 0
+                self.session.file_size = 0
                 self.clear_draft(True)
 
                 # Do not write to past draft logs
@@ -402,12 +195,12 @@ class ArenaScanner:
             self.session.clear(full_clear)
             self.data_source = "None"
             self._phase = derive_scanner_phase(
-                draft_type=self.draft_type,
-                draft_label=self.draft_label,
-                draft_sets=self.draft_sets,
-                taken_cards=self.taken_cards,
-                current_pick=self.current_pick,
-                current_picked_pick=self.current_picked_pick,
+                draft_type=self.session.draft_type,
+                draft_label=self.session.draft_label,
+                draft_sets=self.session.draft_sets,
+                taken_cards=self.session.taken_cards,
+                current_pick=self.session.current_pick,
+                current_picked_pick=self.session.current_picked_pick,
             )
 
     def _mark_draft_complete(self):
@@ -424,15 +217,15 @@ class ArenaScanner:
         transaction id still wipes and re-registers via __check_event.
         """
         with self.lock:
-            was_active = self.draft_type != constants.LIMITED_TYPE_UNKNOWN
+            was_active = self.session.draft_type != constants.LIMITED_TYPE_UNKNOWN
             self.session.complete()
             self._phase = derive_scanner_phase(
-                draft_type=self.draft_type,
-                draft_label=self.draft_label,
-                draft_sets=self.draft_sets,
-                taken_cards=self.taken_cards,
-                current_pick=self.current_pick,
-                current_picked_pick=self.current_picked_pick,
+                draft_type=self.session.draft_type,
+                draft_label=self.session.draft_label,
+                draft_sets=self.session.draft_sets,
+                taken_cards=self.session.taken_cards,
+                current_pick=self.session.current_pick,
+                current_picked_pick=self.session.current_picked_pick,
             )
         if was_active:
             logger.info("Draft completed; cleared active state")
@@ -443,15 +236,15 @@ class ArenaScanner:
         with self.lock:
             try:
                 arena_file_size = os.path.getsize(self.arena_file)
-                if self.file_size > arena_file_size:
+                if self.session.file_size > arena_file_size:
                     self.clear_draft(True)
                     logger.info(
                         "New Arena Log Detected (%d), (%d)",
-                        self.file_size,
+                        self.session.file_size,
                         arena_file_size,
                     )
-                self.file_size = arena_file_size
-                offset = self.search_offset
+                self.session.file_size = arena_file_size
+                offset = self.session.search_offset
             except Exception:
                 return False
 
@@ -473,7 +266,7 @@ class ArenaScanner:
                     offset = log.tell()
 
                     with self.lock:
-                        self.search_offset = offset
+                        self.session.search_offset = offset
 
                     if line.startswith("[UnityCrossThreadLogger]"):
                         content = line[24:].strip()
@@ -493,8 +286,8 @@ class ArenaScanner:
                             draft_id = did
                             event_line = line
                             with self.lock:
-                                self.draft_start_offset = offset
-                                self.draft_start_time = self._last_seen_timestamp
+                                self.session.draft_start_offset = offset
+                                self.session.draft_start_time = self._last_seen_timestamp
 
                     elif "InternalEventName" in line and "CardPool" in line:
                         try:
@@ -514,9 +307,9 @@ class ArenaScanner:
                                         event_line = line
                                         card_pool = json_find("CardPool", event_data)
                                         with self.lock:
-                                            self.draft_start_offset = offset
+                                            self.session.draft_start_offset = offset
                                             if card_pool:
-                                                self.taken_cards = [
+                                                self.session.taken_cards = [
                                                     str(c) for c in card_pool
                                                 ]
                         except Exception as e:
@@ -524,12 +317,12 @@ class ArenaScanner:
 
             if update:
                 with self.lock:
-                    if self.draft_sets:
-                        self.__new_log(self.draft_sets[0], event_type, draft_id)
+                    if self.session.draft_sets:
+                        self.__new_log(self.session.draft_sets[0], event_type, draft_id)
                     self.draft_log.info(event_line.strip())
-                    self.pick_offset.position = self.draft_start_offset
-                    self.pack_offset.position = self.draft_start_offset
-                    self.pool_offset.position = self.draft_start_offset
+                    self.session.pick_offset.position = self.session.draft_start_offset
+                    self.session.pack_offset.position = self.session.draft_start_offset
+                    self.session.pool_offset.position = self.session.draft_start_offset
         except Exception as error:
             logger.error(error)
 
@@ -546,9 +339,9 @@ class ArenaScanner:
             event_name = json_find("EventName", event_data)
 
             with self.lock:
-                current_event_string = self.event_string
+                current_event_string = self.session.event_string
                 current_transaction_id = str(
-                    getattr(self, "current_transaction_id", "")
+                    self.session.current_transaction_id
                 )
 
             if current_event_string == event_name:
@@ -569,19 +362,19 @@ class ArenaScanner:
             if event_match:
                 self.clear_draft(False)
                 with self.lock:
-                    self.draft_type = constants.LIMITED_TYPES_DICT[event_type]
-                    self.draft_sets = event_set
-                    self.draft_label = event_label
-                    self.event_string = event_name
-                    self.current_transaction_id = draft_id
-                    self.number_of_players = number_of_players
+                    self.session.draft_type = constants.LIMITED_TYPES_DICT[event_type]
+                    self.session.draft_sets = event_set
+                    self.session.draft_label = event_label
+                    self.session.event_string = event_name
+                    self.session.current_transaction_id = draft_id
+                    self.session.number_of_players = number_of_players
                     self._phase = derive_scanner_phase(
-                        draft_type=self.draft_type,
-                        draft_label=self.draft_label,
-                        draft_sets=self.draft_sets,
-                        taken_cards=self.taken_cards,
-                        current_pick=self.current_pick,
-                        current_picked_pick=self.current_picked_pick,
+                        draft_type=self.session.draft_type,
+                        draft_label=self.session.draft_label,
+                        draft_sets=self.session.draft_sets,
+                        taken_cards=self.session.taken_cards,
+                        current_pick=self.session.current_pick,
+                        current_picked_pick=self.session.current_picked_pick,
                     )
                     self._save_state()
                 update = True
@@ -764,7 +557,7 @@ class ArenaScanner:
 
             expected_players = (
                 4
-                if self.draft_type
+                if self.session.draft_type
                 in [
                     constants.LIMITED_TYPE_DRAFT_PICK_TWO,
                     constants.LIMITED_TYPE_DRAFT_PICK_TWO_TRAD,
@@ -772,17 +565,17 @@ class ArenaScanner:
                 ]
                 else 8
             )
-            self.number_of_players = expected_players
+            self.session.number_of_players = expected_players
 
             # Handle Pack Transitions securely
             if (
-                pack > self.previous_scanned_pack
-                or len(self.initial_pack) != expected_players
+                pack > self.session.previous_scanned_pack
+                or len(self.session.initial_pack) != expected_players
             ):
-                self.initial_pack = [[] for _ in range(expected_players)]
-                self.pack_cards = [[] for _ in range(expected_players)]
-                self.previous_scanned_pack = pack
-            elif pack < self.previous_scanned_pack:
+                self.session.initial_pack = [[] for _ in range(expected_players)]
+                self.session.pack_cards = [[] for _ in range(expected_players)]
+                self.session.previous_scanned_pack = pack
+            elif pack < self.session.previous_scanned_pack:
                 # Ignore severely delayed logs from a completely different pack to prevent memory corruption
                 return False
 
@@ -790,23 +583,23 @@ class ArenaScanner:
 
             # Prevent duplicate processing of the exact same pack
             if (
-                len(self.pack_cards) > pack_index
-                and self.pack_cards[pack_index] == pack_cards
+                len(self.session.pack_cards) > pack_index
+                and self.session.pack_cards[pack_index] == pack_cards
             ):
                 return False
 
             # Commit Data safely
-            if len(self.initial_pack[pack_index]) == 0 and pick <= expected_players:
-                self.initial_pack[pack_index] = pack_cards
+            if len(self.session.initial_pack[pack_index]) == 0 and pick <= expected_players:
+                self.session.initial_pack[pack_index] = pack_cards
 
-            self.pack_cards[pack_index] = pack_cards
+            self.session.pack_cards[pack_index] = pack_cards
 
             # Update High Watermark
             is_new_high_watermark = False
-            if pack > self.current_pack or (
-                pack == self.current_pack and pick >= self.current_pick
+            if pack > self.session.current_pack or (
+                pack == self.session.current_pack and pick >= self.session.current_pick
             ):
-                self.current_pack, self.current_pick = pack, pick
+                self.session.current_pack, self.session.current_pick = pack, pick
                 is_new_high_watermark = True
 
             # Record History
@@ -827,7 +620,7 @@ class ArenaScanner:
 
             # DYNAMIC EVENT UPGRADE: If MTGA mislabels a Pick-Two draft as a standard draft,
             # detect it based on the number of cards in the first pick payload.
-            if len(cards) >= 2 and self.draft_type not in [
+            if len(cards) >= 2 and self.session.draft_type not in [
                 constants.LIMITED_TYPE_DRAFT_PICK_TWO,
                 constants.LIMITED_TYPE_DRAFT_PICK_TWO_TRAD,
                 constants.LIMITED_TYPE_DRAFT_PICK_TWO_QUICK,
@@ -835,19 +628,19 @@ class ArenaScanner:
                 logger.info(
                     f"Dynamically upgrading event to Pick-Two based on payload size: {len(cards)}"
                 )
-                if self.draft_type == constants.LIMITED_TYPE_DRAFT_TRADITIONAL:
-                    self.draft_type = constants.LIMITED_TYPE_DRAFT_PICK_TWO_TRAD
-                elif self.draft_type == constants.LIMITED_TYPE_DRAFT_QUICK:
-                    self.draft_type = constants.LIMITED_TYPE_DRAFT_PICK_TWO_QUICK
+                if self.session.draft_type == constants.LIMITED_TYPE_DRAFT_TRADITIONAL:
+                    self.session.draft_type = constants.LIMITED_TYPE_DRAFT_PICK_TWO_TRAD
+                elif self.session.draft_type == constants.LIMITED_TYPE_DRAFT_QUICK:
+                    self.session.draft_type = constants.LIMITED_TYPE_DRAFT_PICK_TWO_QUICK
                 else:
-                    self.draft_type = constants.LIMITED_TYPE_DRAFT_PICK_TWO
+                    self.session.draft_type = constants.LIMITED_TYPE_DRAFT_PICK_TWO
 
             # Enforce maximum cards per pick to prevent MTGA JSON array-bloat bugs
             cards = cards[: self.cards_per_pick]
 
             expected_players = (
                 4
-                if self.draft_type
+                if self.session.draft_type
                 in [
                     constants.LIMITED_TYPE_DRAFT_PICK_TWO,
                     constants.LIMITED_TYPE_DRAFT_PICK_TWO_TRAD,
@@ -855,32 +648,32 @@ class ArenaScanner:
                 ]
                 else 8
             )
-            self.number_of_players = expected_players
+            self.session.number_of_players = expected_players
 
             # Prevent duplicate processing of historical picks when reconstructing state
-            if pack < self.previous_picked_pack:
+            if pack < self.session.previous_picked_pack:
                 return False
-            if pack == self.previous_picked_pack and pick <= self.current_picked_pick:
+            if pack == self.session.previous_picked_pack and pick <= self.session.current_picked_pick:
                 return False
 
             pack_index = (pick - 1) % expected_players
 
             if (
-                pack > self.previous_picked_pack
-                or len(self.picked_cards) != expected_players
+                pack > self.session.previous_picked_pack
+                or len(self.session.picked_cards) != expected_players
             ):
-                self.picked_cards = [[] for _ in range(expected_players)]
+                self.session.picked_cards = [[] for _ in range(expected_players)]
 
-            self.picked_cards[pack_index].extend(cards)
-            self.taken_cards.extend(cards)
+            self.session.picked_cards[pack_index].extend(cards)
+            self.session.taken_cards.extend(cards)
 
-            self.previous_picked_pack = pack
-            self.current_picked_pick = pick
+            self.session.previous_picked_pack = pack
+            self.session.current_picked_pick = pick
 
-            if pack > self.current_pack or (
-                pack == self.current_pack and pick >= self.current_pick
+            if pack > self.session.current_pack or (
+                pack == self.session.current_pack and pick >= self.session.current_pick
             ):
-                self.current_pack, self.current_pick = pack, pick
+                self.session.current_pack, self.session.current_pick = pack, pick
 
             self._save_state()
         return True
@@ -888,7 +681,7 @@ class ArenaScanner:
     def _check_and_wipe_stale_pool(self, pack, pick, current_cards, draft_id=None):
         wipe = False
         str_draft_id = str(draft_id) if draft_id else ""
-        str_current_id = str(self.current_draft_id) if self.current_draft_id else ""
+        str_current_id = str(self.session.current_draft_id) if self.session.current_draft_id else ""
 
         # 1. Draft ID Exact Match Protection
         if str_draft_id and str_current_id:
@@ -897,23 +690,23 @@ class ArenaScanner:
             else:
                 return  # Exact match! We are definitely re-reading history. Do not wipe!
         elif str_draft_id and not str_current_id:
-            if not self._load_state(str_draft_id) and self.taken_cards:
+            if not self._load_state(str_draft_id) and self.session.taken_cards:
                 wipe = True
 
             # 2. Time-Travel Protection (When Draft ID is missing or new)
             if not wipe:
-                if pack == 1 and pick == 1 and len(self.taken_cards) > 0:
+                if pack == 1 and pick == 1 and len(self.session.taken_cards) > 0:
                     # STRICT WIPE: It is P1P1, but we have cards from an old draft.
                     wipe = True
-                elif pack < self.current_pack or (
-                    pack == self.current_pack and pick < self.current_pick
+                elif pack < self.session.current_pack or (
+                    pack == self.session.current_pack and pick < self.session.current_pick
                 ):
                     # We are seeing an older pack/pick.
                     is_historical = False
                     if not current_cards:
                         is_historical = True
-                    elif self.draft_history:
-                        for entry in self.draft_history:
+                    elif self.session.draft_history:
+                        for entry in self.session.draft_history:
                             if entry["Pack"] == pack and entry["Pick"] == pick:
                                 if any(c in entry["Cards"] for c in current_cards):
                                     is_historical = True
@@ -922,33 +715,33 @@ class ArenaScanner:
                     if not is_historical:
                         wipe = True
 
-            elif pack == 1 and pick == 1 and self.taken_cards:
+            elif pack == 1 and pick == 1 and self.session.taken_cards:
                 # If we see P1P1 and we already have a massive pool, we missed the end of the last draft.
                 if (
-                    len(self.taken_cards) > 15
-                    or self.current_pack > 1
-                    or self.current_pick > 1
+                    len(self.session.taken_cards) > 15
+                    or self.session.current_pack > 1
+                    or self.session.current_pick > 1
                 ):
                     wipe = True
 
         if wipe:
             logger.info(
-                f"Stale Pool Wiped. Trigger: Pack {pack} Pick {pick} vs Current P{self.current_pack}P{self.current_pick}"
+                f"Stale Pool Wiped. Trigger: Pack {pack} Pick {pick} vs Current P{self.session.current_pack}P{self.session.current_pick}"
             )
-            self.taken_cards = []
-            self.picked_cards = [[] for _ in range(self.number_of_players)]
-            self.draft_history = []
-            self.sideboard = []
-            self.current_pack = 0
-            self.current_pick = 0
-            self.previous_picked_pack = 0
-            self.previous_scanned_pack = 0
-            self.current_picked_pick = 0
-            self.initial_pack = [[] for _ in range(self.number_of_players)]
-            self.pack_cards = [[] for _ in range(self.number_of_players)]
+            self.session.taken_cards = []
+            self.session.picked_cards = [[] for _ in range(self.session.number_of_players)]
+            self.session.draft_history = []
+            self.session.sideboard = []
+            self.session.current_pack = 0
+            self.session.current_pick = 0
+            self.session.previous_picked_pack = 0
+            self.session.previous_scanned_pack = 0
+            self.session.current_picked_pick = 0
+            self.session.initial_pack = [[] for _ in range(self.session.number_of_players)]
+            self.session.pack_cards = [[] for _ in range(self.session.number_of_players)]
 
         if str_draft_id and str_draft_id != str_current_id:
-            self.current_draft_id = str_draft_id
+            self.session.current_draft_id = str_draft_id
             self._save_state()
 
     # =========================================================================
@@ -961,7 +754,7 @@ class ArenaScanner:
 
         is_unknown = False
         with self.lock:
-            is_unknown = self.draft_type == constants.LIMITED_TYPE_UNKNOWN
+            is_unknown = self.session.draft_type == constants.LIMITED_TYPE_UNKNOWN
 
         if is_unknown:
             self.draft_start_search()
@@ -975,8 +768,8 @@ class ArenaScanner:
     def __perform_search_logic(self):
         """Dispatches log scanning safely lock-free."""
         with self.lock:
-            pk, pi = self.current_pack, self.current_pick
-            pp = self.current_picked_pick
+            pk, pi = self.session.current_pack, self.session.current_pick
+            pp = self.session.current_picked_pick
 
         explicit_update = False
         phase = self._phase
@@ -987,7 +780,7 @@ class ArenaScanner:
         # the pool is finished; a later EventJoin overwrites it via __check_event.
         # The short-circuit evaluation order of the old if/elif chain is
         # preserved exactly (a fired pack search skips the pick search, etc.).
-        if self.draft_type == constants.LIMITED_TYPE_UNKNOWN:
+        if self.session.draft_type == constants.LIMITED_TYPE_UNKNOWN:
             fired = None
             if self._search_pack_notify():
                 fired = ScannerEvent.PACK_NOTIFY
@@ -1008,21 +801,21 @@ class ArenaScanner:
                 ScannerEvent.PACK_NOTIFY,
                 ScannerEvent.PICK_HUMAN,
             ):
-                self.draft_type = constants.LIMITED_TYPE_DRAFT_PREMIER_V2
-                self.draft_label = constants.LIMITED_TYPE_STRING_DRAFT_PREMIER
-                self.number_of_players = 8
+                self.session.draft_type = constants.LIMITED_TYPE_DRAFT_PREMIER_V2
+                self.session.draft_label = constants.LIMITED_TYPE_STRING_DRAFT_PREMIER
+                self.session.number_of_players = 8
                 explicit_update = True
             elif fired in (
                 ScannerEvent.PACK_BOT,
                 ScannerEvent.PICK_BOT,
             ):
-                self.draft_type = constants.LIMITED_TYPE_DRAFT_QUICK
-                self.draft_label = constants.LIMITED_TYPE_STRING_DRAFT_QUICK
-                self.number_of_players = 8
+                self.session.draft_type = constants.LIMITED_TYPE_DRAFT_QUICK
+                self.session.draft_label = constants.LIMITED_TYPE_STRING_DRAFT_QUICK
+                self.session.number_of_players = 8
                 explicit_update = True
             elif fired == ScannerEvent.CARD_POOL:
-                self.draft_type = constants.LIMITED_TYPE_SEALED
-                self.draft_label = constants.LIMITED_TYPE_STRING_SEALED
+                self.session.draft_type = constants.LIMITED_TYPE_SEALED
+                self.session.draft_label = constants.LIMITED_TYPE_STRING_SEALED
                 explicit_update = True
 
             if fired is not None:
@@ -1031,7 +824,7 @@ class ArenaScanner:
             # Typed draft/sealed: scan the protocol family's events in the
             # registered order (FAMILY_SCANS preserves the pre-refactor order
             # verbatim) and advance the machine via the TRANSITIONS table.
-            for event, handler_name in FAMILY_SCANS[self.draft_type]:
+            for event, handler_name in FAMILY_SCANS[self.session.draft_type]:
                 fired = getattr(self, handler_name)()
                 if not fired:
                     continue
@@ -1045,9 +838,9 @@ class ArenaScanner:
 
         with self.lock:
             return bool(
-                (pk != self.current_pack)
-                or (pi != self.current_pick)
-                or (pp != self.current_picked_pick)
+                (pk != self.session.current_pack)
+                or (pi != self.session.current_pick)
+                or (pp != self.session.current_picked_pick)
                 or explicit_update
             )
 
@@ -1100,7 +893,7 @@ class ArenaScanner:
             )
 
         return self._parse_events(
-            self.pack_offset, [constants.DRAFT_PACK_STRING_PREMIER], _extract
+            self.session.pack_offset, [constants.DRAFT_PACK_STRING_PREMIER], _extract
         )
 
     def _search_pick_human(self) -> bool:
@@ -1146,7 +939,7 @@ class ArenaScanner:
             )
 
         return self._parse_events(
-            self.pick_offset, [constants.DRAFT_PICK_STRING_PREMIER], _extract
+            self.session.pick_offset, [constants.DRAFT_PICK_STRING_PREMIER], _extract
         )
 
     def _search_pick_v1(self) -> bool:
@@ -1173,7 +966,7 @@ class ArenaScanner:
             )
 
         return self._parse_events(
-            self.pick_offset, [constants.DRAFT_PICK_STRING_PREMIER_OLD], _extract
+            self.session.pick_offset, [constants.DRAFT_PICK_STRING_PREMIER_OLD], _extract
         )
 
     def _search_pack_bot(self):
@@ -1221,16 +1014,16 @@ class ArenaScanner:
                     if isinstance(picked, list)
                     else str(picked).split(",")
                 )
-                if len(picked_list) > len(self.taken_cards):
-                    self.taken_cards = picked_list
-                    self.picked_cards[0] = self.taken_cards
+                if len(picked_list) > len(self.session.taken_cards):
+                    self.session.taken_cards = picked_list
+                    self.session.picked_cards[0] = self.session.taken_cards
                     changed = True
             if changed:
                 fired = ScannerEvent.PACK_BOT
             return changed
 
         self._parse_events(
-            self.pack_offset, [constants.DRAFT_PACK_STRING_QUICK], _extract
+            self.session.pack_offset, [constants.DRAFT_PACK_STRING_QUICK], _extract
         )
         return fired
 
@@ -1263,13 +1056,13 @@ class ArenaScanner:
             )
 
         return self._parse_events(
-            self.pick_offset, [constants.DRAFT_PICK_STRING_QUICK], _extract
+            self.session.pick_offset, [constants.DRAFT_PICK_STRING_QUICK], _extract
         )
 
     def _search_card_pool(self):
         update = False
         for payload in self._scan_log_for_events(
-            self.pool_offset, ['"CardPool":[']
+            self.session.pool_offset, ['"CardPool":[']
         ):
             try:
                 data = process_json(payload)
@@ -1278,7 +1071,7 @@ class ArenaScanner:
                 pool = []
 
                 with self.lock:
-                    current_event_string = self.event_string
+                    current_event_string = self.session.event_string
 
                 # Check root first
                 if "CardPool" in data and "InternalEventName" in data:
@@ -1318,14 +1111,14 @@ class ArenaScanner:
                         # offered across the packs, NOT the cards picked so far
                         # — adopting it would mark a mid-draft reopen as
                         # complete. Keep the accurate taken_cards instead.
-                        if not current_event_string or self.draft_type in (
+                        if not current_event_string or self.session.draft_type in (
                             constants.LIMITED_TYPE_SEALED,
                             constants.LIMITED_TYPE_SEALED_TRADITIONAL,
                         ):
-                            if not self.taken_cards or sorted(
-                                self.taken_cards
+                            if not self.session.taken_cards or sorted(
+                                self.session.taken_cards
                             ) != sorted(pool_strs):
-                                self.taken_cards = pool_strs
+                                self.session.taken_cards = pool_strs
                                 self._save_state()
                                 update = True
             except Exception as e:
@@ -1342,7 +1135,7 @@ class ArenaScanner:
         Thin proxy for DatasetSelector.retrieve_data_sources — the catalog
         scan and event-type/group ranking live in src/dataset_selector.py.
         """
-        return _dataset_selector.retrieve_data_sources(self.draft_type)
+        return _dataset_selector.retrieve_data_sources(self.session.draft_type)
 
     def select_best_dataset(self, s_code: str, event_name: str = "") -> str:
         """Picks the most representative local dataset for an event.
@@ -1403,12 +1196,12 @@ class ArenaScanner:
 
     def retrieve_current_picked_cards(self) -> List[CardData]:
         with self.lock:
-            if self.current_pick == 0:
+            if self.session.current_pick == 0:
                 return []
 
             expected_players = (
                 4
-                if self.draft_type
+                if self.session.draft_type
                 in [
                     constants.LIMITED_TYPE_DRAFT_PICK_TWO,
                     constants.LIMITED_TYPE_DRAFT_PICK_TWO_TRAD,
@@ -1417,9 +1210,9 @@ class ArenaScanner:
                 else 8
             )
 
-            pack_index = (self.current_pick - 1) % expected_players
-            if pack_index < len(self.picked_cards):
-                return self.set_data.get_data_by_id(self.picked_cards[pack_index])
+            pack_index = (self.session.current_pick - 1) % expected_players
+            if pack_index < len(self.session.picked_cards):
+                return self.set_data.get_data_by_id(self.session.picked_cards[pack_index])
             return []
 
     def retrieve_current_missing_cards(self) -> List[CardData]:
@@ -1427,7 +1220,7 @@ class ArenaScanner:
             try:
                 expected_players = (
                     4
-                    if self.draft_type
+                    if self.session.draft_type
                     in [
                         constants.LIMITED_TYPE_DRAFT_PICK_TWO,
                         constants.LIMITED_TYPE_DRAFT_PICK_TWO_TRAD,
@@ -1436,14 +1229,14 @@ class ArenaScanner:
                     else 8
                 )
 
-                pack_index = (self.current_pick - 1) % expected_players
-                if pack_index < len(self.pack_cards) and pack_index < len(
-                    self.initial_pack
+                pack_index = (self.session.current_pick - 1) % expected_players
+                if pack_index < len(self.session.pack_cards) and pack_index < len(
+                    self.session.initial_pack
                 ):
                     card_list = [
                         x
-                        for x in self.initial_pack[pack_index]
-                        if x not in self.pack_cards[pack_index]
+                        for x in self.session.initial_pack[pack_index]
+                        if x not in self.session.pack_cards[pack_index]
                     ]
                     return self.set_data.get_data_by_id(card_list)
             except Exception as error:
@@ -1452,12 +1245,12 @@ class ArenaScanner:
 
     def retrieve_current_pack_cards(self) -> List[CardData]:
         with self.lock:
-            if self.current_pick == 0:
+            if self.session.current_pick == 0:
                 return []
 
             expected_players = (
                 4
-                if self.draft_type
+                if self.session.draft_type
                 in [
                     constants.LIMITED_TYPE_DRAFT_PICK_TWO,
                     constants.LIMITED_TYPE_DRAFT_PICK_TWO_TRAD,
@@ -1466,24 +1259,24 @@ class ArenaScanner:
                 else 8
             )
 
-            pack_index = (self.current_pick - 1) % expected_players
-            if pack_index < len(self.pack_cards):
+            pack_index = (self.session.current_pick - 1) % expected_players
+            if pack_index < len(self.session.pack_cards):
                 # We return copies of the card dicts so the UI can mutate them (e.g. for display names)
-                raw_cards = self.set_data.get_data_by_id(self.pack_cards[pack_index])
+                raw_cards = self.set_data.get_data_by_id(self.session.pack_cards[pack_index])
                 pack_cards: List[CardData] = []
 
                 # WHEEL PREDICTION: Cross-reference initial_pack slots to see which cards might come back.
                 rotation_size = expected_players
 
                 returnable_picks_by_name = {}
-                for i, slot_ids in enumerate(self.initial_pack):
+                for i, slot_ids in enumerate(self.session.initial_pack):
                     if i == pack_index or not slot_ids:
                         continue
                     # A pack from slot i wheels back at pick (i+1) + rotation_size
                     return_pick = (i + 1) + rotation_size
-                    if return_pick > self.current_pick:
+                    if return_pick > self.session.current_pick:
                         picked_from_slot = set(
-                            self.picked_cards[i] if i < len(self.picked_cards) else []
+                            self.session.picked_cards[i] if i < len(self.session.picked_cards) else []
                         )
                         remaining_ids = [
                             cid for cid in slot_ids if cid not in picked_from_slot
@@ -1507,7 +1300,7 @@ class ArenaScanner:
     @property
     def cards_per_pick(self):
         """Returns the number of cards taken per passing round (usually 1, or 2 for PickTwo)."""
-        if self.draft_type in [
+        if self.session.draft_type in [
             constants.LIMITED_TYPE_DRAFT_PICK_TWO,
             constants.LIMITED_TYPE_DRAFT_PICK_TWO_TRAD,
             constants.LIMITED_TYPE_DRAFT_PICK_TWO_QUICK,
@@ -1517,29 +1310,29 @@ class ArenaScanner:
 
     def retrieve_taken_cards(self) -> List[CardData]:
         with self.lock:
-            return self.set_data.get_data_by_id(self.taken_cards)
+            return self.set_data.get_data_by_id(self.session.taken_cards)
 
     def retrieve_current_pack_and_pick(self):
         with self.lock:
-            return self.current_pack, self.current_pick
+            return self.session.current_pack, self.session.current_pick
 
     def retrieve_current_limited_event(self):
         with self.lock:
-            return (self.draft_sets[0] if self.draft_sets else ""), self.draft_label
+            return (self.session.draft_sets[0] if self.session.draft_sets else ""), self.session.draft_label
 
     def _record_pack(self, pack, pick, card_ids):
         if (
-            self.draft_history
-            and self.draft_history[-1]["Pack"] == pack
-            and self.draft_history[-1]["Pick"] == pick
+            self.session.draft_history
+            and self.session.draft_history[-1]["Pack"] == pack
+            and self.session.draft_history[-1]["Pick"] == pick
         ):
             return
-        if not self.draft_history or (
-            self.draft_history[-1]["Pack"] != pack
-            or self.draft_history[-1]["Pick"] != pick
+        if not self.session.draft_history or (
+            self.session.draft_history[-1]["Pack"] != pack
+            or self.session.draft_history[-1]["Pick"] != pick
         ):
-            self.draft_history.append({"Pack": pack, "Pick": pick, "Cards": card_ids})
+            self.session.draft_history.append({"Pack": pack, "Pick": pick, "Cards": card_ids})
 
     def retrieve_draft_history(self):
         with self.lock:
-            return self.draft_history
+            return self.session.draft_history

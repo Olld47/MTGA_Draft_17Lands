@@ -203,9 +203,9 @@ def build_draft_state(scanner, config, include_pool_summary: bool = True) -> Dra
         pack_cards: List[CardData] = scanner.retrieve_current_pack_cards()
         missing_cards: List[CardData] = scanner.retrieve_current_missing_cards()
         picked_cards: List[CardData] = scanner.retrieve_current_picked_cards()
-        draft_id = scanner.current_draft_id
-        start_time = scanner.draft_start_time
-        event_string = scanner.event_string
+        draft_id = scanner.session.current_draft_id
+        start_time = scanner.session.draft_start_time
+        event_string = scanner.session.event_string
         arena_file = scanner.arena_file
         color_ratings = scanner.set_data.get_color_ratings()
 
@@ -269,7 +269,7 @@ def snapshot_recap_inputs(scanner):
         _, event_type = scanner.retrieve_current_limited_event()
         metrics = scanner.retrieve_set_metrics()
         taken_cards: List[CardData] = scanner.retrieve_taken_cards()
-        draft_id = scanner.current_draft_id
+        draft_id = scanner.session.current_draft_id
     return taken_cards, metrics, draft_id, event_type
 
 

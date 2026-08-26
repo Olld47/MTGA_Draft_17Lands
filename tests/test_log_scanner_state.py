@@ -16,33 +16,38 @@ def scanner(tmp_path):
         retrieve_unknown=False,
         state_file=str(tmp_path / "active_draft_state.json"),
     )
-    s.draft_type = LIMITED_TYPE_DRAFT_PREMIER_V2
+    s.session.draft_type = LIMITED_TYPE_DRAFT_PREMIER_V2
     return s
+def test_scanner_exposes_persisted_state_only_through_session(scanner):
+    """DraftSession is the persisted-state seam; scanner has no forwarding aliases."""
+    assert scanner.session.current_pack == 0
+    assert not hasattr(type(scanner), "current_pack")
+    assert not hasattr(type(scanner), "draft_history")
 
 
 def test_stale_pool_wipe_different_draft_id(scanner):
     """If Arena logs a completely new Transaction ID, wipe everything immediately."""
-    scanner.current_draft_id = "draft_A"
-    scanner.taken_cards = ["1", "2", "3"]
-    scanner.current_pack = 1
-    scanner.current_pick = 3
+    scanner.session.current_draft_id = "draft_A"
+    scanner.session.taken_cards = ["1", "2", "3"]
+    scanner.session.current_pack = 1
+    scanner.session.current_pick = 3
 
     # Provide new draft ID
     scanner._check_and_wipe_stale_pool(
         pack=1, pick=1, current_cards=["4", "5"], draft_id="draft_B"
     )
 
-    assert len(scanner.taken_cards) == 0
-    assert scanner.current_pack == 0
-    assert scanner.current_draft_id == "draft_B"
+    assert len(scanner.session.taken_cards) == 0
+    assert scanner.session.current_pack == 0
+    assert scanner.session.current_draft_id == "draft_B"
 
 
 def test_stale_pool_wipe_time_travel_backwards(scanner):
     """If we see an older pack/pick than our current state, and the cards don't match our history, it's a stale restart."""
-    scanner.current_draft_id = ""  # No ID provided by log
-    scanner.current_pack = 2
-    scanner.current_pick = 5
-    scanner.taken_cards = ["1"] * 20
+    scanner.session.current_draft_id = ""  # No ID provided by log
+    scanner.session.current_pack = 2
+    scanner.session.current_pick = 5
+    scanner.session.taken_cards = ["1"] * 20
 
     # Force the scanner into the time-travel logic block by providing a new draft ID
     # but mocking _load_state to simulate a successful load (so wipe starts False)
@@ -53,8 +58,8 @@ def test_stale_pool_wipe_time_travel_backwards(scanner):
         pack=1, pick=1, current_cards=["99", "100"], draft_id="draft_B"
     )
 
-    assert len(scanner.taken_cards) == 0
-    assert scanner.current_pack == 0
+    assert len(scanner.session.taken_cards) == 0
+    assert scanner.session.current_pack == 0
 
 
 def test_load_state_normalizes_legacy_string_draft_type(tmp_path):
@@ -82,7 +87,7 @@ def test_load_state_normalizes_legacy_string_draft_type(tmp_path):
         state_file=str(state_file),
     )
     assert s._load_state() is True
-    assert s.draft_type == constants.LIMITED_TYPE_DRAFT_CONTENDER
+    assert s.session.draft_type == constants.LIMITED_TYPE_DRAFT_CONTENDER
 
 
 # --- state_file injection ----------------------------------------------------
@@ -102,9 +107,9 @@ def test_state_file_injection_persists_only_to_injected_path(tmp_path):
         retrieve_unknown=False,
         state_file=str(state_file),
     )
-    s.draft_type = LIMITED_TYPE_DRAFT_PREMIER_V2
-    s.current_draft_id = "draft_injected"
-    s.taken_cards = ["1", "2", "3"]
+    s.session.draft_type = LIMITED_TYPE_DRAFT_PREMIER_V2
+    s.session.current_draft_id = "draft_injected"
+    s.session.taken_cards = ["1", "2", "3"]
     s._save_state()
 
     assert state_file.exists()
@@ -118,9 +123,9 @@ def test_state_file_injection_persists_only_to_injected_path(tmp_path):
         state_file=str(state_file),
     )
     assert fresh._load_state() is True
-    assert fresh.draft_type == LIMITED_TYPE_DRAFT_PREMIER_V2
-    assert fresh.current_draft_id == "draft_injected"
-    assert fresh.taken_cards == ["1", "2", "3"]
+    assert fresh.session.draft_type == LIMITED_TYPE_DRAFT_PREMIER_V2
+    assert fresh.session.current_draft_id == "draft_injected"
+    assert fresh.session.taken_cards == ["1", "2", "3"]
 
 
 def test_state_file_injection_clear_draft_removes_injected_file(tmp_path):
@@ -147,13 +152,13 @@ def test_state_file_defaults_to_temp_folder(monkeypatch, tmp_path):
 
 def test_stale_pool_no_wipe_historical_replay(scanner):
     """If we time-travel backwards but the cards MATCH our history exactly, DO NOT WIPE. We are just re-parsing the log."""
-    scanner.current_draft_id = ""
-    scanner.current_pack = 2
-    scanner.current_pick = 5
-    scanner.taken_cards = ["1"] * 20
+    scanner.session.current_draft_id = ""
+    scanner.session.current_pack = 2
+    scanner.session.current_pick = 5
+    scanner.session.taken_cards = ["1"] * 20
 
     # Build a matching history
-    scanner.draft_history = [{"Pack": 1, "Pick": 2, "Cards": ["A", "B", "C"]}]
+    scanner.session.draft_history = [{"Pack": 1, "Pick": 2, "Cards": ["A", "B", "C"]}]
 
     # We see P1P2 again, and the cards match our history.
     scanner._check_and_wipe_stale_pool(
@@ -161,7 +166,7 @@ def test_stale_pool_no_wipe_historical_replay(scanner):
     )
 
     # Pool should NOT be wiped
-    assert len(scanner.taken_cards) == 20
+    assert len(scanner.session.taken_cards) == 20
 
 
 # --- Dataset auto-select ------------------------------------------------------
@@ -239,7 +244,7 @@ def test_retrieve_data_sources_proxy_forwards_draft_type(scanner, monkeypatch):
         lambda _self, draft_type: received.update(draft_type=draft_type)
         or "/proxied.json",
     )
-    scanner.draft_type = constants.LIMITED_TYPE_DRAFT_QUICK
+    scanner.session.draft_type = constants.LIMITED_TYPE_DRAFT_QUICK
     assert scanner.retrieve_data_sources() == "/proxied.json"
     assert received["draft_type"] == constants.LIMITED_TYPE_DRAFT_QUICK
 
@@ -272,38 +277,38 @@ def test_mark_draft_complete_retires_live_state_keeps_pool(scanner):
     completion — the desktop recap gate keys off draft_label, so zeroing it here
     would permanently block the recap. Only the live pack/pick retires; a later
     EventJoin with a new transaction id still wipes via __check_event."""
-    scanner.draft_type = LIMITED_TYPE_DRAFT_PREMIER_V2
-    scanner.taken_cards = ["1", "2", "3"]
-    scanner.draft_history = [{"Pack": 1, "Pick": 1, "Cards": ["1"]}]
-    scanner.current_pack = 3
-    scanner.current_pick = 14
-    scanner.previous_scanned_pack = 3
-    scanner.previous_picked_pack = 3
-    scanner.current_picked_pick = 14
-    scanner.picked_cards = [["1", "2", "3"]]
-    scanner.pack_cards = [["9", "8"]]
-    scanner.initial_pack = [["9", "8"]]
-    scanner.event_string = "PremierDraft_MSH_20260731"
-    scanner.draft_label = "PremierDraft"
-    scanner.draft_sets = ["MSH"]
-    scanner.draft_start_time = "2026-07-31T12:00:00"
+    scanner.session.draft_type = LIMITED_TYPE_DRAFT_PREMIER_V2
+    scanner.session.taken_cards = ["1", "2", "3"]
+    scanner.session.draft_history = [{"Pack": 1, "Pick": 1, "Cards": ["1"]}]
+    scanner.session.current_pack = 3
+    scanner.session.current_pick = 14
+    scanner.session.previous_scanned_pack = 3
+    scanner.session.previous_picked_pack = 3
+    scanner.session.current_picked_pick = 14
+    scanner.session.picked_cards = [["1", "2", "3"]]
+    scanner.session.pack_cards = [["9", "8"]]
+    scanner.session.initial_pack = [["9", "8"]]
+    scanner.session.event_string = "PremierDraft_MSH_20260731"
+    scanner.session.draft_label = "PremierDraft"
+    scanner.session.draft_sets = ["MSH"]
+    scanner.session.draft_start_time = "2026-07-31T12:00:00"
     scanner.session.save = MagicMock()
 
     scanner._mark_draft_complete()
 
-    assert scanner.draft_type == 0  # LIMITED_TYPE_UNKNOWN → next EventJoin is fresh
-    assert scanner.current_pack == 0
-    assert scanner.current_pick == 0
+    assert scanner.session.draft_type == 0  # LIMITED_TYPE_UNKNOWN → next EventJoin is fresh
+    assert scanner.session.current_pack == 0
+    assert scanner.session.current_pick == 0
     # Recap identity preserved so compute_draft_complete still recognizes it.
-    assert scanner.event_string == "PremierDraft_MSH_20260731"
-    assert scanner.draft_label == "PremierDraft"
-    assert scanner.draft_sets == ["MSH"]
-    assert scanner.draft_start_time == "2026-07-31T12:00:00"
-    assert scanner.picked_cards == [[] for _ in range(8)]
-    assert scanner.pack_cards == [[] for _ in range(8)]
+    assert scanner.session.event_string == "PremierDraft_MSH_20260731"
+    assert scanner.session.draft_label == "PremierDraft"
+    assert scanner.session.draft_sets == ["MSH"]
+    assert scanner.session.draft_start_time == "2026-07-31T12:00:00"
+    assert scanner.session.picked_cards == [[] for _ in range(8)]
+    assert scanner.session.pack_cards == [[] for _ in range(8)]
     # The drafted pool and history survive — recap of the finished draft needs them.
-    assert scanner.taken_cards == ["1", "2", "3"]
-    assert scanner.draft_history == [{"Pack": 1, "Pick": 1, "Cards": ["1"]}]
+    assert scanner.session.taken_cards == ["1", "2", "3"]
+    assert scanner.session.draft_history == [{"Pack": 1, "Pick": 1, "Cards": ["1"]}]
     # UNKNOWN + preserved recap payload → Done, not cold Idle.
     from src.scanner_state import ScannerPhase
 
@@ -312,13 +317,13 @@ def test_mark_draft_complete_retires_live_state_keeps_pool(scanner):
 
 
 def test_mark_draft_complete_treats_no_active_draft_as_noop(scanner):
-    scanner.draft_type = 0
-    scanner.taken_cards = ["1", "2"]
+    scanner.session.draft_type = 0
+    scanner.session.taken_cards = ["1", "2"]
     scanner.session.save = MagicMock()
 
     scanner._mark_draft_complete()
 
-    assert scanner.taken_cards == ["1", "2"]
+    assert scanner.session.taken_cards == ["1", "2"]
     scanner.session.save.assert_called_once()
 
 
@@ -360,14 +365,14 @@ def test_card_pool_recovery_does_not_clobber_reopened_draft(tmp_path):
     recovery dump (all cards offered) must not replace the 16 picks."""
     s = _recovery_scanner(tmp_path, MSH_RECOVERY_DUMP)
     from src import constants
-    s.draft_type = constants.LIMITED_TYPE_DRAFT_QUICK
-    s.event_string = "QuickDraft_MSH_20260731"
-    s.current_transaction_id = "b2b24af9-d1b3-4034-be5b-a36f93bc696e"
-    s.taken_cards = [str(1000 + i) for i in range(16)]  # 16 accurate picks
+    s.session.draft_type = constants.LIMITED_TYPE_DRAFT_QUICK
+    s.session.event_string = "QuickDraft_MSH_20260731"
+    s.session.current_transaction_id = "b2b24af9-d1b3-4034-be5b-a36f93bc696e"
+    s.session.taken_cards = [str(1000 + i) for i in range(16)]  # 16 accurate picks
 
     s._search_card_pool()
 
-    assert s.taken_cards == [str(1000 + i) for i in range(16)]
+    assert s.session.taken_cards == [str(1000 + i) for i in range(16)]
 
 
 def test_card_pool_recovery_still_adopts_sealed_pool(tmp_path):
@@ -375,12 +380,12 @@ def test_card_pool_recovery_still_adopts_sealed_pool(tmp_path):
     still adopt it."""
     s = _recovery_scanner(tmp_path, DSK_SEALED_DUMP)
     from src import constants
-    s.draft_type = constants.LIMITED_TYPE_SEALED
-    s.event_string = "Sealed_DSK_20240924"
+    s.session.draft_type = constants.LIMITED_TYPE_SEALED
+    s.session.event_string = "Sealed_DSK_20240924"
 
     s._search_card_pool()
 
-    assert s.taken_cards == [str(2000 + i) for i in range(20)]
+    assert s.session.taken_cards == [str(2000 + i) for i in range(20)]
 
 
 def test_card_pool_recovery_cold_start_adopts_sealed_pool(tmp_path):
@@ -388,12 +393,12 @@ def test_card_pool_recovery_cold_start_adopts_sealed_pool(tmp_path):
     sealed event and seeds taken_cards from the dump."""
     s = _recovery_scanner(tmp_path, DSK_SEALED_DUMP)
     from src import constants
-    s.draft_type = constants.LIMITED_TYPE_UNKNOWN
+    s.session.draft_type = constants.LIMITED_TYPE_UNKNOWN
 
     s._search_card_pool()
 
-    assert s.event_string == "Sealed_DSK_20240924"
-    assert s.taken_cards == [str(2000 + i) for i in range(20)]
+    assert s.session.event_string == "Sealed_DSK_20240924"
+    assert s.session.taken_cards == [str(2000 + i) for i in range(20)]
 
 
 # --- Scan-offset persistence --------------------------------------------------
@@ -409,22 +414,22 @@ def test_state_persists_scan_offsets(tmp_path):
     from src import constants
 
     s = _recovery_scanner(tmp_path, "MTGA Log Start\n")
-    s.search_offset = 1111
-    s.pick_offset.position = 2222
-    s.pack_offset.position = 3333
-    s.pool_offset.position = 4444
-    s.file_size = 5555
-    s.draft_type = constants.LIMITED_TYPE_DRAFT_PREMIER_V2
-    s.taken_cards = ["1"]
+    s.session.search_offset = 1111
+    s.session.pick_offset.position = 2222
+    s.session.pack_offset.position = 3333
+    s.session.pool_offset.position = 4444
+    s.session.file_size = 5555
+    s.session.draft_type = constants.LIMITED_TYPE_DRAFT_PREMIER_V2
+    s.session.taken_cards = ["1"]
     s._save_state()
 
     fresh = _recovery_scanner(tmp_path, "MTGA Log Start\n")
     assert fresh._load_state() is True
-    assert fresh.search_offset == 1111
-    assert fresh.pick_offset.position == 2222
-    assert fresh.pack_offset.position == 3333
-    assert fresh.pool_offset.position == 4444
-    assert fresh.file_size == 5555
+    assert fresh.session.search_offset == 1111
+    assert fresh.session.pick_offset.position == 2222
+    assert fresh.session.pack_offset.position == 3333
+    assert fresh.session.pool_offset.position == 4444
+    assert fresh.session.file_size == 5555
 
 
 def test_reopen_does_not_wipe_restored_state_when_log_has_old_events(tmp_path):
@@ -443,21 +448,21 @@ def test_reopen_does_not_wipe_restored_state_when_log_has_old_events(tmp_path):
     log_size = log.stat().st_size
 
     # Restore a mid-draft state as if the app saved it before disconnecting.
-    s.draft_type = constants.LIMITED_TYPE_DRAFT_PREMIER_V2
-    s.draft_sets = ["MSH"]
-    s.draft_label = "PremierDraft"
-    s.event_string = "PremierDraft_MSH_20260731"
-    s.current_draft_id = "draft_B"
-    s.current_transaction_id = "txn_B"
-    s.taken_cards = [str(1000 + i) for i in range(17)]
-    s.draft_history = [{"Pack": 1, "Pick": 1, "Cards": ["1000"]}] * 17
-    s.current_pack = 2
-    s.current_pick = 3
-    s.search_offset = log_size
-    s.pick_offset.position = log_size
-    s.pack_offset.position = log_size
-    s.pool_offset.position = log_size
-    s.file_size = log_size
+    s.session.draft_type = constants.LIMITED_TYPE_DRAFT_PREMIER_V2
+    s.session.draft_sets = ["MSH"]
+    s.session.draft_label = "PremierDraft"
+    s.session.event_string = "PremierDraft_MSH_20260731"
+    s.session.current_draft_id = "draft_B"
+    s.session.current_transaction_id = "txn_B"
+    s.session.taken_cards = [str(1000 + i) for i in range(17)]
+    s.session.draft_history = [{"Pack": 1, "Pick": 1, "Cards": ["1000"]}] * 17
+    s.session.current_pack = 2
+    s.session.current_pick = 3
+    s.session.search_offset = log_size
+    s.session.pick_offset.position = log_size
+    s.session.pack_offset.position = log_size
+    s.session.pool_offset.position = log_size
+    s.session.file_size = log_size
     s._save_state()
 
     fresh = _recovery_scanner(tmp_path, old_event_join)
@@ -465,11 +470,11 @@ def test_reopen_does_not_wipe_restored_state_when_log_has_old_events(tmp_path):
 
     # Nothing new after the saved position → no re-registration, no wipe.
     assert fresh.draft_start_search() is False
-    assert fresh.taken_cards == [str(1000 + i) for i in range(17)]
-    assert len(fresh.draft_history) == 17
-    assert fresh.event_string == "PremierDraft_MSH_20260731"
-    assert fresh.draft_label == "PremierDraft"
-    assert fresh.draft_sets == ["MSH"]
+    assert fresh.session.taken_cards == [str(1000 + i) for i in range(17)]
+    assert len(fresh.session.draft_history) == 17
+    assert fresh.session.event_string == "PremierDraft_MSH_20260731"
+    assert fresh.session.draft_label == "PremierDraft"
+    assert fresh.session.draft_sets == ["MSH"]
 
 
 def test_reopened_scanner_detects_truncated_log_and_resets(tmp_path):
@@ -480,28 +485,28 @@ def test_reopened_scanner_detects_truncated_log_and_resets(tmp_path):
 
     s = _recovery_scanner(tmp_path, "MTGA Log Start\n")
     # Pretend the previous session had scanned a much longer log.
-    s.draft_type = constants.LIMITED_TYPE_DRAFT_QUICK
-    s.taken_cards = [str(1000 + i) for i in range(17)]
-    s.search_offset = 5000
-    s.pick_offset.position = 5000
-    s.pack_offset.position = 5000
-    s.pool_offset.position = 5000
-    s.file_size = 5000
+    s.session.draft_type = constants.LIMITED_TYPE_DRAFT_QUICK
+    s.session.taken_cards = [str(1000 + i) for i in range(17)]
+    s.session.search_offset = 5000
+    s.session.pick_offset.position = 5000
+    s.session.pack_offset.position = 5000
+    s.session.pool_offset.position = 5000
+    s.session.file_size = 5000
     s._save_state()
 
     fresh = _recovery_scanner(tmp_path, "MTGA Log Start\n")
     assert fresh._load_state() is True
-    assert fresh.taken_cards == [str(1000 + i) for i in range(17)]
+    assert fresh.session.taken_cards == [str(1000 + i) for i in range(17)]
 
     # The log shrank since the saved file_size → full clear + rescan from 0.
     fresh.draft_start_search()
-    assert fresh.taken_cards == []
-    assert fresh.search_offset < 5000  # stale offset past the end is gone
-    assert fresh.draft_type == constants.LIMITED_TYPE_UNKNOWN
+    assert fresh.session.taken_cards == []
+    assert fresh.session.search_offset < 5000  # stale offset past the end is gone
+    assert fresh.session.draft_type == constants.LIMITED_TYPE_UNKNOWN
     # Full clear zeroed the scan cursors and deleted the state file.
-    assert fresh.pick_offset.position == 0
-    assert fresh.pack_offset.position == 0
-    assert fresh.pool_offset.position == 0
+    assert fresh.session.pick_offset.position == 0
+    assert fresh.session.pack_offset.position == 0
+    assert fresh.session.pool_offset.position == 0
     assert not (tmp_path / "active_draft_state.json").exists()
 
 
@@ -511,10 +516,10 @@ def test_new_event_after_completion_starts_fresh(scanner):
     id still wipes the finished pool and registers the new draft."""
     from src import constants
 
-    scanner.draft_type = constants.LIMITED_TYPE_DRAFT_PREMIER_V2
-    scanner.event_string = "PremierDraft_MSH_20260731"
-    scanner.current_transaction_id = "txn_finished"
-    scanner.taken_cards = [str(1000 + i) for i in range(42)]
+    scanner.session.draft_type = constants.LIMITED_TYPE_DRAFT_PREMIER_V2
+    scanner.session.event_string = "PremierDraft_MSH_20260731"
+    scanner.session.current_transaction_id = "txn_finished"
+    scanner.session.taken_cards = [str(1000 + i) for i in range(42)]
     scanner._save_state = MagicMock()
 
     scanner._mark_draft_complete()
@@ -531,10 +536,10 @@ def test_new_event_after_completion_starts_fresh(scanner):
     update, _, _ = scanner._ArenaScanner__check_event(new_join)
 
     assert update is True
-    assert scanner.current_transaction_id == "txn_new"
-    assert scanner.event_string == "PremierDraft_MSH_20260731"
-    assert scanner.draft_type == constants.LIMITED_TYPE_DRAFT_PREMIER_V2
-    assert scanner.taken_cards == []  # finished pool wiped, fresh draft begins
+    assert scanner.session.current_transaction_id == "txn_new"
+    assert scanner.session.event_string == "PremierDraft_MSH_20260731"
+    assert scanner.session.draft_type == constants.LIMITED_TYPE_DRAFT_PREMIER_V2
+    assert scanner.session.taken_cards == []  # finished pool wiped, fresh draft begins
 
 
 def test_recovery_mode_sets_draft_label(scanner):
@@ -542,7 +547,7 @@ def test_recovery_mode_sets_draft_label(scanner):
     so the recap gate recognizes the event once the pool is finished."""
     from src import constants
 
-    scanner.draft_type = constants.LIMITED_TYPE_UNKNOWN
+    scanner.session.draft_type = constants.LIMITED_TYPE_UNKNOWN
     scanner._search_pack_notify = MagicMock(return_value=True)
     scanner._search_pick_human = MagicMock(return_value=False)
     scanner._search_pack_bot = MagicMock(return_value=False)
@@ -551,7 +556,7 @@ def test_recovery_mode_sets_draft_label(scanner):
 
     scanner._ArenaScanner__perform_search_logic()
 
-    assert scanner.draft_label == constants.LIMITED_TYPE_STRING_DRAFT_PREMIER
+    assert scanner.session.draft_label == constants.LIMITED_TYPE_STRING_DRAFT_PREMIER
 
 
 # --- Explicit state machine (architecture-review issue 11) -------------------
@@ -652,17 +657,17 @@ def test_phase_walkthrough_human_draft(walkthrough_scanner):
     _append(log, WALK_PACK_P1P1)
     s.draft_data_search()
     assert s.phase == ScannerPhase.DRAFTING_PACK_REVIEW
-    assert (s.current_pack, s.current_pick) == (1, 1)
+    assert (s.session.current_pack, s.session.current_pick) == (1, 1)
 
     _append(log, WALK_PICK_P1P1)
     s.draft_data_search()
     assert s.phase == ScannerPhase.DRAFTING_PICK_MADE
-    assert s.current_picked_pick == 1
+    assert s.session.current_picked_pick == 1
 
     _append(log, WALK_PACK_P1P2)
     s.draft_data_search()
     assert s.phase == ScannerPhase.DRAFTING_PACK_REVIEW
-    assert s.current_pick == 2
+    assert s.session.current_pick == 2
 
 
 def test_phase_walkthrough_bot_draft_to_done_and_next_draft(walkthrough_scanner):
@@ -680,23 +685,23 @@ def test_phase_walkthrough_bot_draft_to_done_and_next_draft(walkthrough_scanner)
     _append(log, WALK_PACK_BOT)
     s.draft_data_search()
     assert s.phase == ScannerPhase.DRAFTING_PACK_REVIEW
-    assert (s.current_pack, s.current_pick) == (1, 1)  # 0-indexed log → 1-indexed
+    assert (s.session.current_pack, s.session.current_pick) == (1, 1)  # 0-indexed log → 1-indexed
 
     _append(log, WALK_PICK_BOT)
     s.draft_data_search()
     assert s.phase == ScannerPhase.DRAFTING_PICK_MADE
-    assert s.current_picked_pick == 1
+    assert s.session.current_picked_pick == 1
 
     _append(log, WALK_TERMINAL_BOT)
     s.draft_data_search()
     assert s.phase == ScannerPhase.DONE
-    assert s.draft_type == c.LIMITED_TYPE_UNKNOWN
-    assert s.current_pack == 0  # live pack retired, pool kept for recap
+    assert s.session.draft_type == c.LIMITED_TYPE_UNKNOWN
+    assert s.session.current_pack == 0  # live pack retired, pool kept for recap
 
     _append(log, WALK_JOIN_PREMIER)
     s.draft_data_search()
     assert s.phase == ScannerPhase.DRAFTING_WAITING_FOR_PACK
-    assert s.event_string == "PremierDraft_OTJ_20240416"  # recap wiped, fresh draft
+    assert s.session.event_string == "PremierDraft_OTJ_20240416"  # recap wiped, fresh draft
 
 
 def test_phase_walkthrough_sealed_recovery(walkthrough_scanner):
@@ -709,8 +714,8 @@ def test_phase_walkthrough_sealed_recovery(walkthrough_scanner):
     s.draft_data_search()
 
     assert s.phase == ScannerPhase.SEALED_STUDIO
-    assert s.event_string == "Sealed_DSK_20240924"
-    assert s.taken_cards == [str(2000 + i) for i in range(20)]
+    assert s.session.event_string == "Sealed_DSK_20240924"
+    assert s.session.taken_cards == [str(2000 + i) for i in range(20)]
 
 
 def test_illegal_transition_fails_loud(scanner, caplog):
@@ -726,7 +731,7 @@ def test_illegal_transition_fails_loud(scanner, caplog):
     without table rows will hit it.)"""
     from src.scanner_state import ScannerEvent, ScannerPhase
 
-    scanner.draft_type = constants.LIMITED_TYPE_UNKNOWN
+    scanner.session.draft_type = constants.LIMITED_TYPE_UNKNOWN
     scanner._search_pack_notify = MagicMock(return_value=False)
     scanner._search_pick_human = MagicMock(return_value=False)
     scanner._search_pack_bot = MagicMock(
@@ -745,7 +750,7 @@ def test_illegal_transition_fails_loud(scanner, caplog):
     )
     # The machine must not pretend a transition happened.
     assert scanner.phase == ScannerPhase.IDLE
-    assert scanner.draft_type == constants.LIMITED_TYPE_UNKNOWN
+    assert scanner.session.draft_type == constants.LIMITED_TYPE_UNKNOWN
 
 
 # --- Typed scan cursors (architecture-review issue04) -------------------------
@@ -769,7 +774,7 @@ def test_scan_log_events_advances_typed_cursor(tmp_path):
     """_scan_log_for_events reads from cursor.position and advances it, so a
     re-scan resumes where it left off instead of re-reading the whole log."""
     s, log = _cursor_log(tmp_path)
-    cursor = s.pack_offset
+    cursor = s.session.pack_offset
 
     payloads = list(s._scan_log_for_events(cursor, ['{"Pack":']))
     assert len(payloads) == 2
@@ -781,7 +786,7 @@ def test_scan_log_events_resumes_from_cursor_position(tmp_path):
     """The cursor sits at EOF after one pass; a second pass only yields lines
     appended since — the append-only Player.log model."""
     s, log = _cursor_log(tmp_path)
-    cursor = s.pick_offset
+    cursor = s.session.pick_offset
 
     list(s._scan_log_for_events(cursor, ["noise"]))  # first pass consumes to EOF
 
@@ -797,10 +802,10 @@ def test_scan_cursors_are_independent(tmp_path):
     """pack/pick/pool cursors advance separately; scanning one never touches the others."""
     s, _ = _cursor_log(tmp_path)
 
-    list(s._scan_log_for_events(s.pack_offset, ["Pack"]))
-    assert s.pack_offset.position > 0
-    assert s.pick_offset.position == 0
-    assert s.pool_offset.position == 0
+    list(s._scan_log_for_events(s.session.pack_offset, ["Pack"]))
+    assert s.session.pack_offset.position > 0
+    assert s.session.pick_offset.position == 0
+    assert s.session.pool_offset.position == 0
 
 
 def test_scan_log_events_rejects_legacy_string_cursor(tmp_path):

@@ -38,21 +38,21 @@ def _setup(
     initial_pack        - dict of {slot_index: [card_ids]} for other slots
     picked_cards        - dict of {slot_index: [card_ids]} the user has already picked
     """
-    scanner.current_pick = current_pick
+    scanner.session.current_pick = current_pick
     pack_index = (current_pick - 1) % 8
 
-    scanner.pack_cards = [[] for _ in range(8)]
-    scanner.pack_cards[pack_index] = list(current_pack_cards)
+    scanner.session.pack_cards = [[] for _ in range(8)]
+    scanner.session.pack_cards[pack_index] = list(current_pack_cards)
 
-    scanner.initial_pack = [[] for _ in range(8)]
+    scanner.session.initial_pack = [[] for _ in range(8)]
     for i, ids in (initial_pack or {}).items():
-        scanner.initial_pack[i] = list(ids)
+        scanner.session.initial_pack[i] = list(ids)
 
-    scanner.picked_cards = [[] for _ in range(8)]
+    scanner.session.picked_cards = [[] for _ in range(8)]
     for i, ids in (picked_cards or {}).items():
-        scanner.picked_cards[i] = list(ids)
+        scanner.session.picked_cards[i] = list(ids)
 
-    scanner.taken_cards = [c for ids in (picked_cards or {}).values() for c in ids]
+    scanner.session.taken_cards = [c for ids in (picked_cards or {}).values() for c in ids]
 
 
 def _returnable(scanner):

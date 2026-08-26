@@ -181,7 +181,7 @@ def load_data(args, config, progress_callback):
             progress_callback(f"Found {e_set} {e_type}...")
 
             # Auto-load the correct dataset for this draft
-            path = scanner.select_best_dataset(e_set, scanner.event_string)
+            path = scanner.select_best_dataset(e_set, scanner.session.event_string)
             if path:
                 scanner.retrieve_set_data(path)
                 config.card_data.latest_dataset = os.path.basename(path)
@@ -196,7 +196,7 @@ def load_data(args, config, progress_callback):
             e_set, e_type = scanner.retrieve_current_limited_event()
             if e_set:
                 progress_callback(f"Recovered Session: {e_set} {e_type}...")
-                path = scanner.select_best_dataset(e_set, scanner.event_string)
+                path = scanner.select_best_dataset(e_set, scanner.session.event_string)
                 if path:
                     scanner.retrieve_set_data(path)
                     config.card_data.latest_dataset = os.path.basename(path)
@@ -225,7 +225,7 @@ def load_data(args, config, progress_callback):
                     scanner.set_arena_file(most_recent_log)
                     if scanner.draft_start_search():
                         e_set, e_type = scanner.retrieve_current_limited_event()
-                        path = scanner.select_best_dataset(e_set, scanner.event_string)
+                        path = scanner.select_best_dataset(e_set, scanner.session.event_string)
                         if path:
                             scanner.retrieve_set_data(path)
                             config.card_data.latest_dataset = os.path.basename(path)

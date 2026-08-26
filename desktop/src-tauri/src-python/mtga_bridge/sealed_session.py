@@ -51,7 +51,7 @@ class SealedStudioSession:
         if not raw_pool:
             return False
 
-        draft_id = self.scanner.current_draft_id or "local_sealed"
+        draft_id = self.scanner.session.current_draft_id or "local_sealed"
         session = SealedSession.load_session(draft_id, raw_pool)
         if not session:
             session = SealedSession(draft_id)
