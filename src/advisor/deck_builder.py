@@ -28,7 +28,38 @@ from src.advisor.deck_scorer import (
 from src.advisor.simulator import simulate_deck
 
 logger = logging.getLogger(__name__)
-GLOBAL_DECK_CACHE = {}
+
+
+class DeckPlanner:
+    """Owns deck recommendation orchestration and its result cache."""
+
+    def __init__(self):
+        self._cache = {}
+
+    def clear_cache(self):
+        self._cache.clear()
+
+    def suggest(
+        self,
+        taken_cards: List[CardData],
+        metrics,
+        configuration,
+        event_type="PremierDraft",
+        progress_callback=None,
+        dataset_name=None,
+    ):
+        return _suggest_deck(
+            taken_cards,
+            metrics,
+            configuration,
+            event_type,
+            progress_callback,
+            dataset_name,
+            cache=self._cache,
+        )
+
+
+_DEFAULT_PLANNER = DeckPlanner()
 
 # The safe deck is promoted to the top only when it's competitive; otherwise it
 # is still shown (the user always wants a non-soupy option) but left in place so
@@ -75,7 +106,7 @@ def select_safe_deck_index(final_list):
 
 
 def clear_deck_cache():
-    GLOBAL_DECK_CACHE.clear()
+    _DEFAULT_PLANNER.clear_cache()
 
 
 def get_sideboard(pool, deck_stacked):
@@ -405,7 +436,26 @@ def suggest_deck(
     progress_callback=None,
     dataset_name=None,
 ):
+    return _DEFAULT_PLANNER.suggest(
+        taken_cards,
+        metrics,
+        configuration,
+        event_type,
+        progress_callback,
+        dataset_name,
+    )
+
+def _suggest_deck(
+    taken_cards: List[CardData],
+    metrics,
+    configuration,
+    event_type="PremierDraft",
+    progress_callback=None,
+    dataset_name=None,
+    cache=None,
+):
     sorted_decks = {}
+    cache = cache if cache is not None else {}
     pool_size = len(taken_cards)
     is_bo3 = "Trad" in event_type
 
@@ -419,11 +469,10 @@ def suggest_deck(
         )
         cache_key = (event_type, dataset_name, len(taken_cards), pool_sig)
 
-        if cache_key in GLOBAL_DECK_CACHE:
+        if cache_key in cache:
             if progress_callback:
                 progress_callback({"status": "Loaded optimized decks from cache."})
-            return GLOBAL_DECK_CACHE[cache_key]
-
+            return cache[cache_key]
         color_options = identify_top_pairs(taken_cards, metrics)
         all_variants, incomplete_variants = [], []
         seen_signatures = set()
@@ -722,7 +771,7 @@ def suggest_deck(
         for label, data in final_list:
             sorted_decks[label] = data
 
-        GLOBAL_DECK_CACHE[cache_key] = sorted_decks
+        cache[cache_key] = sorted_decks
 
     except Exception as e:
         logger.error(f"Deck builder failure: {e}", exc_info=True)

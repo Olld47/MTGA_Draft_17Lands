@@ -643,3 +643,69 @@ def test_suggest_deck_reports_all_public_result_categories(
     assert result
     assert any("status" in message for message in progress)
     assert any("variant_label" in message for message in progress)
+
+
+
+def test_suggest_deck_uses_one_planner_owned_cache_for_public_adapter(
+    mock_metrics, monkeypatch
+):
+    """The public adapter retains cache behavior after orchestration moves inside the module."""
+    from src.advisor import deck_builder
+
+    deck_builder.clear_deck_cache()
+    pool = [_planning_card(f"Pool {index}") for index in range(15)]
+    _patch_planning_variants(monkeypatch, _planning_two_color_deck("Core"))
+    monkeypatch.setattr(deck_builder, "simulate_deck", lambda *args, **kwargs: _planning_stats())
+    monkeypatch.setattr(deck_builder, "calculate_holistic_score", lambda *args: (70.0, "score"))
+    suggest_deck(pool, mock_metrics, Configuration())
+    messages = []
+
+    suggest_deck(pool, mock_metrics, Configuration(), progress_callback=messages.append)
+
+    assert messages == [{"status": "Loaded optimized decks from cache."}]
+
+
+def test_clearing_public_planner_cache_recomputes_recommendation(
+    mock_metrics, monkeypatch
+):
+    """Clearing the public cache invalidates the next planning request."""
+    from src.advisor import deck_builder
+
+    deck_builder.clear_deck_cache()
+    pool = [_planning_card(f"Pool {index}") for index in range(15)]
+    _patch_planning_variants(monkeypatch, _planning_two_color_deck("Core"))
+    monkeypatch.setattr(deck_builder, "simulate_deck", lambda *args, **kwargs: _planning_stats())
+    monkeypatch.setattr(deck_builder, "calculate_holistic_score", lambda *args: (70.0, "score"))
+    first_messages = []
+    suggest_deck(pool, mock_metrics, Configuration(), progress_callback=first_messages.append)
+    deck_builder.clear_deck_cache()
+    second_messages = []
+
+    suggest_deck(pool, mock_metrics, Configuration(), progress_callback=second_messages.append)
+
+    assert any("Analyzing" in message.get("status", "") for message in second_messages)
+    assert second_messages != [{"status": "Loaded optimized decks from cache."}]
+
+
+def test_public_suggest_deck_adapter_preserves_keyword_contract(
+    mock_metrics, monkeypatch
+):
+    """The stable planner interface accepts event and progress options by keyword."""
+    from src.advisor import deck_builder
+
+    deck_builder.clear_deck_cache()
+    pool = [_planning_card(f"Pool {index}") for index in range(15)]
+    _patch_planning_variants(monkeypatch, _planning_two_color_deck("Core"))
+    monkeypatch.setattr(deck_builder, "simulate_deck", lambda *args, **kwargs: _planning_stats())
+    monkeypatch.setattr(deck_builder, "calculate_holistic_score", lambda *args: (70.0, "score"))
+
+    result = suggest_deck(
+        pool,
+        mock_metrics,
+        Configuration(),
+        event_type="TradDraft",
+        progress_callback=lambda message: None,
+        dataset_name="baseline",
+    )
+
+    assert result
