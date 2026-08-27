@@ -24,6 +24,11 @@ def test_scanner_exposes_persisted_state_only_through_session(scanner):
     assert not hasattr(type(scanner), "current_pack")
     assert not hasattr(type(scanner), "draft_history")
 
+def test_scanner_exposes_state_file_only_through_session(scanner):
+    """DraftSession owns the state-file configuration with persisted state."""
+    assert scanner.session.state_file.endswith("active_draft_state.json")
+    assert not hasattr(scanner, "state_file")
+
 
 def test_stale_pool_wipe_different_draft_id(scanner):
     """If Arena logs a completely new Transaction ID, wipe everything immediately."""
@@ -145,7 +150,7 @@ def test_state_file_defaults_to_temp_folder(monkeypatch, tmp_path):
     construction time so monkeypatched TEMP_FOLDER still applies."""
     monkeypatch.setattr(constants, "TEMP_FOLDER", str(tmp_path))
     s = ArenaScanner("mock.log", MagicMock(), retrieve_unknown=False)
-    assert s.state_file == str(tmp_path / "active_draft_state.json")
+    assert s.session.state_file == str(tmp_path / "active_draft_state.json")
 
 
 def test_stale_pool_no_wipe_historical_replay(scanner):

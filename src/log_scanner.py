@@ -72,7 +72,7 @@ class ArenaScanner:
         # Injectable persistence path (Ticket 08): tests pass a tmp_path-backed
         # file; production keeps the TEMP_FOLDER default, resolved at
         # construction time so monkeypatched paths still apply.
-        self.state_file = (
+        state_path = (
             state_file
             if state_file is not None
             else os.path.join(constants.TEMP_FOLDER, "active_draft_state.json")
@@ -90,7 +90,7 @@ class ArenaScanner:
         # Scanner behavior accesses this state explicitly through session; it
         # owns only runtime state, log scanning, event dispatch, Dataset
         # coordination, and phase maintenance.
-        self.session = DraftSession(self.state_file)
+        self.session = DraftSession(state_path)
 
         self.data_source = "None"
         self._last_seen_timestamp = "Unknown"

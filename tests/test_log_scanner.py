@@ -461,7 +461,7 @@ def test_draft_state_recovery(function_scanner):
         TEST_SETS,
         sets_location=TEST_SETS_DIRECTORY,
         retrieve_unknown=True,
-        state_file=function_scanner.state_file,
+        state_file=function_scanner.session.state_file,
     )
 
     # 4. Verify the new scanner perfectly recovered the state from disk!
