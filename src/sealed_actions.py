@@ -74,8 +74,9 @@ class SealedStudioActions:
 
     def move_card(self, card_name: str, to_sideboard: bool, count: int = 1) -> ActionResult:
         if to_sideboard:
-            self.session.move_to_sideboard(card_name, count)
-            return True, ""
+            if self.session.move_to_sideboard(card_name, count):
+                return True, ""
+            return False, f"Can't remove '{card_name}' (not in pool / not in main deck)."
         if self.session.move_to_main(card_name, count):
             return True, ""
         return False, f"Can't add '{card_name}' (not in pool / quantity limit)."
@@ -101,18 +102,19 @@ class SealedStudioActions:
     # remove on each basic-land button. move_to_main/move_to_sideboard
     # special-case BASIC_LANDS (sealed_logic.py) so basics bypass the
     # pool-inventory limit the way the legacy buttons did.
-
     def add_basic(self, color_name: str) -> ActionResult:
         if not self.session.active_variant_name:
             return False, "No build selected."
-        self.session.move_to_main(color_name)
-        return True, ""
+        if self.session.move_to_main(color_name):
+            return True, ""
+        return False, f"Can't add '{color_name}'."
 
     def remove_basic(self, color_name: str) -> ActionResult:
         if not self.session.active_variant_name:
             return False, "No build selected."
-        self.session.move_to_sideboard(color_name)
-        return True, ""
+        if self.session.move_to_sideboard(color_name):
+            return True, ""
+        return False, f"Can't remove '{color_name}' (not in main deck)."
 
     # --- auto-lands ----------------------------------------------------------
 

@@ -197,57 +197,44 @@ class SealedSession:
             return True
         return False
 
-    def move_to_main(self, card_name: str, count: int = 1) -> bool:
-        if not self.active_variant_name:
+    def _resolve_inventory_name(self, card_name: str) -> Optional[str]:
+        """Resolve a user-facing card name to the stored pool identity."""
+        if card_name in self._pool_inventory or card_name in constants.BASIC_LANDS:
+            return card_name
+        return next(
+            (
+                name
+                for name in self._pool_inventory
+                if name.startswith(f"{card_name} //")
+            ),
+            None,
+        )
+
+    def _move_inventory_card(self, card_name: str, count: int, *, to_main: bool) -> bool:
+        if not self.active_variant_name or count <= 0:
+            return False
+        actual_name = self._resolve_inventory_name(card_name)
+        if actual_name is None:
             return False
 
         variant = self.variants[self.active_variant_name]
-        is_basic = card_name in constants.BASIC_LANDS
-
-        if card_name in self._pool_inventory:
-            actual_name = card_name
-        else:
-            # Fallback for MTGA DFC imports (which often only list the front face)
-            actual_name = next(
-                (
-                    k
-                    for k in self._pool_inventory.keys()
-                    if k.startswith(f"{card_name} //")
-                ),
-                None,
-            )
-            if not actual_name and not is_basic:
+        current = variant.main_deck_counts.get(actual_name, 0)
+        if to_main:
+            available = self._pool_inventory.get(actual_name, 0)
+            if actual_name not in constants.BASIC_LANDS and current + count > available:
                 return False
-
-        if is_basic:
-            actual_name = card_name
-
-        max_available = self._pool_inventory.get(actual_name, 0)
-        current_in_main = variant.main_deck_counts.get(actual_name, 0)
-
-        if is_basic or (current_in_main + count <= max_available):
             variant.add_card(actual_name, count)
             return True
-        return False
+        if current < count:
+            return False
+        variant.remove_card(actual_name, count)
+        return True
 
-    def move_to_sideboard(self, card_name: str, count: int = 1):
-        if self.active_variant_name:
-            if card_name in self._pool_inventory:
-                actual_name = card_name
-            else:
-                actual_name = (
-                    next(
-                        (
-                            k
-                            for k in self._pool_inventory.keys()
-                            if k.startswith(f"{card_name} //")
-                        ),
-                        None,
-                    )
-                    or card_name
-                )
+    def move_to_main(self, card_name: str, count: int = 1) -> bool:
+        return self._move_inventory_card(card_name, count, to_main=True)
 
-            self.variants[self.active_variant_name].remove_card(actual_name, count)
+    def move_to_sideboard(self, card_name: str, count: int = 1) -> bool:
+        return self._move_inventory_card(card_name, count, to_main=False)
 
     def get_active_deck_lists(self) -> Tuple[List[CardData], List[CardData]]:
         if not self.active_variant_name:
