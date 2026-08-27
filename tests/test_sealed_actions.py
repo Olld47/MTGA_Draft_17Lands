@@ -229,6 +229,7 @@ def test_apply_auto_lands_removes_basics_and_fills_to_40(actions):
     actions.add_basic("Plains")
     actions.add_basic("Island")
 
+
     ok, _ = actions.apply_auto_lands()
     assert ok
 
@@ -239,6 +240,16 @@ def test_apply_auto_lands_removes_basics_and_fills_to_40(actions):
     # add only Plains/Island.
     assert names.get("Plains", 0) + names.get("Island", 0) > 0
     assert "Swamp" not in names and "Mountain" not in names and "Forest" not in names
+def test_import_uses_shared_dfc_inventory_resolution(actions):
+    actions.session.load_pool(
+        [{"name": "Front Face // Back Face", "count": 2, "types": ["Creature"]}]
+    )
+    ok, _ = actions.import_deck("Deck\n2 Front Face")
+    assert ok
+    main, sideboard = actions.session.get_active_deck_lists()
+    assert main[0]["name"] == "Front Face // Back Face"
+    assert main[0]["count"] == 2
+    assert sideboard == []
 
 
 def test_apply_auto_lands_counts_copies_not_rows(actions):

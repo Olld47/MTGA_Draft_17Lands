@@ -178,9 +178,7 @@ class SealedStudioActions:
         for req in deck_cards:
             clean_name = sanitize_card_name(req["name"])
             if not self.session.move_to_main(clean_name, req["count"]):
-                # Fallback for DFC imports (which often only list the front face).
-                if not self.session.move_to_main(req["name"], req["count"]):
-                    missing_cards.append(req["name"])
+                missing_cards.append(req["name"])
 
         if missing_cards:
             preview = ", ".join(missing_cards[:10])
