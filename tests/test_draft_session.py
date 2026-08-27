@@ -191,9 +191,7 @@ def test_load_without_target_loads_any_persisted_draft(tmp_path):
 
 
 def test_load_target_mismatch_returns_false_and_leaves_memory_untouched(tmp_path):
-    """A non-matching target_draft_id returns False without touching memory —
-    the pre-refactor contract (a failed _load_state must not clobber the
-    in-memory draft the scanner is about to wipe-check against)."""
+    """A non-matching target_draft_id returns False without touching memory."""
     s = _filled_session(tmp_path)
     s.save()
 

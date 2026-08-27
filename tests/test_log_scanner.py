@@ -455,7 +455,7 @@ def test_draft_state_recovery(function_scanner):
     assert len(function_scanner.session.pack_cards[0]) > 0
 
     # 3. Create a NEW scanner instance, simulating an app restart.
-    # It should automatically call _load_state() in __init__
+    # It should automatically load persisted state in __init__.
     new_scanner = ArenaScanner(
         function_scanner.arena_file,
         TEST_SETS,

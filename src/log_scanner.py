@@ -94,7 +94,7 @@ class ArenaScanner:
 
         self.data_source = "None"
         self._last_seen_timestamp = "Unknown"
-        self._load_state()
+        self.session.load()
         self._phase = derive_scanner_phase(
             draft_type=self.session.draft_type,
             draft_label=self.session.draft_label,
@@ -171,22 +171,6 @@ class ArenaScanner:
         except Exception as error:
             logger.error(error)
 
-    def _load_state(self, target_draft_id=None):
-        """Recovers the active draft state if the app was closed mid-draft.
-
-        Thin adapter for DraftSession.load (ticket 12) — kept as a private
-        compatibility entry point (tests and _check_and_wipe_stale_pool call
-        it); all JSON logic lives in src/draft_session.py.
-        """
-        return self.session.load(target_draft_id)
-
-    def _save_state(self):
-        """Persists the memory state to disk to survive application crashes.
-
-        Thin adapter for DraftSession.save (ticket 12) — kept as a private
-        compatibility entry point; all JSON logic lives in src/draft_session.py.
-        """
-        self.session.save()
 
     def clear_draft(self, full_clear):
         with self.lock:
@@ -376,7 +360,7 @@ class ArenaScanner:
                         current_pick=self.session.current_pick,
                         current_picked_pick=self.session.current_picked_pick,
                     )
-                    self._save_state()
+                    self.session.save()
                 update = True
 
         except Exception as error:
@@ -604,7 +588,7 @@ class ArenaScanner:
 
             # Record History
             self._record_pack(pack, pick, pack_cards)
-            self._save_state()
+            self.session.save()
 
         return is_new_high_watermark
 
@@ -675,7 +659,7 @@ class ArenaScanner:
             ):
                 self.session.current_pack, self.session.current_pick = pack, pick
 
-            self._save_state()
+            self.session.save()
         return True
 
     def _check_and_wipe_stale_pool(self, pack, pick, current_cards, draft_id=None):
@@ -690,7 +674,7 @@ class ArenaScanner:
             else:
                 return  # Exact match! We are definitely re-reading history. Do not wipe!
         elif str_draft_id and not str_current_id:
-            if not self._load_state(str_draft_id) and self.session.taken_cards:
+            if not self.session.load(str_draft_id) and self.session.taken_cards:
                 wipe = True
 
             # 2. Time-Travel Protection (When Draft ID is missing or new)
@@ -742,7 +726,7 @@ class ArenaScanner:
 
         if str_draft_id and str_draft_id != str_current_id:
             self.session.current_draft_id = str_draft_id
-            self._save_state()
+            self.session.save()
 
     # =========================================================================
     # EVENT DISPATCHER
@@ -1119,7 +1103,7 @@ class ArenaScanner:
                                 self.session.taken_cards
                             ) != sorted(pool_strs):
                                 self.session.taken_cards = pool_strs
-                                self._save_state()
+                                self.session.save()
                                 update = True
             except Exception as e:
                 logger.error(f"Card Pool Search Error: {e}")

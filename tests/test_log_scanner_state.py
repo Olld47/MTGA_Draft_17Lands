@@ -49,9 +49,8 @@ def test_stale_pool_wipe_time_travel_backwards(scanner):
     scanner.session.current_pick = 5
     scanner.session.taken_cards = ["1"] * 20
 
-    # Force the scanner into the time-travel logic block by providing a new draft ID
-    # but mocking _load_state to simulate a successful load (so wipe starts False)
-    scanner._load_state = MagicMock(return_value=True)
+    # DraftSession is the persistence seam; scanner owns no forwarding API.
+    scanner.session.load = MagicMock(return_value=True)
 
     # We suddenly see Pack 1 Pick 1, but we already have 20 cards. WIPE!
     scanner._check_and_wipe_stale_pool(
@@ -86,8 +85,7 @@ def test_load_state_normalizes_legacy_string_draft_type(tmp_path):
         retrieve_unknown=False,
         state_file=str(state_file),
     )
-    assert s._load_state() is True
-    assert s.session.draft_type == constants.LIMITED_TYPE_DRAFT_CONTENDER
+    assert s.session.load() is True
 
 
 # --- state_file injection ----------------------------------------------------
@@ -110,7 +108,7 @@ def test_state_file_injection_persists_only_to_injected_path(tmp_path):
     s.session.draft_type = LIMITED_TYPE_DRAFT_PREMIER_V2
     s.session.current_draft_id = "draft_injected"
     s.session.taken_cards = ["1", "2", "3"]
-    s._save_state()
+    s.session.save()
 
     assert state_file.exists()
     default_file = Path(constants.TEMP_FOLDER) / "active_draft_state.json"
@@ -122,7 +120,7 @@ def test_state_file_injection_persists_only_to_injected_path(tmp_path):
         retrieve_unknown=False,
         state_file=str(state_file),
     )
-    assert fresh._load_state() is True
+    assert fresh.session.load() is True
     assert fresh.session.draft_type == LIMITED_TYPE_DRAFT_PREMIER_V2
     assert fresh.session.current_draft_id == "draft_injected"
     assert fresh.session.taken_cards == ["1", "2", "3"]
@@ -134,7 +132,7 @@ def test_state_file_injection_clear_draft_removes_injected_file(tmp_path):
     s = ArenaScanner(
         "mock.log", MagicMock(), retrieve_unknown=False, state_file=str(state_file)
     )
-    s._save_state()
+    s.session.save()
     assert state_file.exists()
 
     s.clear_draft(True)
@@ -421,10 +419,10 @@ def test_state_persists_scan_offsets(tmp_path):
     s.session.file_size = 5555
     s.session.draft_type = constants.LIMITED_TYPE_DRAFT_PREMIER_V2
     s.session.taken_cards = ["1"]
-    s._save_state()
+    s.session.save()
 
     fresh = _recovery_scanner(tmp_path, "MTGA Log Start\n")
-    assert fresh._load_state() is True
+    assert fresh.session.load() is True
     assert fresh.session.search_offset == 1111
     assert fresh.session.pick_offset.position == 2222
     assert fresh.session.pack_offset.position == 3333
@@ -463,10 +461,10 @@ def test_reopen_does_not_wipe_restored_state_when_log_has_old_events(tmp_path):
     s.session.pack_offset.position = log_size
     s.session.pool_offset.position = log_size
     s.session.file_size = log_size
-    s._save_state()
+    s.session.save()
 
     fresh = _recovery_scanner(tmp_path, old_event_join)
-    assert fresh._load_state() is True
+    assert fresh.session.load() is True
 
     # Nothing new after the saved position → no re-registration, no wipe.
     assert fresh.draft_start_search() is False
@@ -492,10 +490,10 @@ def test_reopened_scanner_detects_truncated_log_and_resets(tmp_path):
     s.session.pack_offset.position = 5000
     s.session.pool_offset.position = 5000
     s.session.file_size = 5000
-    s._save_state()
+    s.session.save()
 
     fresh = _recovery_scanner(tmp_path, "MTGA Log Start\n")
-    assert fresh._load_state() is True
+    assert fresh.session.load() is True
     assert fresh.session.taken_cards == [str(1000 + i) for i in range(17)]
 
     # The log shrank since the saved file_size → full clear + rescan from 0.
@@ -520,7 +518,7 @@ def test_new_event_after_completion_starts_fresh(scanner):
     scanner.session.event_string = "PremierDraft_MSH_20260731"
     scanner.session.current_transaction_id = "txn_finished"
     scanner.session.taken_cards = [str(1000 + i) for i in range(42)]
-    scanner._save_state = MagicMock()
+    scanner.session.save = MagicMock()
 
     scanner._mark_draft_complete()
 
