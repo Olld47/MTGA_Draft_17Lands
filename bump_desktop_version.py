@@ -95,9 +95,8 @@ def rewrite_versions(content, pattern, new_version, count):
 
 
 def bump_changelog(content, new_version):
-    """Rewrite the topmost CHANGELOG heading to the 2-part form (0.40.0 -> v0.40)."""
-    short = ".".join(new_version.split(".")[:2])
-    out, n = _CHANGELOG_HEADING_RE.subn(f"## [v{short}]", content, count=1)
+    """Rewrite the topmost CHANGELOG heading to the full desktop version."""
+    out, n = _CHANGELOG_HEADING_RE.subn(f"## [v{new_version}]", content, count=1)
     if n == 0:
         raise ValueError("no '## [vX.Y]' heading found in CHANGELOG.md")
     return out

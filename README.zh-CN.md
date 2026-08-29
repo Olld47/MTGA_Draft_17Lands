@@ -255,9 +255,9 @@ cd desktop && npm test
 
 ### 自动化发布与版本管理
 
-发布通过 GitHub Actions 全自动完成。流水线会在代码**合并到 `master` 或 `main` 分支时自动触发。** 它从 `desktop/src-tauri/tauri.conf.json` 读取桌面版版本号，以 `v<版本>` 打标签，构建**桌面版安装包**（macOS arm64 `.dmg` / `.app`，Windows x86_64 `.msi` / `.exe`），并连同 SHA-256 校验和与 macOS Gatekeeper 提示发布到 [Releases](https://github.com/Olld47/MTGA_Draft_17Lands/releases) 页面。
+发布通过 GitHub Actions 全自动完成。当前桌面版为 **v1.0.5**。流水线会在代码**合并到 `master` 或 `main` 分支时自动触发。** 它从 `desktop/src-tauri/tauri.conf.json` 读取桌面版版本号，以 `v<版本>` 打标签，构建**桌面版安装包**（macOS arm64 `.dmg` / `.app`，Windows x86_64 `.msi` / `.exe`），并连同 SHA-256 校验和与 macOS Gatekeeper 提示发布到 [Releases](https://github.com/Olld47/MTGA_Draft_17Lands/releases) 页面。
 
-桌面版的版本序列（v1.x）从 `desktop/src-tauri/tauri.conf.json` 读取——这是单一来源。**桌面版版本号提升是一键命令：** `bump_desktop_version.py <版本>` 以 `desktop/src-tauri/tauri.conf.json` 为单一来源，从一个输入改写全部桌面版清单字面量（`desktop/package.json`、`desktop/package-lock.json`、`desktop/pyproject.toml`、`desktop/src-tauri/pyproject.toml`、`desktop/src-tauri/Cargo.toml`、`desktop/Cargo.lock` 与 `mtga_bridge/version.py`）以及 `CHANGELOG.md` 最顶部的 `## [vX.Y]` 标题——切勿手改清单。根目录的 `APPLICATION_VERSION`（`src/constants/versions.py`）仅作为 `last_run_version` 的 bootstrap 迁移标记保留，不属于桌面版发布序列。
+桌面版的版本序列（v1.x）从 `desktop/src-tauri/tauri.conf.json` 读取——这是单一来源。**桌面版版本号提升是一键命令：** `bump_desktop_version.py <版本>` 以 `desktop/src-tauri/tauri.conf.json` 为单一来源，从一个输入改写全部桌面版清单字面量（`desktop/package.json`、`desktop/package-lock.json`、`desktop/pyproject.toml`、`desktop/src-tauri/pyproject.toml`、`desktop/src-tauri/Cargo.toml`、`desktop/Cargo.lock` 与 `mtga_bridge/version.py`）以及 `CHANGELOG.md` 最顶部的 `## [vX.Y.Z]` 标题——切勿手改清单。根目录的 `APPLICATION_VERSION`（`src/constants/versions.py`）仅作为 `last_run_version` 的 bootstrap 迁移标记保留，不属于桌面版发布序列。
 
 *（若在未提升版本号的情况下合并代码到 main，流水线只会重建并重新上传已有发布标签上的安装包——适合热修复。）*
 

@@ -145,10 +145,15 @@ def test_rewrite_under_replacement_is_countable():
 CHANGELOG = "# Changelog\n\n## [v0.39] — something\n\nbody\n"
 
 
-def test_bump_changelog_rewrites_heading_to_two_part():
+def test_bump_changelog_rewrites_full_version_heading():
     out = bdv.bump_changelog(CHANGELOG, "0.40.0")
-    assert "## [v0.40]" in out
+    assert "## [v0.40.0]" in out
     assert "# Changelog" in out
+
+
+def test_bump_changelog_preserves_patch_version():
+    out = bdv.bump_changelog(CHANGELOG, "1.0.5")
+    assert "## [v1.0.5]" in out
 
 
 def test_bump_changelog_raises_without_heading():
@@ -203,7 +208,7 @@ def test_bump_all_rewrites_every_site_and_changelog(tmp_path, monkeypatch):
     for rel, _, _ in sites:
         text = (tmp_path / rel).read_text(encoding="utf-8")
         assert text.count("0.39.0") == 0, f"{rel} still holds the old version"
-    assert "## [v0.40]" in (tmp_path / "CHANGELOG.md").read_text(encoding="utf-8")
+    assert "## [v0.40.0]" in (tmp_path / "CHANGELOG.md").read_text(encoding="utf-8")
 
 
 def test_bump_all_raises_when_a_site_never_replaces(tmp_path, monkeypatch):

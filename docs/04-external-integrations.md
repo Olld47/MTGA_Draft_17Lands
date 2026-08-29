@@ -82,7 +82,7 @@ To ensure the app works seamlessly on Day 1 of a new set release without waiting
 
 Releases ship the **desktop bundles** (tag `v<desktop-version>` from
 `desktop/src-tauri/tauri.conf.json` — the single source of the desktop version —
-e.g. `v1.0.0`). The desktop app is the only client and the only self-updating
+currently `v1.0.5`). The desktop app is the only client and the only self-updating
 one; the tkinter app — and its update channel — was removed.
 
 ### A. Legacy tkinter self-update channel — removed
