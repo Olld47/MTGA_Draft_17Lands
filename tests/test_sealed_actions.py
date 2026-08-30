@@ -105,7 +105,7 @@ def test_add_and_remove_basic_bypass_pool_limit(actions):
     assert ok
     main, _ = actions.session.get_active_deck_lists()
     assert not any(c["name"] == "Plains" for c in main)
- 
+
 def test_inventory_resolution_is_shared_for_dfc_and_unknown(actions):
     actions.session.load_pool(
         [
@@ -148,7 +148,7 @@ def test_card_movement_only_mutates_active_variant(actions):
     assert ok
     assert actions.session.variants["Other"].main_deck_counts == {"White Knight": 1}
     assert actions.session.variants["Build 1"].main_deck_counts == {}
- 
+
  # --- variant management ------------------------------------------------------
 
 
