@@ -28,8 +28,8 @@ def export_draft(scanner, fmt: str) -> DraftExportVM:
     with scanner.lock:
         history = list(scanner.retrieve_draft_history() or [])
         set_data = scanner.set_data
-        picked = [list(p) for p in scanner.picked_cards]
-        event_set = scanner.draft_sets[0] if scanner.draft_sets else ""
+        picked = [list(p) for p in scanner.session.picked_cards]
+        event_set = scanner.session.draft_sets[0] if scanner.session.draft_sets else ""
 
     if not history:
         return DraftExportVM(ok=False, message="No draft history to export.")

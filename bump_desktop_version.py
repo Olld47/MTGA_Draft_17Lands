@@ -2,7 +2,7 @@
 
 One-command desktop version bump. tauri.conf.json is the single source of
 truth for the desktop series; this script rewrites every manifest literal and
-the CHANGELOG heading from one input, so a release touches exactly one place.
+the release_notes.txt heading from one input.
 
 The rewrite contract is pinned by tests/test_bump_desktop_version.py on fixture
 strings, and the consistency guard tests/test_desktop_bundle_config.py imports
@@ -63,10 +63,12 @@ VERSION_SITES = [
     ),
 ]
 
-CHANGELOG = os.path.join(REPO_ROOT, "CHANGELOG.md")
+RELEASE_NOTES = os.path.join(REPO_ROOT, "release_notes.txt")
 
 _VERSION_RE = re.compile(r"(\d+)\.(\d+)(?:\.(\d+))?")
-_CHANGELOG_HEADING_RE = re.compile(r"(?m)^## \[v\d+\.\d+(?:\.\d+)?\]")
+_RELEASE_NOTES_HEADING_RE = re.compile(
+    r"(?m)^={5,} RELEASE NOTES \d+\.\d+(?:\.\d+)? ={5,}$"
+)
 
 
 def _validate_version(version):
@@ -94,22 +96,20 @@ def rewrite_versions(content, pattern, new_version, count):
     return re.subn(pattern, _splice, content, count=count)
 
 
-def bump_changelog(content, new_version):
-    """Rewrite the topmost CHANGELOG heading to the 2-part form (0.40.0 -> v0.40)."""
-    short = ".".join(new_version.split(".")[:2])
-    out, n = _CHANGELOG_HEADING_RE.subn(f"## [v{short}]", content, count=1)
+def bump_release_notes(content, new_version):
+    """Rewrite the topmost release_notes.txt heading to the full version."""
+    out, n = _RELEASE_NOTES_HEADING_RE.subn(
+        f"===================== RELEASE NOTES {new_version} =====================",
+        content,
+        count=1,
+    )
     if n == 0:
-        raise ValueError("no '## [vX.Y]' heading found in CHANGELOG.md")
+        raise ValueError("no RELEASE NOTES heading found in release_notes.txt")
     return out
 
 
 def bump_all(new_version):
-    """Rewrite every VERSION_SITES literal and the CHANGELOG heading to
-    `new_version`. Raises if any site holds fewer matches than its count.
-
-    Two passes: rewrite and validate every site (and the CHANGELOG heading)
-    in memory first, and only write files once every check has passed — a
-    later under-replacement must never leave the repo half-bumped."""
+    """Rewrite every VERSION_SITES literal and the release note heading."""
     version = _validate_version(new_version)
     pending = []
     for rel, pattern, count in VERSION_SITES:
@@ -122,19 +122,18 @@ def bump_all(new_version):
                 f"{rel}: expected {count} version literal(s), replaced {replaced}"
             )
         pending.append((path, content))
-    with open(CHANGELOG, encoding="utf-8") as handle:
-        changelog = handle.read()
-    changelog = bump_changelog(changelog, version)  # raises before any write
+    with open(RELEASE_NOTES, encoding="utf-8") as handle:
+        release_notes = bump_release_notes(handle.read(), version)
     for path, content in pending:
         with open(path, "w", encoding="utf-8") as handle:
             handle.write(content)
-    with open(CHANGELOG, "w", encoding="utf-8") as handle:
-        handle.write(changelog)
+    with open(RELEASE_NOTES, "w", encoding="utf-8") as handle:
+        handle.write(release_notes)
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Bump the desktop app version across all manifests + CHANGELOG."
+        description="Bump the desktop app version across all manifests + release notes."
     )
     parser.add_argument("version", help="new version, e.g. 0.40.0 (X.Y or X.Y.Z)")
     args = parser.parse_args()
@@ -142,7 +141,7 @@ def main():
     bump_all(new_version)
     print(
         f"SUCCESS: desktop version bumped to {new_version} "
-        "across all manifests + CHANGELOG"
+        "across all manifests + release notes"
     )
 
 

@@ -106,6 +106,51 @@ def test_add_and_remove_basic_bypass_pool_limit(actions):
     main, _ = actions.session.get_active_deck_lists()
     assert not any(c["name"] == "Plains" for c in main)
 
+def test_inventory_resolution_is_shared_for_dfc_and_unknown(actions):
+    actions.session.load_pool(
+        [
+            {"name": "Front Face // Back Face", "count": 2, "types": ["Creature"]},
+        ]
+    )
+
+    ok, _ = actions.move_card("Front Face", to_sideboard=False, count=2)
+    assert ok
+    ok, _ = actions.move_card("Front Face", to_sideboard=True, count=1)
+    assert ok
+
+    ok, message = actions.move_card("Not In Pool", to_sideboard=False)
+    assert ok is False
+    assert "pool" in message.lower()
+    ok, message = actions.move_card("Not In Pool", to_sideboard=True)
+    assert ok is False
+    assert "pool" in message.lower()
+
+
+def test_inventory_cap_and_counts_are_enforced_for_both_directions(actions):
+    ok, _ = actions.move_card("White Knight", to_sideboard=False, count=8)
+    assert ok
+    ok, _ = actions.move_card("White Knight", to_sideboard=False, count=1)
+    assert ok is False
+    main, sideboard = actions.session.get_active_deck_lists()
+    assert main[0]["count"] == 8
+    assert not any(card["name"] == "White Knight" for card in sideboard)
+
+    ok, _ = actions.move_card("White Knight", to_sideboard=True, count=1)
+    assert ok
+    main, sideboard = actions.session.get_active_deck_lists()
+    assert main[0]["count"] == 7
+    assert sideboard[0]["count"] == 1
+
+
+def test_card_movement_only_mutates_active_variant(actions):
+    actions.create_variant("Other")
+    ok, _ = actions.move_card("White Knight", to_sideboard=False, count=1)
+    assert ok
+    assert actions.session.variants["Other"].main_deck_counts == {"White Knight": 1}
+    assert actions.session.variants["Build 1"].main_deck_counts == {}
+
+ # --- variant management ------------------------------------------------------
+
 
 # --- variant management ------------------------------------------------------
 
@@ -184,6 +229,7 @@ def test_apply_auto_lands_removes_basics_and_fills_to_40(actions):
     actions.add_basic("Plains")
     actions.add_basic("Island")
 
+
     ok, _ = actions.apply_auto_lands()
     assert ok
 
@@ -194,6 +240,16 @@ def test_apply_auto_lands_removes_basics_and_fills_to_40(actions):
     # add only Plains/Island.
     assert names.get("Plains", 0) + names.get("Island", 0) > 0
     assert "Swamp" not in names and "Mountain" not in names and "Forest" not in names
+def test_import_uses_shared_dfc_inventory_resolution(actions):
+    actions.session.load_pool(
+        [{"name": "Front Face // Back Face", "count": 2, "types": ["Creature"]}]
+    )
+    ok, _ = actions.import_deck("Deck\n2 Front Face")
+    assert ok
+    main, sideboard = actions.session.get_active_deck_lists()
+    assert main[0]["name"] == "Front Face // Back Face"
+    assert main[0]["count"] == 2
+    assert sideboard == []
 
 
 def test_apply_auto_lands_counts_copies_not_rows(actions):

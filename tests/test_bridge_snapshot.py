@@ -136,8 +136,8 @@ def env(tmp_path, monkeypatch):
     ):
         scanner = ArenaScanner(str(log_file), mock_sets, retrieve_unknown=True)
         scanner.retrieve_set_data(str(dataset_path))
-        scanner.draft_type = constants.LIMITED_TYPE_DRAFT_PREMIER_V2
-        scanner.number_of_players = 8
+        scanner.session.draft_type = constants.LIMITED_TYPE_DRAFT_PREMIER_V2
+        scanner.session.number_of_players = 8
         yield {"scanner": scanner, "config": config, "log": log_file}
 
 
@@ -246,7 +246,7 @@ def test_build_draft_state_empty(env):
 
 def test_build_draft_state_with_pool(env):
     scanner = env["scanner"]
-    scanner.taken_cards = ["101", "101", "103"]
+    scanner.session.taken_cards = ["101", "101", "103"]
     state = build_draft_state(scanner, env["config"])
     assert state.taken_count == 3
     assert state.pool_summary is not None
@@ -263,8 +263,8 @@ def test_build_draft_state_with_pool(env):
 
 def test_draft_complete_false_mid_draft(env):
     scanner = env["scanner"]
-    scanner.draft_label = constants.LIMITED_TYPE_STRING_DRAFT_PREMIER
-    scanner.taken_cards = ["101"] * 20
+    scanner.session.draft_label = constants.LIMITED_TYPE_STRING_DRAFT_PREMIER
+    scanner.session.taken_cards = ["101"] * 20
     state = build_draft_state(scanner, env["config"])
     assert state.taken_count == 20
     assert state.draft_complete is False
@@ -275,8 +275,8 @@ def test_draft_complete_true_at_42_cards(env):
     legacy dashboard swapped to the recap, not whenever the scanner happens to
     retire the active state (pack == 0)."""
     scanner = env["scanner"]
-    scanner.draft_label = constants.LIMITED_TYPE_STRING_DRAFT_PREMIER
-    scanner.taken_cards = ["101"] * 42
+    scanner.session.draft_label = constants.LIMITED_TYPE_STRING_DRAFT_PREMIER
+    scanner.session.taken_cards = ["101"] * 42
     state = build_draft_state(scanner, env["config"])
     assert state.draft_complete is True
 
@@ -285,12 +285,12 @@ def test_draft_complete_uses_the_largest_pack_for_the_expected_total(env):
     """A 13-card format completes at 39 picks; the flat 42 default would leave
     the recap off while the draft is over."""
     scanner = env["scanner"]
-    scanner.draft_label = constants.LIMITED_TYPE_STRING_DRAFT_QUICK
-    scanner.draft_history = [{"Pack": 1, "Pick": 13, "Cards": ["101"]}]
-    scanner.taken_cards = ["101"] * 39
+    scanner.session.draft_label = constants.LIMITED_TYPE_STRING_DRAFT_QUICK
+    scanner.session.draft_history = [{"Pack": 1, "Pick": 13, "Cards": ["101"]}]
+    scanner.session.taken_cards = ["101"] * 39
     assert build_draft_state(scanner, env["config"]).draft_complete is True
 
-    scanner.taken_cards = ["101"] * 38
+    scanner.session.taken_cards = ["101"] * 38
     assert build_draft_state(scanner, env["config"]).draft_complete is False
 
 
@@ -298,25 +298,25 @@ def test_draft_complete_ignores_a_non_draft_event_type(env):
     """An event that is neither a draft nor Sealed must never claim completion,
     or the Draft tab would show the recap for a random event with 42 cards."""
     scanner = env["scanner"]
-    scanner.draft_label = "SomeOtherEvent"
-    scanner.taken_cards = ["101"] * 42
+    scanner.session.draft_label = "SomeOtherEvent"
+    scanner.session.taken_cards = ["101"] * 42
     assert build_draft_state(scanner, env["config"]).draft_complete is False
 
 
 def test_draft_complete_requires_a_sealed_pool_of_40(env):
     scanner = env["scanner"]
-    scanner.draft_label = constants.LIMITED_TYPE_STRING_SEALED
-    scanner.taken_cards = ["101"] * 40
+    scanner.session.draft_label = constants.LIMITED_TYPE_STRING_SEALED
+    scanner.session.taken_cards = ["101"] * 40
     assert build_draft_state(scanner, env["config"]).draft_complete is True
 
-    scanner.taken_cards = ["101"] * 39
+    scanner.session.taken_cards = ["101"] * 39
     assert build_draft_state(scanner, env["config"]).draft_complete is False
 
 
 def test_draft_complete_survives_an_unknown_event_type(env):
     """draft_label can be "" (restored state, boot) — the gate must not crash."""
     scanner = env["scanner"]
-    scanner.taken_cards = ["101"] * 42
+    scanner.session.taken_cards = ["101"] * 42
     assert build_draft_state(scanner, env["config"]).draft_complete is False
 
 
@@ -325,10 +325,10 @@ def test_recap_fires_after_completion_end_to_end(env):
     preserves — a finished quick draft (live pack retired, pool kept) must still
     swap the Draft tab to the recap."""
     scanner = env["scanner"]
-    scanner.draft_label = constants.LIMITED_TYPE_STRING_DRAFT_QUICK
-    scanner.draft_sets = ["TEST"]
-    scanner.taken_cards = ["101"] * 42
-    scanner.draft_history = [{"Pack": 1, "Pick": 1, "Cards": ["101"]}]
+    scanner.session.draft_label = constants.LIMITED_TYPE_STRING_DRAFT_QUICK
+    scanner.session.draft_sets = ["TEST"]
+    scanner.session.taken_cards = ["101"] * 42
+    scanner.session.draft_history = [{"Pack": 1, "Pick": 1, "Cards": ["101"]}]
 
     scanner._mark_draft_complete()
 
@@ -341,8 +341,8 @@ def test_draft_complete_recognizes_bot_draft(env):
     """The legacy is_bot arm includes BotDraft — a quick draft whose label is
     the raw event string must still reach the recap."""
     scanner = env["scanner"]
-    scanner.draft_label = constants.LIMITED_TYPE_STRING_DRAFT_BOT
-    scanner.taken_cards = ["101"] * 42
+    scanner.session.draft_label = constants.LIMITED_TYPE_STRING_DRAFT_BOT
+    scanner.session.taken_cards = ["101"] * 42
     assert build_draft_state(scanner, env["config"]).draft_complete is True
 
 
@@ -373,7 +373,7 @@ def test_draft_state_filter_label_without_auto_omits_the_prefix(env):
 
 def test_build_taken_cards_dedup(env):
     scanner = env["scanner"]
-    scanner.taken_cards = ["101", "101", "103"]
+    scanner.session.taken_cards = ["101", "101", "103"]
     vm = build_taken_cards(scanner, env["config"])
     names = {c.name: c.count for c in vm.cards}
     assert names["Green Hulk"] == 2
@@ -632,7 +632,7 @@ def test_list_draft_logs_resolves_the_live_set_display_name(env):
     """The live entry names the set the way the set list does ("Test Set"),
     not the raw code — the legacy dropdown did the same lookup."""
     scanner = env["scanner"]
-    scanner.draft_sets = ["TEST"]
+    scanner.session.draft_sets = ["TEST"]
     runtime = AppRuntime(config=env["config"], scanner=scanner)
 
     assert services.list_draft_logs(runtime).logs[0].label == "🔴 Live: Test Set"
@@ -947,7 +947,7 @@ def test_recommendation_vm_serializes_as_camel_case():
 
 def _signal_scanner(env, history):
     scanner = env["scanner"]
-    scanner.draft_history = history
+    scanner.session.draft_history = history
     return scanner
 
 

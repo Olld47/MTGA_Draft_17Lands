@@ -139,21 +139,21 @@ def test_rewrite_under_replacement_is_countable():
     assert n == 1
 
 
-# --- bump_changelog ---------------------------------------------------------
+# --- bump_release_notes -----------------------------------------------------
 
+RELEASE_NOTES = "===================== RELEASE NOTES 0.39.0 =====================\n\nbody\n"
 
-CHANGELOG = "# Changelog\n\n## [v0.39] — something\n\nbody\n"
+def test_bump_release_notes_rewrites_full_version_heading():
+    out = bdv.bump_release_notes(RELEASE_NOTES, "0.40.0")
+    assert "RELEASE NOTES 0.40.0" in out
 
+def test_bump_release_notes_preserves_patch_version():
+    out = bdv.bump_release_notes(RELEASE_NOTES, "1.0.5")
+    assert "RELEASE NOTES 1.0.5" in out
 
-def test_bump_changelog_rewrites_heading_to_two_part():
-    out = bdv.bump_changelog(CHANGELOG, "0.40.0")
-    assert "## [v0.40]" in out
-    assert "# Changelog" in out
-
-
-def test_bump_changelog_raises_without_heading():
+def test_bump_release_notes_raises_without_heading():
     with pytest.raises(ValueError):
-        bdv.bump_changelog("# Changelog\n\nno heading here\n", "0.40.0")
+        bdv.bump_release_notes("no release heading\n", "0.40.0")
 
 
 # --- VERSION_SITES structure ------------------------------------------------
@@ -171,7 +171,7 @@ def test_version_sites_shape():
 # --- bump_all end-to-end against a temp dir ---------------------------------
 
 
-def test_bump_all_rewrites_every_site_and_changelog(tmp_path, monkeypatch):
+def test_bump_all_rewrites_every_site(tmp_path, monkeypatch):
     sites = [
         ("package.json", r'"version":\s*"([^"]+)"', 1),
         ("package-lock.json", r'"version":\s*"([^"]+)"', 2),
@@ -195,15 +195,16 @@ def test_bump_all_rewrites_every_site_and_changelog(tmp_path, monkeypatch):
         tmp_sites.append((str(path), pattern, count))
 
     monkeypatch.setattr(bdv, "VERSION_SITES", tmp_sites)
-    monkeypatch.setattr(bdv, "CHANGELOG", str(tmp_path / "CHANGELOG.md"))
-    (tmp_path / "CHANGELOG.md").write_text(CHANGELOG, encoding="utf-8")
+    release_notes = tmp_path / "release_notes.txt"
+    release_notes.write_text(RELEASE_NOTES, encoding="utf-8")
+    monkeypatch.setattr(bdv, "RELEASE_NOTES", str(release_notes))
 
     bdv.bump_all("0.40.0")
 
     for rel, _, _ in sites:
         text = (tmp_path / rel).read_text(encoding="utf-8")
         assert text.count("0.39.0") == 0, f"{rel} still holds the old version"
-    assert "## [v0.40]" in (tmp_path / "CHANGELOG.md").read_text(encoding="utf-8")
+    assert "RELEASE NOTES 0.40.0" in release_notes.read_text(encoding="utf-8")
 
 
 def test_bump_all_raises_when_a_site_never_replaces(tmp_path, monkeypatch):

@@ -96,7 +96,7 @@ def env(tmp_path, monkeypatch):
     ):
         scanner = ArenaScanner(str(log_file), mock_sets, retrieve_unknown=True)
         scanner.retrieve_set_data(str(dataset_path))
-        scanner.current_draft_id = "test_sealed"
+        scanner.session.current_draft_id = "test_sealed"
 
     # Flat 48-card pool (8 copies of each of the 6 cards), as the scanner returns.
     prototypes = scanner.set_data.get_data_by_name([c[0] for c in _POOL_CARDS])

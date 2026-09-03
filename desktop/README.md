@@ -141,10 +141,10 @@ Info.plist. The other seven exist to agree with it. `Cargo.toml`'s
 inherit it, and it stays at `0.1.0`.
 
 Bumping is a single command: `poetry run python bump_desktop_version.py <ver>`
-rewrites all eight literals and the topmost `CHANGELOG.md` heading from
-`tauri.conf.json` — never hand-edit the manifests.
-`test_desktop_version_is_consistent_across_manifests` pins the literals to that
-heading. Agreeing-but-stale is the failure it exists to catch: the eight sat at
+rewrites all desktop manifest literals and the topmost `release_notes.txt`
+heading from `tauri.conf.json` — never hand-edit the manifests. Add bilingual
+release details to the tracked `release_notes.txt` file.
+The consistency guard pins all manifest literals to `tauri.conf.json`.
 `0.7.0` for five releases while the changelog moved on, and CI published
 bundles named `0.7.0` the whole time. After editing `Cargo.lock` by hand, run
 `cargo metadata` to confirm it still parses.

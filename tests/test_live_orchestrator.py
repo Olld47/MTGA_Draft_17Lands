@@ -172,7 +172,7 @@ def test_sync_dataset_emits_loading_status_message(orchestrator):
     orchestrator.scanner.retrieve_current_limited_event = MagicMock(
         return_value=("OTJ", "PremierDraft")
     )
-    orchestrator.scanner.event_string = "PremierDraft"
+    orchestrator.scanner.session.event_string = "PremierDraft"
     orchestrator.scanner.select_best_dataset = MagicMock(
         return_value="/sets/OTJ_Data.json"
     )

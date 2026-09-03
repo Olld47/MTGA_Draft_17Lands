@@ -1,3 +1,37 @@
+===================== RELEASE NOTES 1.0.5 =====================
+### Highlights
+
+#### 架构深层收敛：稳定行为，降低后续维护风险
+
+本版完成牌组规划、草稿持久化与现开卡池的内部架构收敛；用户可见的推荐、扫描、持久化及桌面 IPC 行为保持不变。牌组规划统一由单一 planner 管理候选生命周期、缓存与变体生成；`DraftSession` 成为持久化状态唯一 authority；现开卡池的完整卡名、DFC 正面名称回退、basic land 例外、库存上限与主牌/备牌数量规则集中于 `SealedSession`。
+
+<details>
+<summary><b>English</b></summary>
+
+#### Architecture deepening: stable behavior, lower maintenance risk
+
+This release consolidates the internal architecture for deck planning, persisted draft state, and sealed-pool inventory without changing user-visible recommendations, scanning, persistence, or desktop IPC behavior. A single planner now owns deck-candidate lifecycle, caching, and variant generation; `DraftSession` is the sole persisted-state authority; and `SealedSession` centralizes full card-name resolution, DFC front-face fallback, basic-land exceptions, inventory caps, and main-deck/sideboard counts.
+
+</details>
+
+---
+
+以下是详细内容：
+
+**v1.0.5 (2026-08-29)**
+
+### 改进 | Improved
+
+- 牌组规划收敛为单一 planner interface；Safe Deck、mana base、缓存与进度行为保持不变
+- `DraftSession` 成为 draft identity、pack/pick、pool/history 与日志游标的唯一持久化 authority；`ArenaScanner` 保留扫描、事件分派、运行时状态和 phase 管理
+- 现开 inventory 规则集中：完整名称与 DFC front-face fallback、unknown card 拒绝、basic land 例外、库存上限和主牌/备牌 count 校验由同一 implementation 处理
+
+### 测试 | Verification
+
+- 覆盖 deck planning、DraftSession、sealed inventory 与 bridge 的行为测试，保护推荐结果、状态迁移和卡池边界
+- 发布版本同步守卫通过：desktop manifests、runtime literal、lock file 和完整 `v1.0.5` release heading 一致
+
+
 ===================== RELEASE NOTES 1.0.4 =====================
 ### Highlights
 

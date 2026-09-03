@@ -94,7 +94,7 @@ def env(tmp_path, monkeypatch):
     ):
         scanner = ArenaScanner(str(log_file), mock_sets, retrieve_unknown=True)
         scanner.retrieve_set_data(str(dataset_path))
-        scanner.current_draft_id = "test_draft"
+        scanner.session.current_draft_id = "test_draft"
 
     # No pool needed for compare — the filter resolves to All Decks with []
     scanner.retrieve_taken_cards = lambda: []

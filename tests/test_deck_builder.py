@@ -4,11 +4,144 @@ High-impact test targeting the V4 Deck Suggester and Holistic Scoring engine.
 """
 
 import pytest
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
+
 from src.advisor.deck_builder import suggest_deck
 from src.advisor.mana_base import calculate_dynamic_mana_base, count_fixing
 from src.configuration import Configuration
 
+
+def _planning_card(name="Card", color="G"):
+    return {
+        "name": name,
+        "types": ["Creature"],
+        "colors": [color],
+        "mana_cost": f"{{{color}}}",
+        "deck_colors": {"All Decks": {"gihwr": 55.0}},
+    }
+
+
+def _planning_deck(name, color="G"):
+    return [_planning_card(name, color) | {"count": 40}]
+
+
+def _patch_planning_variants(monkeypatch, consistency, curve=None, soup=None):
+    from src.advisor import deck_builder
+
+    monkeypatch.setattr(
+        deck_builder.DeckPlanner,
+        "build_consistency",
+        staticmethod(lambda *args: consistency),
+    )
+    monkeypatch.setattr(
+        deck_builder.DeckPlanner,
+        "build_curve",
+        staticmethod(lambda *args: curve if curve is not None else consistency),
+    )
+    monkeypatch.setattr(
+        deck_builder.DeckPlanner,
+        "build_greedy",
+        staticmethod(lambda *args: (None, None)),
+    )
+    monkeypatch.setattr(
+        deck_builder.DeckPlanner,
+        "build_soup",
+        staticmethod(lambda *args: soup if soup is not None else (None, [])),
+    )
+    monkeypatch.setattr(deck_builder, "get_sideboard", lambda pool, deck: [])
+    monkeypatch.setattr(
+        deck_builder, "identify_top_pairs", lambda *args: [["G", "R"]]
+    )
+
+
+def _planning_two_color_deck(name, first="G", second="R"):
+    return [
+        _planning_card(f"{name} {first}", first) | {"count": 20},
+        _planning_card(f"{name} {second}", second) | {"count": 20},
+    ]
+
+
+def _planning_stats():
+    return {
+        "color_screw_t3": 0.0,
+        "screw_t3": 0.0,
+        "flood_t5": 0.0,
+    }
+
+
+
+def test_suggest_deck_caches_ordered_results_and_reports_progress(
+    mock_metrics, monkeypatch
+):
+    """The planning interface caches a result without changing its output order."""
+    from src.advisor import deck_builder
+
+    deck_builder.clear_deck_cache()
+    pool = [_planning_card(f"Pool {index}") for index in range(15)]
+    candidate = _planning_two_color_deck("Core")
+    _patch_planning_variants(monkeypatch, candidate)
+    monkeypatch.setattr(
+        deck_builder,
+        "simulate_deck",
+        lambda *args, **kwargs: _planning_stats(),
+    )
+    monkeypatch.setattr(
+        deck_builder,
+        "calculate_holistic_score",
+        lambda *args: (70.0, "Stable core"),
+    )
+
+    first_progress = []
+    first = suggest_deck(
+        pool,
+        mock_metrics,
+        Configuration(),
+        progress_callback=first_progress.append,
+    )
+    second_progress = []
+    second = suggest_deck(
+        pool,
+        mock_metrics,
+        Configuration(),
+        progress_callback=second_progress.append,
+    )
+
+    assert list(second) == list(first)
+    assert first_progress
+    assert second_progress == [{"status": "Loaded optimized decks from cache."}]
+
+
+def test_suggest_deck_applies_mana_risk_penalties_to_public_rating(
+    mock_metrics, monkeypatch
+):
+    """The returned recommendation rating includes all three mana-risk penalties."""
+    from src.advisor import deck_builder
+
+    deck_builder.clear_deck_cache()
+    pool = [_planning_card(f"Pool {index}") for index in range(15)]
+    _patch_planning_variants(monkeypatch, _planning_two_color_deck("Risky"))
+    monkeypatch.setattr(
+        deck_builder,
+        "simulate_deck",
+        lambda *args, **kwargs: {
+            "color_screw_t3": 12.0,
+            "screw_t3": 24.0,
+            "flood_t5": 29.0,
+        },
+    )
+    monkeypatch.setattr(
+        deck_builder,
+        "calculate_holistic_score",
+        lambda *args: (70.0, "Base score"),
+    )
+
+    result = suggest_deck(pool, mock_metrics, Configuration())
+
+    recommendation = next(iter(result.values()))
+    assert recommendation["rating"] == 59.0
+    assert "Color Screw (-5.0)" in recommendation["breakdown"]
+    assert "Mana Screw (-3.0)" in recommendation["breakdown"]
+    assert "Flood Risk (-3.0)" in recommendation["breakdown"]
 
 @pytest.fixture
 def mock_metrics():
@@ -331,12 +464,11 @@ def _greedy_pool(main_g, main_b, splash_u):
 
 
 def test_greedy_splash_is_capped(mock_metrics):
-    """Regression: with thin main colors the greedy builder filled the deck
-    with every splash candidate (6 'splash' cards on 2 sources)."""
-    from src.advisor.deck_builder import build_variant_greedy
+    """Regression: with thin main colors the planner caps splash spells."""
+    from src.advisor.deck_builder import DeckPlanner
 
     pool = _greedy_pool(main_g=9, main_b=9, splash_u=6)
-    deck, splash_col = build_variant_greedy(pool, ["B", "G"], mock_metrics)
+    deck, splash_col = DeckPlanner.build_greedy(pool, ["B", "G"], mock_metrics)
 
     assert deck is not None
     assert splash_col == "U"
@@ -349,11 +481,245 @@ def test_greedy_splash_is_capped(mock_metrics):
 
 
 def test_greedy_skips_unsupported_pair_instead_of_over_splashing(mock_metrics):
-    """If the main colors can't reach ~20 spells even with a capped splash,
-    the pair isn't a real deck — skip it rather than over-splash."""
-    from src.advisor.deck_builder import build_variant_greedy
+    """The planner rejects a thin main pair rather than over-splashing."""
+    from src.advisor.deck_builder import DeckPlanner
 
     pool = _greedy_pool(main_g=7, main_b=7, splash_u=6)
-    deck, splash_col = build_variant_greedy(pool, ["B", "G"], mock_metrics)
+    deck, splash_col = DeckPlanner.build_greedy(pool, ["B", "G"], mock_metrics)
 
     assert deck is None
+
+
+def test_suggest_deck_rejects_pool_with_fewer_than_fifteen_playable_spells(
+    mock_metrics, monkeypatch
+):
+    """The public planning interface returns no recommendations below the guard."""
+    from src.advisor import deck_builder
+
+    deck_builder.clear_deck_cache()
+    pool = [_planning_card(f"Playable {index}") for index in range(14)]
+    _patch_planning_variants(monkeypatch, _planning_two_color_deck("Core"))
+    monkeypatch.setattr(deck_builder, "simulate_deck", lambda *args, **kwargs: _planning_stats())
+    monkeypatch.setattr(
+        deck_builder,
+        "calculate_holistic_score",
+        lambda *args: (70.0, "Stable core"),
+    )
+
+    assert suggest_deck(pool, mock_metrics, Configuration()) == {}
+
+
+def test_suggest_deck_keeps_a_non_soupy_option_when_soup_scores_higher(
+    mock_metrics, monkeypatch
+):
+    """The public result always includes a two-color identity when available."""
+    from src.advisor import deck_builder
+
+    deck_builder.clear_deck_cache()
+    pool = [_planning_card(f"Pool {index}") for index in range(15)]
+    safe = _planning_two_color_deck("Safe")
+    soup = [
+        _planning_card("Soup G", "G") | {"count": 14},
+        _planning_card("Soup R", "R") | {"count": 13},
+        _planning_card("Soup U", "U") | {"count": 13},
+    ]
+    _patch_planning_variants(monkeypatch, safe, soup=(soup, ["G", "R", "U"]))
+    monkeypatch.setattr(deck_builder, "simulate_deck", lambda *args, **kwargs: _planning_stats())
+    monkeypatch.setattr(
+        deck_builder,
+        "calculate_holistic_score",
+        lambda deck, *args: (90.0 if any(c["name"] == "Soup G" for c in deck) else 70.0, "score"),
+    )
+
+    result = suggest_deck(pool, mock_metrics, Configuration())
+
+    assert any(len(data["identity_colors"]) <= 2 for data in result.values())
+
+
+def test_suggest_deck_filters_near_duplicate_public_recommendations(
+    mock_metrics, monkeypatch
+):
+    """Recommendations sharing almost every card do not multiply the result list."""
+    from src.advisor import deck_builder
+
+    deck_builder.clear_deck_cache()
+    pool = [_planning_card(f"Pool {index}") for index in range(15)]
+    first = _planning_two_color_deck("First")
+    second = _planning_two_color_deck("First")
+    _patch_planning_variants(monkeypatch, first, curve=second)
+    monkeypatch.setattr(
+        deck_builder, "simulate_deck", lambda *args, **kwargs: _planning_stats()
+    )
+    monkeypatch.setattr(
+        deck_builder, "calculate_holistic_score", lambda *args: (70.0, "score")
+    )
+
+    result = suggest_deck(pool, mock_metrics, Configuration())
+
+    assert len(result) == 1
+
+
+
+def test_suggest_deck_promotes_nearby_safe_deck_and_preserves_two_color_identity(
+    mock_metrics, monkeypatch
+):
+    """A near-best deck with one incidental splash is publicly Safe and first."""
+    from src.advisor import deck_builder
+
+    deck_builder.clear_deck_cache()
+    pool = [_planning_card(f"Pool {index}") for index in range(15)]
+    safe_with_incidental_splash = [
+        _planning_card("Safe G", "G") | {"count": 19},
+        _planning_card("Safe R", "R") | {"count": 20},
+        _planning_card("Safe W", "W") | {"count": 1},
+    ]
+    soup = [
+        _planning_card("Soup G", "G") | {"count": 14},
+        _planning_card("Soup R", "R") | {"count": 13},
+        _planning_card("Soup U", "U") | {"count": 13},
+    ]
+    _patch_planning_variants(
+        monkeypatch, safe_with_incidental_splash, soup=(soup, ["G", "R", "U"])
+    )
+    monkeypatch.setattr(deck_builder, "simulate_deck", lambda *args, **kwargs: _planning_stats())
+    monkeypatch.setattr(
+        deck_builder,
+        "calculate_holistic_score",
+        lambda deck, *args: (90.0 if any(c["name"] == "Soup G" for c in deck) else 85.0, "score"),
+    )
+
+    label, recommendation = next(iter(suggest_deck(pool, mock_metrics, Configuration()).items()))
+
+    assert "Safe Core" in label
+    assert recommendation["identity_colors"] == ["R", "G"]
+
+
+
+def test_suggest_deck_exposes_complete_and_incomplete_variants(
+    mock_metrics, monkeypatch
+):
+    """The public mapping retains both classes when fewer than three variants exist."""
+    from src.advisor import deck_builder
+
+    deck_builder.clear_deck_cache()
+    pool = [_planning_card(f"Pool {index}") for index in range(15)]
+    complete = _planning_two_color_deck("Complete")
+    incomplete = _planning_two_color_deck("Incomplete")
+    _patch_planning_variants(monkeypatch, complete, curve=incomplete)
+    monkeypatch.setattr(
+        deck_builder, "simulate_deck", lambda *args, **kwargs: _planning_stats()
+    )
+    monkeypatch.setattr(
+        deck_builder,
+        "calculate_holistic_score",
+        lambda deck, *args: (
+            70.0,
+            "Incomplete Deck (-20.0)"
+            if any(c["name"] == "Incomplete G" for c in deck)
+            else "Stable core",
+        ),
+    )
+
+    results = suggest_deck(pool, mock_metrics, Configuration())
+
+    decks = list(results.values())
+    assert any(data["deck_cards"][0]["name"] == "Complete G" for data in decks)
+    assert any("Incomplete Deck" in data["breakdown"] for data in decks)
+
+
+def test_suggest_deck_reports_all_public_result_categories(
+    mock_metrics, monkeypatch
+):
+    """Progress reports status and variant results through the public interface."""
+    from src.advisor import deck_builder
+
+    deck_builder.clear_deck_cache()
+    pool = [_planning_card(f"Pool {index}") for index in range(15)]
+    _patch_planning_variants(monkeypatch, _planning_two_color_deck("Core"))
+    monkeypatch.setattr(deck_builder, "simulate_deck", lambda *args, **kwargs: _planning_stats())
+    monkeypatch.setattr(deck_builder, "calculate_holistic_score", lambda *args: (70.0, "score"))
+    progress = []
+
+    result = suggest_deck(pool, mock_metrics, Configuration(), progress_callback=progress.append)
+
+    assert result
+    assert any("status" in message for message in progress)
+    assert any("variant_label" in message for message in progress)
+
+
+
+def test_suggest_deck_uses_one_planner_owned_cache_for_public_adapter(
+    mock_metrics, monkeypatch
+):
+    """The public adapter retains cache behavior after orchestration moves inside the module."""
+    from src.advisor import deck_builder
+
+    deck_builder.clear_deck_cache()
+    pool = [_planning_card(f"Pool {index}") for index in range(15)]
+    _patch_planning_variants(monkeypatch, _planning_two_color_deck("Core"))
+    monkeypatch.setattr(deck_builder, "simulate_deck", lambda *args, **kwargs: _planning_stats())
+    monkeypatch.setattr(deck_builder, "calculate_holistic_score", lambda *args: (70.0, "score"))
+    suggest_deck(pool, mock_metrics, Configuration())
+    messages = []
+
+    suggest_deck(pool, mock_metrics, Configuration(), progress_callback=messages.append)
+
+    assert messages == [{"status": "Loaded optimized decks from cache."}]
+
+
+def test_clearing_public_planner_cache_recomputes_recommendation(
+    mock_metrics, monkeypatch
+):
+    """Clearing the public cache invalidates the next planning request."""
+    from src.advisor import deck_builder
+
+    deck_builder.clear_deck_cache()
+    pool = [_planning_card(f"Pool {index}") for index in range(15)]
+    _patch_planning_variants(monkeypatch, _planning_two_color_deck("Core"))
+    monkeypatch.setattr(deck_builder, "simulate_deck", lambda *args, **kwargs: _planning_stats())
+    monkeypatch.setattr(deck_builder, "calculate_holistic_score", lambda *args: (70.0, "score"))
+    first_messages = []
+    suggest_deck(pool, mock_metrics, Configuration(), progress_callback=first_messages.append)
+    deck_builder.clear_deck_cache()
+    second_messages = []
+
+    suggest_deck(pool, mock_metrics, Configuration(), progress_callback=second_messages.append)
+
+    assert any("Analyzing" in message.get("status", "") for message in second_messages)
+    assert second_messages != [{"status": "Loaded optimized decks from cache."}]
+
+
+def test_public_suggest_deck_adapter_preserves_keyword_contract(
+    mock_metrics, monkeypatch
+):
+    """The stable planner interface accepts event and progress options by keyword."""
+    from src.advisor import deck_builder
+
+    deck_builder.clear_deck_cache()
+    pool = [_planning_card(f"Pool {index}") for index in range(15)]
+    _patch_planning_variants(monkeypatch, _planning_two_color_deck("Core"))
+    monkeypatch.setattr(deck_builder, "simulate_deck", lambda *args, **kwargs: _planning_stats())
+    monkeypatch.setattr(deck_builder, "calculate_holistic_score", lambda *args: (70.0, "score"))
+
+    result = suggest_deck(
+        pool,
+        mock_metrics,
+        Configuration(),
+        event_type="TradDraft",
+        progress_callback=lambda message: None,
+        dataset_name="baseline",
+    )
+
+    assert result
+
+
+def test_planner_builds_greedy_variant_through_shared_interface(mock_metrics):
+    """Variant construction is provided by the shared planning module."""
+    from src.advisor.deck_builder import DeckPlanner
+
+    pool = _greedy_pool(main_g=9, main_b=9, splash_u=6)
+
+    deck, splash_color = DeckPlanner().build_greedy(pool, ["B", "G"], mock_metrics)
+
+    assert deck is not None
+    assert splash_color == "U"

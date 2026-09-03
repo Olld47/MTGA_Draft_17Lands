@@ -227,7 +227,7 @@ class DraftOrchestrator(threading.Thread):
             changed = True
 
             # Failsafe: If we recovered cards from the log but the dataset is missing in memory, load it
-            if not self.scanner.set_data._dataset and self.scanner.draft_sets:
+            if not self.scanner.set_data._dataset and self.scanner.session.draft_sets:
                 self.sync_dataset_to_event()
 
         # MOCK-SAFE FIRST RUN CHECK:
@@ -255,7 +255,7 @@ class DraftOrchestrator(threading.Thread):
             # Best match: same set + event type agreement + broadest group (All).
             # A set ships one dataset per event type; loading the wrong one (e.g.
             # a PickTwo draft for a QuickDraft) yields all-zero stats.
-            path = self.scanner.select_best_dataset(s_code, self.scanner.event_string)
+            path = self.scanner.select_best_dataset(s_code, self.scanner.session.event_string)
             if not path:
                 return False
 

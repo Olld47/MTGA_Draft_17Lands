@@ -5,9 +5,9 @@ Challenges the status quo of Mana Base generation and Monte Carlo simulations.
 
 import pytest
 from collections import Counter
-from src.advisor.deck_builder import build_variant_greedy
-from src.advisor.simulator import simulate_deck
+from src.advisor.deck_builder import DeckPlanner
 from src.advisor.mana_base import calculate_dynamic_mana_base
+from src.advisor.simulator import simulate_deck
 from unittest.mock import MagicMock
 
 
@@ -133,7 +133,7 @@ def test_greedy_double_pip_bomb_splash(mock_metrics):
     )
 
     # SCENARIO 1: No Fixing. The builder should REJECT the double-pip splash.
-    greedy_deck_nofix, splash_color_nofix = build_variant_greedy(
+    greedy_deck_nofix, splash_color_nofix = DeckPlanner.build_greedy(
         pool, ["W", "B"], mock_metrics
     )
     assert splash_color_nofix != "U", "Should reject 3UU splash without fixing."
@@ -172,7 +172,7 @@ def test_greedy_double_pip_bomb_splash(mock_metrics):
         ]
     )
 
-    greedy_deck_fix, splash_color_fix = build_variant_greedy(
+    greedy_deck_fix, splash_color_fix = DeckPlanner.build_greedy(
         pool, ["W", "B"], mock_metrics
     )
 

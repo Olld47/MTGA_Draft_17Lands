@@ -294,9 +294,9 @@ def test_desktop_version_is_consistent_across_manifests():
     it (or a release is named after it).
 
     desktop-version.lock is the committed anchor for this guard: it holds the
-    same literal as every manifest, and because it is checked out in CI (unlike
-    CHANGELOG.md, which is gitignored and local-only), a version bump that
-    misses a site fails the build here instead of shipping a mismatched bundle.
+    same literal as every manifest, and because it is checked out in CI, a
+    version bump that misses a site fails the build here instead of shipping a
+    mismatched bundle.
     """
     expected = json.loads(_read(TAURI_CONF))["version"]
 

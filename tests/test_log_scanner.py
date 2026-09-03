@@ -245,9 +245,9 @@ def test_dsk_sealed(session_scanner, entry_label, expected, entry_string):
 )
 def test_dsk_sealed_navigation(function_scanner, entry_label, expected, entry_string):
     if "Duplicate" in entry_label:
-        function_scanner.event_string = "Sealed_DSK_20240924"
-        function_scanner.draft_sets = ["DSK"]
-        function_scanner.draft_label = "Sealed"
+        function_scanner.session.event_string = "Sealed_DSK_20240924"
+        function_scanner.session.draft_sets = ["DSK"]
+        function_scanner.session.draft_label = "Sealed"
 
     event_test_cases(
         function_scanner,
@@ -450,26 +450,26 @@ def test_draft_state_recovery(function_scanner):
     function_scanner.draft_data_search()
 
     # Verify state is in memory
-    assert function_scanner.current_pack == 1
-    assert function_scanner.current_pick == 1
-    assert len(function_scanner.pack_cards[0]) > 0
+    assert function_scanner.session.current_pack == 1
+    assert function_scanner.session.current_pick == 1
+    assert len(function_scanner.session.pack_cards[0]) > 0
 
     # 3. Create a NEW scanner instance, simulating an app restart.
-    # It should automatically call _load_state() in __init__
+    # It should automatically load persisted state in __init__.
     new_scanner = ArenaScanner(
         function_scanner.arena_file,
         TEST_SETS,
         sets_location=TEST_SETS_DIRECTORY,
         retrieve_unknown=True,
-        state_file=function_scanner.state_file,
+        state_file=function_scanner.session.state_file,
     )
 
     # 4. Verify the new scanner perfectly recovered the state from disk!
-    assert new_scanner.draft_type == constants.LIMITED_TYPES_DICT["PremierDraft"]
-    assert new_scanner.current_pack == 1
-    assert new_scanner.current_pick == 1
-    assert new_scanner.current_draft_id == "87b408d1-43e0-4fb5-8c74-a1257fde087c"
-    assert len(new_scanner.pack_cards[0]) == len(function_scanner.pack_cards[0])
+    assert new_scanner.session.draft_type == constants.LIMITED_TYPES_DICT["PremierDraft"]
+    assert new_scanner.session.current_pack == 1
+    assert new_scanner.session.current_pick == 1
+    assert new_scanner.session.current_draft_id == "87b408d1-43e0-4fb5-8c74-a1257fde087c"
+    assert len(new_scanner.session.pack_cards[0]) == len(function_scanner.session.pack_cards[0])
 
 
 def test_cards_per_pick_logic(session_scanner):
@@ -477,19 +477,19 @@ def test_cards_per_pick_logic(session_scanner):
     from src import constants
 
     # Regular Draft
-    session_scanner.draft_type = constants.LIMITED_TYPE_DRAFT_PREMIER_V2
+    session_scanner.session.draft_type = constants.LIMITED_TYPE_DRAFT_PREMIER_V2
     assert session_scanner.cards_per_pick == 1
 
     # Pick Two Draft
-    session_scanner.draft_type = constants.LIMITED_TYPE_DRAFT_PICK_TWO
+    session_scanner.session.draft_type = constants.LIMITED_TYPE_DRAFT_PICK_TWO
     assert session_scanner.cards_per_pick == 2
 
 
 def test_process_pack_data_duplicate_protection(session_scanner):
     """Verify that feeding the exact same pack data twice is ignored."""
     session_scanner.clear_draft(True)
-    session_scanner.draft_type = 2
-    session_scanner.number_of_players = 8
+    session_scanner.session.draft_type = 2
+    session_scanner.session.number_of_players = 8
 
     # First time -> should return True (New high watermark)
     res1 = session_scanner._process_pack_data(pack=1, pick=1, pack_cards=["1", "2"])

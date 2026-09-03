@@ -105,7 +105,7 @@ def env(tmp_path, monkeypatch):
         scanner = ArenaScanner(str(log_file), mock_sets, retrieve_unknown=True)
         scanner.retrieve_set_data(str(dataset_path))
 
-    scanner.draft_sets = ["TEST"]
+    scanner.session.draft_sets = ["TEST"]
     runtime = AppRuntime(config=config, scanner=scanner)
     return {
         "runtime": runtime,
@@ -117,7 +117,7 @@ def env(tmp_path, monkeypatch):
 
 def _seed_history(scanner):
     """Two packs; the user took White Knight then Black Removal."""
-    scanner.draft_history = [
+    scanner.session.draft_history = [
         {
             "Pack": 1,
             "Pick": 1,
@@ -129,7 +129,7 @@ def _seed_history(scanner):
             "Cards": [_CARD_ID["Black Removal"], _CARD_ID["Red Burn"]],
         },
     ]
-    scanner.picked_cards[0] = [_CARD_ID["White Knight"], _CARD_ID["Black Removal"]]
+    scanner.session.picked_cards[0] = [_CARD_ID["White Knight"], _CARD_ID["Black Removal"]]
 
 
 # --- export_draft ------------------------------------------------------------
@@ -179,8 +179,7 @@ def test_export_file_name_uses_event_set(env):
 
 def test_export_file_name_without_event_set(env):
     _seed_history(env["scanner"])
-    env["scanner"].draft_sets = []
-
+    env["scanner"].session.draft_sets = []
     assert tools.export_draft(env["scanner"], "csv").file_name == "DraftExport.csv"
 
 
@@ -220,7 +219,7 @@ def test_export_snapshots_history_copy(env):
     real = tools.export_draft_to_json
 
     def clear_then_serialize(history, dataset, picked):
-        env["scanner"].draft_history.clear()
+        env["scanner"].session.draft_history.clear()
         return real(history, dataset, picked)
 
     with patch("mtga_bridge.tools.export_draft_to_json", clear_then_serialize):

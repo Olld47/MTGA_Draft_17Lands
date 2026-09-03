@@ -7,9 +7,8 @@ pools, draft history, and the log cursors — plus the state-file
 load/save/clear/complete migrations that used to live inline in
 src/log_scanner.py.
 
-The scanner keeps same-name adapter properties over these fields (no second
-copy); this module owns the JSON contract: the exact state-file keys, the
-v4.19 legacy draft_type coercion, the truncation-recovery file_size, and the
+This module owns the JSON contract: the exact state-file keys, the v4.19
+legacy draft_type coercion, the truncation-recovery file_size, and the
 partial/full clear and completion migrations. draft_start_offset, sideboard
 and data_source are runtime-only: the first two live here without JSON keys,
 data_source stays scanner-owned and never enters the session.
@@ -46,9 +45,7 @@ class DraftSession:
 
     Owns identity, pack/pick, pools/history, and the log cursors (three
     mutable LogOffset objects plus the search/draft-start/file-size scalars),
-    and the state-file JSON contract. The scanner holds no second copy of
-    these fields and never reads or writes the JSON itself — it delegates
-    through adapter properties and calls save/clear/complete on the session.
+    and the state-file JSON contract.
 
     Phase is deliberately NOT maintained here: derive_scanner_phase
     (src/scanner_state.py) keeps computing the phase from these fields, and

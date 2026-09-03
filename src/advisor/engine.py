@@ -939,17 +939,12 @@ class DraftAdvisor:
     def _get_fast_best_deck_score(
         self, pool: List[CardData], color_options: List[List[str]]
     ) -> float:
-        from src.advisor.deck_builder import (
-            build_variant_consistency,
-            build_variant_greedy,
-            build_variant_curve,
-            build_variant_soup,
-        )
+        from src.advisor.deck_builder import DeckPlanner
         from src.advisor.deck_scorer import calculate_holistic_score
 
         best_score = 0.0
         for main_colors in color_options:
-            for builder in [build_variant_consistency, build_variant_curve]:
+            for builder in [DeckPlanner.build_consistency, DeckPlanner.build_curve]:
                 deck = builder(pool, main_colors, self.metrics)
                 if deck:
                     score, _ = calculate_holistic_score(
@@ -958,7 +953,7 @@ class DraftAdvisor:
                     if score > best_score:
                         best_score = score
 
-            deck, splash = build_variant_greedy(pool, main_colors, self.metrics)
+            deck, splash = DeckPlanner.build_greedy(pool, main_colors, self.metrics)
             if deck:
                 target_colors = main_colors + [splash] if splash else main_colors
                 score, _ = calculate_holistic_score(
@@ -967,7 +962,7 @@ class DraftAdvisor:
                 if score > best_score:
                     best_score = score
 
-        deck, soup_colors = build_variant_soup(pool, self.metrics)
+        deck, soup_colors = DeckPlanner.build_soup(pool, self.metrics)
         if deck:
             target_colors = soup_colors[:3] if soup_colors else ["All Decks"]
             score, _ = calculate_holistic_score(
