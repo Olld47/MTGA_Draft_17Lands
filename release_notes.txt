@@ -1,3 +1,38 @@
+===================== RELEASE NOTES 1.0.6 =====================
+### Highlights
+
+#### 测试环境隔离：单元测试不再读写本机真实配置
+
+本版为工程质量与测试隔离修复，用户可见行为保持不变。此前单元测试套件会在真实用户配置目录留下文件：导入 `src.configuration` 即在系统配置目录（macOS `~/Library/Application Support/MTGA_Draft_Tool` 等）创建默认 `config.json`，导入 `src.logger` 即创建 `Debug/debug.log`——全新机器与 CI 上每跑一次测试都会产生真实用户态文件；“恢复默认设置”与练习模式数据集持久化等路径经“默认参数 def 期绑定”绕过 monkeypatch，把改动写进真实配置。本版改为：模块导入零副作用、配置初始化在启动路径显式执行、调试日志文件在首条记录时才创建；新增隔离守卫测试钉住该行为，防止回归。
+
+<details>
+<summary><b>English</b></summary>
+
+#### Test-environment isolation: unit tests no longer touch the real machine config
+
+This release is engineering and test-hygiene work with no user-visible change. The suite previously left files in the real user profile: importing `src.configuration` wrote a default `config.json` into the OS config directory (macOS `~/Library/Application Support/MTGA_Draft_Tool`, etc.), importing `src.logger` created `Debug/debug.log` — so every fresh machine/CI run produced real user-state files. Some paths ("Restore Defaults", practice-mode dataset persistence) reached the real config through def-time-bound default arguments that monkeypatches could not redirect. Imports are now side-effect free, config initialization is explicit on the boot path, and the debug log file is created only on the first emitted record. Isolation guard tests pin this behavior against regressions.
+
+</details>
+
+---
+
+以下是详细内容：
+
+**v1.0.6 (2026-09-03)**
+
+### 修复 | Fix
+
+- `src.configuration` 导入纯化：`get_config_path()` 不再创建目录，删除导入期兜底写配置；新增显式 `init_configuration()`，由 launcher（`main.py`）与桌面桥接在读取配置前调用——首次启动仍自动生成默认 `config.json`
+- `src.logger` 惰性化：`Debug/` 目录与日志文件在首条日志记录时才创建，导入不再产生文件
+- “恢复默认设置”（`services.reset_settings`）改为调用时解析配置路径：测试对 `CONFIG_FILE` 的 monkeypatch 重新生效，不再写真实用户配置
+- 练习模式数据集持久化经 `datasets.select_dataset_blocking` 的写入在测试中被隔离
+
+### 测试 | Verification
+
+- 新增子进程守卫测试：HOME/APPDATA/工作目录重定向到空临时目录后导入配置与日志模块零落盘；日志文件在写入记录后按预期生成且不重复
+- 全套 1744 项测试在隔离环境（用户目录重定向为空）下通过，临时根目录零文件残留
+
+
 ===================== RELEASE NOTES 1.0.5 =====================
 ### Highlights
 
