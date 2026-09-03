@@ -125,6 +125,7 @@ def test_main_launches_desktop_and_forwards_args(monkeypatch):
         ["main.py", "-f", "/logs/Player.log", "-d", "/mtga/data"],
     )
     monkeypatch.setattr(entry, "cleanup_old_draft_logs", lambda: None)
+    monkeypatch.setattr(entry, "init_configuration", lambda: True)
     monkeypatch.setattr(entry, "read_configuration", lambda: (Configuration(), False))
     monkeypatch.setattr(entry, "find_desktop_launcher", lambda: "/fake/bin")
 
@@ -159,6 +160,7 @@ def test_main_normal_launch_never_reads_default_ui(monkeypatch):
 
     monkeypatch.setattr(entry.sys, "argv", ["main.py"])
     monkeypatch.setattr(entry, "cleanup_old_draft_logs", lambda: None)
+    monkeypatch.setattr(entry, "init_configuration", lambda: True)
     monkeypatch.setattr(entry, "read_configuration", fake_read_configuration)
     monkeypatch.setattr(entry, "find_desktop_launcher", lambda: "/fake/bin")
     monkeypatch.setattr(
@@ -178,6 +180,7 @@ def test_main_without_build_exits_two_and_never_falls_through(monkeypatch, capsy
 
     monkeypatch.setattr(entry.sys, "argv", ["main.py"])
     monkeypatch.setattr(entry, "cleanup_old_draft_logs", lambda: None)
+    monkeypatch.setattr(entry, "init_configuration", lambda: True)
     monkeypatch.setattr(entry, "read_configuration", lambda: (Configuration(), False))
     monkeypatch.setattr(entry, "find_desktop_launcher", lambda: None)
     with pytest.raises(SystemExit) as exc:
@@ -189,3 +192,30 @@ def test_main_without_build_exits_two_and_never_falls_through(monkeypatch, capsy
     assert "MTGA_DRAFT_DESKTOP" in out
     assert "tkinter" not in out
     assert "--ui" not in out
+
+
+def test_main_initializes_config_before_reading(monkeypatch):
+    """First-boot init order: init_configuration() runs before
+    read_configuration(), so a first launch materializes the config file
+    before anything reads it — and neither call touches the real machine."""
+    from src.configuration import Configuration
+
+    calls = []
+
+    def fake_init():
+        calls.append("init")
+        return True
+
+    def fake_read(file_location=None):
+        calls.append("read")
+        return Configuration(), False
+
+    monkeypatch.setattr(entry.sys, "argv", ["main.py"])
+    monkeypatch.setattr(entry, "cleanup_old_draft_logs", lambda: None)
+    monkeypatch.setattr(entry, "init_configuration", fake_init)
+    monkeypatch.setattr(entry, "read_configuration", fake_read)
+    monkeypatch.setattr(entry, "find_desktop_launcher", lambda: None)
+    with pytest.raises(SystemExit) as exc:
+        entry.main()
+    assert exc.value.code == 2
+    assert calls == ["init", "read"]

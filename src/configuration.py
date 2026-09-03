@@ -25,7 +25,12 @@ def set_error_notifier(notifier: Optional[Callable[[str, str], None]]):
 
 
 def get_config_path():
-    """Returns the platform-specific path for the configuration file."""
+    """Returns the platform-specific path for the configuration file.
+
+    Pure path computation: nothing is created here. Writers
+    (write_configuration / init_configuration) ensure their own parent
+    directories, so importing this module never touches the real user dir.
+    """
     app_name = "MTGA_Draft_Tool"
     if sys.platform == "win32":
         base_path = os.getenv("APPDATA")
@@ -34,24 +39,17 @@ def get_config_path():
     else:  # Linux/Unix
         base_path = os.path.expanduser("~/.config")
 
-    config_dir = os.path.join(base_path, app_name)
-    if not os.path.exists(config_dir):
-        try:
-            os.makedirs(config_dir)
-        except Exception:
-            pass
-
-    return os.path.join(config_dir, "config.json")
+    return os.path.join(base_path, app_name, "config.json")
 
 
-# Use local config if it exists (Development mode), otherwise use User Data path
+# Use local config if it exists (Development mode), otherwise use User Data
+# path. Selection is pure at import time: no directory is created and no file
+# is written until init_configuration / write_configuration run.
 LOCAL_CONFIG = os.path.join(BASE_DIR, "config.json")
 if os.path.exists(LOCAL_CONFIG):
     CONFIG_FILE = LOCAL_CONFIG
-    logger.info(f"Using local configuration file: {CONFIG_FILE}")
 else:
     CONFIG_FILE = get_config_path()
-    logger.info(f"Using system configuration file: {CONFIG_FILE}")
 
 
 class DeckType(BaseModel):
@@ -291,6 +289,10 @@ def reset_configuration(file_location: str = CONFIG_FILE) -> bool:
     config_object = Configuration()
     success = False
     try:
+        # Ensure the target directory exists before writing
+        dir_name = os.path.dirname(file_location)
+        if dir_name and not os.path.exists(dir_name):
+            os.makedirs(dir_name)
         with open(file_location, "w", encoding="utf8", errors="replace") as data:
             json.dump(config_object.model_dump(), data, ensure_ascii=False, indent=4)
         success = True
@@ -300,6 +302,15 @@ def reset_configuration(file_location: str = CONFIG_FILE) -> bool:
     return success
 
 
-# Safety Check: Initialize file if missing on boot
-if not os.path.exists(CONFIG_FILE):
-    reset_configuration(CONFIG_FILE)
+def init_configuration(file_location: str = CONFIG_FILE) -> bool:
+    """Ensure a config file exists at file_location, writing defaults when
+    missing (parent directories auto-created).
+
+    Explicit boot-time replacement for the removed import-time safety check.
+    The launcher (main.py) and the desktop bridge call it before reading the
+    config, so a first launch still materializes the file — but merely
+    importing this module performs no filesystem writes.
+    """
+    if os.path.exists(file_location):
+        return True
+    return write_configuration(Configuration(), file_location)

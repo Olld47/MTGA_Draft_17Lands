@@ -30,6 +30,24 @@ from mtga_bridge import practice
 from mtga_bridge.runtime import AppRuntime
 
 
+@pytest.fixture(autouse=True)
+def _hermetic_config_persistence(tmp_path, monkeypatch):
+    """start_practice persists the selected dataset through
+    datasets.select_dataset_blocking -> write_configuration(config), whose
+    default file_location binds to the real CONFIG_FILE at import time.
+    Route those writes through the real writer to a per-test temp file so
+    persistence stays exercised (and assertable) without ever touching the
+    real machine config."""
+    from src.configuration import write_configuration
+
+    target = tmp_path / "config.json"
+    monkeypatch.setattr(
+        "mtga_bridge.datasets.write_configuration",
+        lambda config: write_configuration(config, str(target)),
+    )
+    return str(target)
+
+
 # The dataset integrity check rejects files with fewer than 10 cards.
 _CARDS = [
     ("Common A", "common"),
@@ -227,6 +245,27 @@ def started(env):
         "mtga_bridge.practice.retrieve_local_set_list", return_value=(rows, [])
     ):
         yield env
+
+
+def test_start_practice_persists_selected_dataset(
+    started, _hermetic_config_persistence
+):
+    """Dataset selection persists through the real writer into the per-test
+    temp config (never the machine config): latest_dataset is updated on
+    disk, not merely in memory."""
+    session = started["runtime"].sealed_session()
+    result = practice.start_practice(
+        started["scanner"], started["config"], session, "TEST"
+    )
+    assert result.ok is True
+    assert (
+        started["config"].card_data.latest_dataset
+        == "TEST_PremierDraft_All_Data.json"
+    )
+
+    with open(_hermetic_config_persistence, "r") as f:
+        saved = json.load(f)
+    assert saved["card_data"]["latest_dataset"] == "TEST_PremierDraft_All_Data.json"
 
 
 def test_start_practice_generates_and_loads_pool(started):

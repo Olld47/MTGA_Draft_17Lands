@@ -7,4 +7,4 @@ the desktop manifests and `tauri.conf.json`; release notes live in the tracked
 root `release_notes.txt` file.
 """
 
-DESKTOP_VERSION = "1.0.5"
+DESKTOP_VERSION = "1.0.6"

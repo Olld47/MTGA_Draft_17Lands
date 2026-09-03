@@ -1,6 +1,7 @@
 import pytest
 import json
 import os
+import subprocess
 import sys
 from unittest.mock import patch, MagicMock
 from dataclasses import asdict
@@ -258,3 +259,113 @@ def test_write_configuration_no_notifier(tmp_path, example_configuration):
             example_configuration, str(tmp_path / "config.json")
         )
     assert success is False
+
+
+# --- init_configuration (explicit boot-time init) ----------------------------
+
+
+def test_init_configuration_creates_defaults_when_missing(tmp_path):
+    """init_configuration materializes a default config at the target path
+    (creating parent dirs) when none exists yet."""
+    from src.configuration import init_configuration
+
+    file_location = tmp_path / "nested" / "config.json"
+
+    success = init_configuration(str(file_location))
+
+    assert success is True
+    assert file_location.exists()
+    config, read_ok = read_configuration(str(file_location))
+    assert read_ok is True
+    assert config == Configuration()
+
+
+def test_init_configuration_leaves_existing_file_untouched(tmp_path):
+    """init_configuration is a no-op when the file already exists — it must
+    never overwrite a user's saved settings."""
+    from src.configuration import init_configuration
+
+    file_location = tmp_path / "config.json"
+    file_location.write_text('{"settings": {"language": "zh"}}')
+
+    success = init_configuration(str(file_location))
+
+    assert success is True
+    assert json.loads(file_location.read_text())["settings"]["language"] == "zh"
+
+
+def test_init_configuration_default_writes_user_config_in_subprocess(tmp_path):
+    """First-boot semantics: init_configuration() with no argument creates
+    the default config at the platform user path (HOME/APPDATA redirected to
+    tmp) when no local config exists — the behavior the launcher and desktop
+    bridge rely on. Subprocess because the module's default argument is bound
+    at import time in this process."""
+    repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    base = tmp_path / "base"
+    home = tmp_path / "home"
+    appdata = tmp_path / "appdata"
+    for root in (base, home, appdata):
+        root.mkdir()
+
+    env = dict(os.environ)
+    env["PYTHONPATH"] = repo_root
+    env["HOME"] = str(home)
+    env["APPDATA"] = str(appdata)
+
+    result = subprocess.run(
+        [sys.executable, "-c", "from src.configuration import init_configuration; import sys; sys.exit(0 if init_configuration() else 1)"],
+        cwd=str(base),
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    assert result.returncode == 0, result.stderr
+
+    created = [
+        p for root in (home, appdata) for p in root.rglob("config.json")
+    ]
+    assert len(created) == 1, f"expected one config.json under user roots, got {created}"
+    config, read_ok = read_configuration(str(created[0]))
+    assert read_ok is True
+    assert config == Configuration()
+
+
+# --- import-time purity guard (hermeticity) ----------------------------------
+
+
+def test_importing_configuration_writes_nothing_to_disk(tmp_path):
+    """Guard: importing src.configuration must create no files or directories
+    anywhere — neither the user config dir (the no-local-config.json fallback
+    used to makedirs + write it) nor the Debug log folder. Runs in a
+    subprocess with cwd/HOME/APPDATA redirected to fresh temp roots because
+    the module is already imported in this process."""
+    repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    base = tmp_path / "base"
+    home = tmp_path / "home"
+    appdata = tmp_path / "appdata"
+    for root in (base, home, appdata):
+        root.mkdir()
+
+    env = dict(os.environ)
+    env["PYTHONPATH"] = repo_root
+    env["HOME"] = str(home)
+    env["APPDATA"] = str(appdata)
+
+    result = subprocess.run(
+        [sys.executable, "-c", "import src.configuration"],
+        cwd=str(base),
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    assert result.returncode == 0, result.stderr
+
+    for root in (base, home, appdata):
+        leftovers = [
+            str(p)
+            for p in root.rglob("*")
+            if p.name in {"config.json", "Debug", "debug.log", "MTGA_Draft_Tool"}
+        ]
+        assert leftovers == [], f"import created files under {root}: {leftovers}"
