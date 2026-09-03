@@ -92,3 +92,30 @@ def test_logger_creates_debug_file_on_first_record(tmp_path):
     assert log_file.exists()
     content = log_file.read_text()
     assert content.count(token) == 1
+
+
+def test_deferred_handler_close_closes_the_real_handler(tmp_path):
+    """Closing the deferred wrapper must close (and release) the underlying
+    TimedRotatingFileHandler it built on first emit — otherwise the file
+    descriptor stays open after logging.shutdown, leaking the handle."""
+    from src.logger import _DeferredFileHandler
+
+    handler = _DeferredFileHandler(str(tmp_path / "debug.log"))
+    logger = logging.getLogger("close_probe")
+    logger.addHandler(handler)
+    logger.setLevel(logging.DEBUG)
+    try:
+        logger.info("first record")
+    finally:
+        logger.removeHandler(handler)
+
+    real = handler._real_handler
+    assert real is not None
+    stream = real.stream
+    assert stream is not None and stream.closed is False
+
+    handler.close()
+
+    assert handler._real_handler is None
+    assert real.stream is None
+    assert stream.closed is True

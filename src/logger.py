@@ -73,6 +73,16 @@ class _DeferredFileHandler(logging.Handler):
                     self._real_handler = handler
         return handler
 
+    def close(self):
+        # Close and release the underlying file handler so logging.shutdown
+        # (or an explicit close) does not leak its file descriptor.
+        with self._setup_lock:
+            handler = self._real_handler
+            self._real_handler = None
+        if handler is not None:
+            handler.close()
+        super().close()
+
     def emit(self, record):
         # Dispatch under the real handler's own lock; formats once, writes once.
         self._real().handle(record)
