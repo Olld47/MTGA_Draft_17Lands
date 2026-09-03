@@ -30,6 +30,17 @@ from mtga_bridge import practice
 from mtga_bridge.runtime import AppRuntime
 
 
+@pytest.fixture(autouse=True)
+def _no_real_config_writes(monkeypatch):
+    """start_practice persists the selected dataset through
+    datasets.select_dataset_blocking -> write_configuration(config), whose
+    default file_location binds to the real CONFIG_FILE at import time.
+    Keep every practice test hermetic regardless of branch."""
+    monkeypatch.setattr(
+        "mtga_bridge.datasets.write_configuration", lambda config: True
+    )
+
+
 # The dataset integrity check rejects files with fewer than 10 cards.
 _CARDS = [
     ("Common A", "common"),

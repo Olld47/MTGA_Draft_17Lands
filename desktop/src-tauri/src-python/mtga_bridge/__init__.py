@@ -23,7 +23,7 @@ def main() -> int:
     from pydantic import BaseModel, RootModel
     from pytauri import Emitter, Manager, builder_factory, context_factory
 
-    from src.configuration import read_configuration, set_error_notifier
+    from src.configuration import init_configuration, read_configuration, set_error_notifier
 
     from mtga_bridge import boot
     from mtga_bridge.commands import commands
@@ -32,6 +32,9 @@ def main() -> int:
 
     logging.basicConfig(level=logging.INFO)
 
+    # Explicit boot-time init: first launch materializes the config file
+    # before it is read (importing the module performs no filesystem writes).
+    init_configuration()
     config, _ = read_configuration()
     runtime = AppRuntime(config=config)
 

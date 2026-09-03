@@ -16,7 +16,7 @@ import sys
 import logging
 from typing import List, Optional
 from src import constants
-from src.configuration import read_configuration
+from src.configuration import init_configuration, read_configuration
 from src.bootstrap import cleanup_old_draft_logs
 
 logger = logging.getLogger(__name__)
@@ -103,8 +103,10 @@ def main():
         print(f"MTGA Draft Tool v{constants.APPLICATION_VERSION}")
         sys.exit(0)
 
-    # Load Config — keeps config initialization and corruption detection on
-    # the boot path; the desktop app re-reads the same file itself.
+    # Load Config — explicit init (creates the file on first launch) plus
+    # corruption detection stays on the boot path; the desktop app re-reads
+    # the same file itself. Importing the module performs no filesystem work.
+    init_configuration()
     read_configuration()
 
     launcher = find_desktop_launcher()

@@ -234,11 +234,16 @@ def apply_settings_patch(runtime, patch: SettingsPatch) -> SettingsVM:
 
 def reset_settings(runtime) -> SettingsVM:
     """Restores the baseline config — writes a fresh Configuration via
-reset_configuration() and re-reads it."""
-    from src.configuration import read_configuration, reset_configuration
+reset_configuration() and re-reads it.
 
-    reset_configuration()
-    fresh_config, _ = read_configuration()
+CONFIG_FILE is resolved at call time (module attribute, not the function
+default argument, which Python binds at definition) so callers — and unit
+tests — can redirect the target path with a monkeypatch.
+    """
+    import src.configuration as config_module
+
+    config_module.reset_configuration(config_module.CONFIG_FILE)
+    fresh_config, _ = config_module.read_configuration(config_module.CONFIG_FILE)
     runtime.config = fresh_config
     return settings_vm(fresh_config)
 
