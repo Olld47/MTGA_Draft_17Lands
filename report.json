@@ -1,0 +1,324 @@
+{
+  "pipeline_run": {
+    "started_at": "2026-09-15T14:30:53.426543+00:00",
+    "completed_at": "2026-09-15T15:02:09.610986+00:00",
+    "duration_sec": 1876.2,
+    "status": "PARTIAL_SUCCESS"
+  },
+  "api_stats": {
+    "total_requests": 287,
+    "failed_requests": 0,
+    "cached_requests": 112
+  },
+  "intent": {
+    "scheduled_events": {
+      "HOB": {
+        "formats": [
+          "PremierDraft",
+          "TradDraft",
+          "ContenderDraft",
+          "PickTwoDraft"
+        ],
+        "start_date": "2026-08-11"
+      },
+      "MH3": {
+        "formats": [
+          "PremierDraft"
+        ],
+        "start_date": "2026-09-08"
+      },
+      "Mixed-Up": {
+        "formats": [
+          "PremierDraft"
+        ],
+        "start_date": "2026-09-04"
+      },
+      "Cube - Powered": {
+        "formats": [
+          "PremierDraft",
+          "TradDraft"
+        ],
+        "start_date": "2026-09-08"
+      },
+      "DFT": {
+        "formats": [
+          "ArenaDirect"
+        ],
+        "start_date": "2026-09-15"
+      }
+    },
+    "archetypes_targeted": [
+      "All Decks",
+      "W",
+      "U",
+      "B",
+      "R",
+      "G",
+      "WU",
+      "UB",
+      "BR",
+      "RG",
+      "WG",
+      "WB",
+      "UR",
+      "BG",
+      "WR",
+      "UG",
+      "WUB",
+      "UBR",
+      "BRG",
+      "WRG",
+      "WUG",
+      "WBR",
+      "URG",
+      "WBG",
+      "WUR",
+      "UBG",
+      "WUBR",
+      "UBRG",
+      "WBRG",
+      "WURG",
+      "WUBG",
+      "WUBRG"
+    ],
+    "user_types_targeted": [
+      "All",
+      "Top"
+    ]
+  },
+  "execution_summary": {
+    "formats_updated": 12,
+    "formats_skipped": 2,
+    "total_output_kb": 1663,
+    "total_cards_rated": 15386,
+    "total_errors": 2,
+    "total_warnings": 4
+  },
+  "warehouse_state": {
+    "total_available_datasets": 24,
+    "available_keys": [
+      "HOB_PickTwoDraft_All",
+      "HOB_PremierDraft_All",
+      "HOB_PremierDraft_Top",
+      "HOB_TradDraft_All",
+      "HOB_Sealed_All",
+      "HOB_TradSealed_All",
+      "DSK_QuickDraft_All",
+      "DSK_QuickDraft_Top",
+      "HOB_TradDraft_Top",
+      "HOB_PickTwoDraft_Top",
+      "HOB_QuickDraft_All",
+      "HOB_QuickDraft_Top",
+      "HOB_ContenderDraft_All",
+      "HOB_ContenderDraft_Top",
+      "LTR_PremierDraft_All",
+      "LTR_PremierDraft_Top",
+      "SOS_QuickDraft_All",
+      "SOS_QuickDraft_Top",
+      "MH3_PremierDraft_All",
+      "MH3_PremierDraft_Top",
+      "Cube - Powered_TradDraft_All",
+      "Cube - Powered_TradDraft_Top",
+      "Cube - Powered_PremierDraft_All",
+      "Cube - Powered_PremierDraft_Top"
+    ]
+  },
+  "datasets_updated": [
+    {
+      "set": "HOB",
+      "format": "PremierDraft",
+      "user_group": "All",
+      "filename": "HOB_PremierDraft_All_Data.json.gz",
+      "size_kb": 143,
+      "card_count": 1158,
+      "start_date": "2026-08-11",
+      "end_date": "2026-09-15",
+      "game_count": 486069,
+      "status": "success"
+    },
+    {
+      "set": "HOB",
+      "format": "PremierDraft",
+      "user_group": "Top",
+      "filename": "HOB_PremierDraft_Top_Data.json.gz",
+      "size_kb": 84,
+      "card_count": 1158,
+      "start_date": "2026-08-11",
+      "end_date": "2026-09-15",
+      "game_count": 53195,
+      "status": "success"
+    },
+    {
+      "set": "HOB",
+      "format": "TradDraft",
+      "user_group": "All",
+      "filename": "HOB_TradDraft_All_Data.json.gz",
+      "size_kb": 113,
+      "card_count": 1158,
+      "start_date": "2026-08-11",
+      "end_date": "2026-09-15",
+      "game_count": 73492,
+      "status": "success"
+    },
+    {
+      "set": "HOB",
+      "format": "TradDraft",
+      "user_group": "Top",
+      "filename": "HOB_TradDraft_Top_Data.json.gz",
+      "size_kb": 80,
+      "card_count": 1158,
+      "start_date": "2026-08-11",
+      "end_date": "2026-09-15",
+      "game_count": 6652,
+      "status": "success"
+    },
+    {
+      "set": "HOB",
+      "format": "ContenderDraft",
+      "user_group": "All",
+      "filename": "HOB_ContenderDraft_All_Data.json.gz",
+      "size_kb": 106,
+      "card_count": 1158,
+      "start_date": "2026-08-11",
+      "end_date": "2026-09-15",
+      "game_count": 41362,
+      "status": "success"
+    },
+    {
+      "set": "HOB",
+      "format": "ContenderDraft",
+      "user_group": "Top",
+      "filename": "HOB_ContenderDraft_Top_Data.json.gz",
+      "size_kb": 73,
+      "card_count": 1158,
+      "start_date": "2026-08-11",
+      "end_date": "2026-09-15",
+      "game_count": 0,
+      "status": "success"
+    },
+    {
+      "set": "HOB",
+      "format": "PickTwoDraft",
+      "user_group": "All",
+      "filename": "HOB_PickTwoDraft_All_Data.json.gz",
+      "size_kb": 134,
+      "card_count": 1158,
+      "start_date": "2026-08-11",
+      "end_date": "2026-09-15",
+      "game_count": 187506,
+      "status": "success"
+    },
+    {
+      "set": "HOB",
+      "format": "PickTwoDraft",
+      "user_group": "Top",
+      "filename": "HOB_PickTwoDraft_Top_Data.json.gz",
+      "size_kb": 80,
+      "card_count": 1158,
+      "start_date": "2026-08-11",
+      "end_date": "2026-09-15",
+      "game_count": 7637,
+      "status": "success"
+    },
+    {
+      "set": "MH3",
+      "format": "PremierDraft",
+      "user_group": "All",
+      "filename": "MH3_PremierDraft_All_Data.json.gz",
+      "size_kb": 260,
+      "card_count": 1298,
+      "start_date": "2024-06-11",
+      "end_date": "2026-09-15",
+      "game_count": 973329,
+      "status": "success"
+    },
+    {
+      "set": "MH3",
+      "format": "PremierDraft",
+      "user_group": "Top",
+      "filename": "MH3_PremierDraft_Top_Data.json.gz",
+      "size_kb": 119,
+      "card_count": 1298,
+      "start_date": "2024-06-11",
+      "end_date": "2026-09-15",
+      "game_count": 162977,
+      "status": "success"
+    },
+    {
+      "set": "Cube - Powered",
+      "format": "PremierDraft",
+      "user_group": "All",
+      "filename": "Cube - Powered_PremierDraft_All_Data.json.gz",
+      "size_kb": 303,
+      "card_count": 1763,
+      "start_date": "2026-09-08",
+      "end_date": "2026-09-15",
+      "game_count": 86709,
+      "status": "success"
+    },
+    {
+      "set": "Cube - Powered",
+      "format": "PremierDraft",
+      "user_group": "Top",
+      "filename": "Cube - Powered_PremierDraft_Top_Data.json.gz",
+      "size_kb": 168,
+      "card_count": 1763,
+      "start_date": "2026-09-08",
+      "end_date": "2026-09-15",
+      "game_count": 8891,
+      "status": "success"
+    }
+  ],
+  "datasets_skipped": [
+    {
+      "set": "Cube - Powered",
+      "format": "TradDraft",
+      "reason": "Failed validation, kept prior data: Every sampled card has a 0% 'All Decks' win rate despite non-zero samples -- win-rate fields were not populated."
+    },
+    {
+      "set": "Cube - Powered",
+      "format": "TradDraft",
+      "reason": "Failed validation, kept prior data: Every sampled card has a 0% 'All Decks' win rate despite non-zero samples -- win-rate fields were not populated."
+    }
+  ],
+  "errors": [
+    {
+      "time": "2026-09-15T15:00:50.661789+00:00",
+      "level": "ERROR",
+      "logger": "__main__",
+      "message": "   [Validation] Cube - Powered TradDraft (All): Every sampled card has a 0% 'All Decks' win rate despite non-zero samples -- win-rate fields were not populated."
+    },
+    {
+      "time": "2026-09-15T15:01:06.109704+00:00",
+      "level": "ERROR",
+      "logger": "__main__",
+      "message": "   [Validation] Cube - Powered TradDraft (Top): Every sampled card has a 0% 'All Decks' win rate despite non-zero samples -- win-rate fields were not populated."
+    }
+  ],
+  "warnings": [
+    {
+      "time": "2026-09-15T14:52:52.882128+00:00",
+      "level": "WARNING",
+      "logger": "__main__",
+      "message": "No baseline data for Mixed-Up PremierDraft (All)."
+    },
+    {
+      "time": "2026-09-15T14:53:08.494396+00:00",
+      "level": "WARNING",
+      "logger": "__main__",
+      "message": "No baseline data for Mixed-Up PremierDraft (Top)."
+    },
+    {
+      "time": "2026-09-15T15:01:54.560960+00:00",
+      "level": "WARNING",
+      "logger": "__main__",
+      "message": "No baseline data for DFT ArenaDirect (All)."
+    },
+    {
+      "time": "2026-09-15T15:02:09.610146+00:00",
+      "level": "WARNING",
+      "logger": "__main__",
+      "message": "No baseline data for DFT ArenaDirect (Top)."
+    }
+  ]
+}
