@@ -584,11 +584,22 @@ def test_quick_draft_pick_after_picked_cards_resync_counts_once(function_scanner
     assert function_scanner.session.taken_cards == restored + ["90627"]
 
 
-def test_mislabelled_pick_two_draft_keeps_first_pack(function_scanner):
+def test_mislabelled_pick_two_draft_keeps_first_pack(tmp_path):
     """A Pick-Two draft logged under a standard event name is switched to
     Pick-Two on its first two-card pick. The P1P1 pack recorded before the
-    switch must survive, or the P1P5 wheel shows no missing cards."""
-    scanner = function_scanner
+    switch must survive, or the P1P5 wheel shows no missing cards.
+
+    Needs retrieve_unknown=True: the pack IDs are not in the fixture dataset,
+    so they resolve to raw-ID placeholders rather than to names.
+    """
+    scanner = ArenaScanner(
+        str(tmp_path / "Player.log"),
+        TEST_SETS,
+        sets_location=TEST_SETS_DIRECTORY,
+        retrieve_unknown=True,
+        state_file=str(tmp_path / "active_draft_state.json"),
+    )
+    scanner.log_enable(False)
     for entry_label, expected, entry_string in OM1_PICK_TWO_PREMIER_DRAFT_ENTRIES:
         with open(scanner.arena_file, "a", encoding="utf-8") as log_file:
             log_file.write(
