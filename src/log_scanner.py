@@ -1003,7 +1003,8 @@ class ArenaScanner:
                 )
                 if len(picked_list) > len(self.session.taken_cards):
                     self.session.taken_cards = picked_list
-                    self.session.picked_cards[0] = self.session.taken_cards
+                    # Copy: sharing one list makes the next slot-0 pick count twice.
+                    self.session.picked_cards[0] = list(picked_list)
                     changed = True
             if changed:
                 fired = ScannerEvent.PACK_BOT
