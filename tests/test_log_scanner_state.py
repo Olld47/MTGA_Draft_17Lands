@@ -818,3 +818,63 @@ def test_scan_log_events_rejects_legacy_string_cursor(tmp_path):
     with pytest.raises(AttributeError):
         list(s._scan_log_for_events("pack_offset", ['{"Pack":']))
 
+
+
+# --- ID-less bot draft reset detection --------------------------------------
+# The old reset heuristics keyed on "P1P1 with a non-empty pool". They fired on
+# any replayed first pack and missed resets that started at a later position.
+# Detection is now a watermark comparison against draft history.
+
+def test_idless_new_pack_resets_old_pool_even_with_shared_card(scanner):
+    """A replayed pack can share a card with the recorded history; one shared
+    card must not make a whole new pack look historical."""
+    scanner.session.current_draft_id = ""
+    scanner.session.current_pack = scanner.session.previous_scanned_pack = 3
+    scanner.session.current_pick = 10
+    scanner.session.taken_cards = ["old"] * 35
+    scanner.session.draft_history = [{"Pack": 1, "Pick": 1, "Cards": ["shared", "old"]}]
+
+    assert scanner._process_pack_data(1, 1, ["shared", "new"])
+
+    assert scanner.session.taken_cards == []
+    assert (scanner.session.current_pack, scanner.session.current_pick) == (1, 1)
+
+
+def test_idless_p1p1_replay_preserves_completed_pool(scanner):
+    """Re-reading an already-recorded pack is history, not a new draft."""
+    scanner.session.current_draft_id = ""
+    scanner.session.current_pack = scanner.session.previous_scanned_pack = 3
+    scanner.session.current_pick = 10
+    scanner.session.taken_cards = ["old"] * 35
+    scanner.session.draft_history = [{"Pack": 1, "Pick": 1, "Cards": ["a", "b"]}]
+
+    assert not scanner._process_pack_data(1, 1, ["a", "b"])
+
+    assert len(scanner.session.taken_cards) == 35
+
+
+def test_idless_first_pick_not_erased_by_repeated_first_pack(scanner):
+    """The first pick survives the pack that produced it being seen again."""
+    scanner.session.current_draft_id = ""
+    scanner.session.current_pack = scanner.session.previous_scanned_pack = 1
+    scanner.session.current_pick = 1
+    scanner.session.taken_cards = ["a"]
+    scanner.session.draft_history = [{"Pack": 1, "Pick": 1, "Cards": ["a", "b"]}]
+
+    scanner._process_pack_data(1, 1, ["a", "b"])
+
+    assert scanner.session.taken_cards == ["a"]
+
+
+def test_idless_full_scan_keeps_picks_processed_before_pack_history(scanner):
+    """Picks are scanned before packs. The pick watermark advancing must not
+    make the earlier, not-yet-reconstructed packs look like a new draft."""
+    scanner.clear_draft(False)
+    assert scanner._process_pick_data(1, 1, ["a"])
+    assert scanner._process_pick_data(1, 2, ["b"])
+
+    scanner._process_pack_data(1, 1, ["a", "other"])
+    scanner._process_pack_data(1, 2, ["b", "new"])
+
+    assert scanner.session.taken_cards == ["a", "b"]
+    assert (scanner.session.current_pack, scanner.session.current_pick) == (1, 2)
