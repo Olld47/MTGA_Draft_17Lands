@@ -527,3 +527,41 @@ def test_identify_main_colors_bad_card_skipped(mock_metrics):
     bad = {"colors": ["W"], "deck_colors": {"All Decks": {"gihwr": "abc"}}}
     advisor = DraftAdvisor(mock_metrics, [good, bad])
     assert "W" in advisor.main_colors
+
+
+def test_wheel_chance_withheld_when_pod_is_not_eight(mock_metrics):
+    """WHEEL_COEFFICIENTS fit eight-player, one-card picks. A four-player pod or
+    a Pick-Two draft must show no percentage instead of a misleading one."""
+    advisor = DraftAdvisor(mock_metrics, [])
+    card = {"deck_colors": {"All Decks": {"alsa": 10.0}}}
+
+    # Baseline: the eight-player, one-card case does project a percentage.
+    _, _, pct = advisor._check_relative_wheel(card, pick=2, rank_in_pack=5)
+    assert pct > 0.0
+
+    for kwargs in ({"cards_per_pick": 2}, {"number_of_players": 4}):
+        mult, reason, pct = advisor._check_relative_wheel(
+            card, pick=2, rank_in_pack=5, **kwargs
+        )
+        assert (mult, reason, pct) == (1.0, "", 0.0), kwargs
+
+
+def test_pick_two_progress_counts_cards_removed(mock_metrics):
+    """In Pick-Two, pick 5 has removed as many cards as pick 9 of a normal draft,
+    so the advisor must score it with the later-pick weighting. Compare against a
+    single-pick draft at the equivalent progress point."""
+    pack = [{"name": "Spell", "deck_colors": {"All Decks": {"gihwr": 55.0, "alsa": 2.0}},
+             "colors": ["W"], "types": ["Creature"], "cmc": 2}]
+
+    from_single = DraftAdvisor(mock_metrics, []).evaluate_pack(
+        pack, current_pick=9, current_pack=1
+    )
+    from_pick_two = DraftAdvisor(mock_metrics, []).evaluate_pack(
+        pack, current_pick=5, current_pack=1, cards_per_pick=2
+    )
+
+    # Both represent eight cards removed; the score should agree.
+    assert len(from_pick_two) == len(from_single) == 1
+    assert from_pick_two[0].contextual_score == pytest.approx(
+        from_single[0].contextual_score
+    )

@@ -255,12 +255,20 @@ class DraftAdvisor:
         self.pool_metrics = self._analyze_pool()
 
     def evaluate_pack(
-        self, pack_cards: List[CardData], current_pick: int, current_pack: int = 1
+        self,
+        pack_cards: List[CardData],
+        current_pick: int,
+        current_pack: int = 1,
+        cards_per_pick: int = 1,
+        number_of_players: int = 8,
     ) -> List[Recommendation]:
         if not pack_cards:
             return []
         safe_pick = max(1, min(ENGINE_PARAMS.targets.total_picks, current_pick))
         pack_number = max(1, current_pack)
+        # Express progress as cards removed, not passing rounds. In Pick-Two,
+        # pick 5 has removed eight cards, just like pick 9 in a normal draft.
+        effective_pick = (safe_pick - 1) * max(1, cards_per_pick) + 1
 
         on_color_pool = [
             c
@@ -323,7 +331,7 @@ class DraftAdvisor:
                 reasons, synergy_bonus = [], 0.0
 
                 # --- STEP 1: Blended Base Score (With Bayesian Smoothing & Signals) ---
-                base_score = self._calculate_weighted_score(card, safe_pick)
+                base_score = self._calculate_weighted_score(card, effective_pick)
 
                 # --- STEP 2: Bomb Detection ---
                 z_score = (raw_gihwr - pack_mean) / pack_std
@@ -424,7 +432,7 @@ class DraftAdvisor:
 
                 # --- STEP 6: Castability (Pip-Sensitive Discipline & Premium Splashing) ---
                 cast_mult, cast_reason = self._calculate_castability_v5(
-                    card, pack_number, safe_pick, z_score
+                    card, pack_number, effective_pick, z_score
                 )
                 if cast_reason:
                     reasons.append(cast_reason)
@@ -456,7 +464,11 @@ class DraftAdvisor:
                 # --- STEP 8: Wheel logic ---
                 rank_in_pack = pack_ranks.get(name, 99)
                 wheel_mult, _, wheel_pct = self._check_relative_wheel(
-                    card, safe_pick, rank_in_pack
+                    card,
+                    safe_pick,
+                    rank_in_pack,
+                    cards_per_pick=cards_per_pick,
+                    number_of_players=number_of_players,
                 )
 
                 # === MASTER ALGORITHM ===
@@ -859,8 +871,18 @@ class DraftAdvisor:
         return 1.0, ""
 
     def _check_relative_wheel(
-        self, card: CardData, pick: int, rank_in_pack: int
+        self,
+        card: CardData,
+        pick: int,
+        rank_in_pack: int,
+        cards_per_pick: int = 1,
+        number_of_players: int = 8,
     ) -> Tuple[float, str, float]:
+        # WHEEL_COEFFICIENTS fit eight-player, one-card picks. Pick-Two and
+        # custom pod sizes need a separately calibrated model, so show no
+        # percentage rather than a misleading one.
+        if cards_per_pick != 1 or number_of_players != 8:
+            return 1.0, "", 0.0
         if pick >= ENGINE_PARAMS.wheel.cutoff_pick:
             return 1.0, "", 0.0
         try:

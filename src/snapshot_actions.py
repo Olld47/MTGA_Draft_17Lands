@@ -38,11 +38,29 @@ def compute_signals(metrics, history, set_data) -> Dict[str, float]:
 
 
 def evaluate_pack(
-    metrics, taken_cards, signals, pack_cards, pick, pack
+    metrics,
+    taken_cards,
+    signals,
+    pack_cards,
+    pick,
+    pack,
+    cards_per_pick: int = 1,
+    number_of_players: int = 8,
 ) -> List[Recommendation]:
-    """Runs the advisor over the current pack with the signal scores."""
+    """Runs the advisor over the current pack with the signal scores.
+
+    cards_per_pick and number_of_players let the advisor judge progress by cards
+    removed rather than passing rounds, and withhold wheel percentages the
+    eight-player, one-card-pick model cannot support.
+    """
     advisor = DraftAdvisor(metrics, taken_cards, signals=signals)
-    return advisor.evaluate_pack(pack_cards, pick, current_pack=pack)
+    return advisor.evaluate_pack(
+        pack_cards,
+        pick,
+        current_pack=pack,
+        cards_per_pick=cards_per_pick,
+        number_of_players=number_of_players,
+    )
 
 
 def resolve_colors(taken_cards, deck_filter, metrics, config) -> List[str]:

@@ -207,12 +207,21 @@ def build_draft_state(scanner, config, include_pool_summary: bool = True) -> Dra
         start_time = scanner.session.draft_start_time
         event_string = scanner.session.event_string
         arena_file = scanner.arena_file
+        cards_per_pick = scanner.cards_per_pick
+        number_of_players = scanner.session.number_of_players
         color_ratings = scanner.set_data.get_color_ratings()
 
     scores = compute_signals(scanner)
 
     recommendations = evaluate_pack(
-        metrics, taken_cards, scores, pack_cards, pick, pack
+        metrics,
+        taken_cards,
+        scores,
+        pack_cards,
+        pick,
+        pack,
+        cards_per_pick=cards_per_pick,
+        number_of_players=number_of_players,
     )
     rec_map = {r.card_name: r for r in recommendations}
 
