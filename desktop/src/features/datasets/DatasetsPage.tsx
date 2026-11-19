@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
 
 import {
+  clearInactiveDatasets,
   deleteDataset,
   downloadDataset,
   listAvailableSets,
   listDatasets,
+  restoreDeletedDatasets,
   selectDataset,
 } from "../../api/client";
 import type { AvailableSet, DatasetInfo, DatasetList } from "../../api/types";
@@ -205,6 +207,39 @@ export function DatasetsPage({ missingSet }: Props) {
 
       <section className="panel">
         <h2>{t("datasets.local")}</h2>
+        <div className="dataset-actions">
+          <button
+            onClick={() =>
+              clearInactiveDatasets()
+                .then((next) => {
+                  setList(next);
+                  setError("");
+                })
+                .catch((e) => setError(String(e)))
+            }
+          >
+            {t("datasets.clearInactive")}
+          </button>
+          {(list?.excludedCount ?? 0) > 0 && (
+            <>
+              <span className="dataset-excluded">
+                {t("datasets.excluded", { n: list?.excludedCount ?? 0 })}
+              </span>
+              <button
+                onClick={() =>
+                  restoreDeletedDatasets()
+                    .then((next) => {
+                      setList(next);
+                      setError("");
+                    })
+                    .catch((e) => setError(String(e)))
+                }
+              >
+                {t("datasets.restoreDeleted")}
+              </button>
+            </>
+          )}
+        </div>
         <DataTable
           columns={columns}
           rows={list?.datasets ?? []}
@@ -212,6 +247,7 @@ export function DatasetsPage({ missingSet }: Props) {
           defaultSort={{ id: "modified", desc: true }}
           emptyText={t("datasets.empty")}
         />
+        <p className="dataset-hint">{t("datasets.deleteHint")}</p>
       </section>
     </div>
   );

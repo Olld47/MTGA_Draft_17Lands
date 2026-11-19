@@ -13,7 +13,7 @@ from datetime import date, datetime
 from typing import Callable, Dict, Optional
 
 from src import constants
-from src.configuration import write_configuration
+from src.configuration import CONFIG_LOCK, write_configuration
 from src.file_extractor import FileExtractor
 from src.utils import read_local_manifest, retrieve_local_set_list
 
@@ -142,6 +142,7 @@ def list_local_datasets(config) -> DatasetListVM:
         last_sync_date=config.card_data.last_auto_sync_date or "",
         newest_age_days=newest,
         stale=newest > DATASET_STALE_DAYS,
+        excluded_count=len(config.card_data.excluded_datasets),
     )
 
 
@@ -305,7 +306,12 @@ def select_dataset_blocking(scanner, config, path: str) -> bool:
 
 
 def delete_dataset(config, path: str) -> bool:
-    """Deletes a dataset file after validating it lives inside SETS_FOLDER."""
+    """Deletes a dataset and excludes it from future automatic downloads.
+
+    The exclusion is what makes the delete stick: sync_datasets skips any
+    filename in card_data.excluded_datasets, so a dataset the user removed is not
+    silently restored on the next auto-sync. Restore deleted datasets clears it.
+    """
     sets_folder = os.path.abspath(constants.SETS_FOLDER)
     target = os.path.abspath(path)
     if not target.startswith(sets_folder + os.sep):
@@ -313,13 +319,61 @@ def delete_dataset(config, path: str) -> bool:
         return False
     if not os.path.exists(target):
         return False
-    os.remove(target)
-    if config.card_data.latest_dataset == os.path.basename(target):
-        config.card_data.latest_dataset = ""
+
+    file_name = os.path.basename(target)
+    with CONFIG_LOCK:
+        excluded = config.card_data.excluded_datasets
+        previous = list(excluded)
+        if file_name not in excluded:
+            excluded.append(file_name)
+        try:
+            os.remove(target)
+        except OSError as error:
+            # The file survived, so it must not stay excluded.
+            config.card_data.excluded_datasets = previous
+            logger.error(f"Could not delete dataset {file_name}: {error}")
+            return False
+        if config.card_data.latest_dataset == file_name:
+            config.card_data.latest_dataset = ""
         write_configuration(config)
+
     # Drop the deleted file from the cached set list in place, so the trailing
     # list_local_datasets resolves instantly instead of re-reading every file.
     from src.utils import drop_local_set_from_cache
 
     drop_local_set_from_cache(target)
     return True
+
+
+def restore_deleted_datasets(config) -> int:
+    """Clear the exclusion list so automatic sync may fetch those datasets again.
+
+    Returns how many filenames were released. Restoring does not download
+    immediately; the next auto-sync (or a manual download) fetches them.
+    """
+    with CONFIG_LOCK:
+        released = len(config.card_data.excluded_datasets)
+        if not released:
+            return 0
+        config.card_data.excluded_datasets = []
+        write_configuration(config)
+    return released
+
+
+def clear_inactive_datasets(config) -> int:
+    """Delete every local dataset except the active one, excluding each removal.
+
+    Returns how many files were deleted. Datasets that cannot be removed are not
+    added to the exclusion list, so they remain eligible for normal handling.
+    """
+    file_list, _ = retrieve_local_set_list()
+    active = config.card_data.latest_dataset
+    deleted = 0
+    for row in file_list or []:
+        path = row.file_location
+        file_name = os.path.basename(path)
+        if file_name == active:
+            continue
+        if delete_dataset(config, path):
+            deleted += 1
+    return deleted

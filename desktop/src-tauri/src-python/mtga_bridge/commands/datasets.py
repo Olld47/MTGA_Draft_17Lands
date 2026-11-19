@@ -120,6 +120,28 @@ async def download_dataset(
 
 
 @commands.command()
+async def restore_deleted_datasets(runtime: RuntimeState) -> DatasetListVM:
+    """Clear the exclusion list so automatic sync may fetch those datasets again."""
+    await anyio.to_thread.run_sync(
+        datasets_svc.restore_deleted_datasets, runtime.config
+    )
+    return await anyio.to_thread.run_sync(
+        datasets_svc.list_local_datasets, runtime.config
+    )
+
+
+@commands.command()
+async def clear_inactive_datasets(runtime: RuntimeState) -> DatasetListVM:
+    """Delete every local dataset except the active one."""
+    await anyio.to_thread.run_sync(
+        datasets_svc.clear_inactive_datasets, runtime.config
+    )
+    return await anyio.to_thread.run_sync(
+        datasets_svc.list_local_datasets, runtime.config
+    )
+
+
+@commands.command()
 async def select_dataset(body: SelectDatasetBody, runtime: RuntimeState) -> Ack:
     _require_booted(runtime)
     ok = await anyio.to_thread.run_sync(

@@ -120,8 +120,25 @@ def test_evaluate_pack_runs_the_advisor_with_the_given_signals():
         recs = evaluate_pack(metrics, taken, {"R": 2.0}, pack, 5, 1)
 
     advisor_cls.assert_called_once_with(metrics, taken, signals={"R": 2.0})
-    advisor_cls.return_value.evaluate_pack.assert_called_once_with(pack, 5, current_pack=1)
+    advisor_cls.return_value.evaluate_pack.assert_called_once_with(
+        pack, 5, current_pack=1, cards_per_pick=1, number_of_players=8
+    )
     assert recs == ["rec1"]
+
+
+def test_evaluate_pack_forwards_pod_size_and_cards_per_pick():
+    """Pick-Two and non-eight-player pods must reach the advisor, which uses them
+    to count progress by cards removed and to withhold wheel percentages."""
+    with patch("src.snapshot_actions.DraftAdvisor") as advisor_cls:
+        advisor_cls.return_value.evaluate_pack.return_value = []
+        evaluate_pack(
+            _FakeMetrics(), [], {}, [{"name": "B"}], 5, 1,
+            cards_per_pick=2, number_of_players=4,
+        )
+
+    advisor_cls.return_value.evaluate_pack.assert_called_once_with(
+        [{"name": "B"}], 5, current_pack=1, cards_per_pick=2, number_of_players=4
+    )
 
 
 # --- color resolution --------------------------------------------------------

@@ -320,6 +320,9 @@ class DatasetListVM(_VM):
     last_sync_date: str = ""
     newest_age_days: int = -1
     stale: bool = False
+    # Datasets the user deleted. Automatic sync skips them until the user
+    # chooses "Restore deleted datasets".
+    excluded_count: int = 0
 
 
 class ColorMetricVM(_VM):

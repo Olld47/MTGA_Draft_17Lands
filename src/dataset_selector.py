@@ -56,6 +56,22 @@ def _dataset_event_type_rank(
     return None
 
 
+_ALCHEMY_PREFIX = re.compile(r"^[Yy]\d{2}(?=[A-Za-z]{3}$)")
+
+
+def _normalize_set_code(code: str) -> str:
+    """Canonical set code for catalog matching.
+
+    Arena tags an Alchemy set with a release-year prefix ("Y26FRA") while the
+    scanner may report the bare expansion ("FRA"); the two name the same set, so
+    the prefix is dropped and matching works in both directions. The prefix is
+    only stripped when doing so leaves a real expansion code, so distinct sets
+    never collide.
+    """
+    cleaned = re.sub(r"[\s._/-]", "", str(code)).upper()
+    return _ALCHEMY_PREFIX.sub("", cleaned)
+
+
 def _best_dataset_by_rank(sources, set_tag: str, type_rank_for):
     """The best (score, path) among one set's dataset sources, or None.
 
@@ -65,9 +81,13 @@ def _best_dataset_by_rank(sources, set_tag: str, type_rank_for):
     rank or None to skip that source; the label must carry the set's [TAG] to be
     considered at all.
     """
+    # set_tag may arrive bare ("FRA") or bracketed ("[FRA]"); both compare equal
+    # after normalization, so the public helper stays usable on its own.
+    wanted = _normalize_set_code(set_tag.strip("[]"))
     best = None
     for label, path in sources.items():
-        if set_tag not in label.upper():
+        match = re.match(r"\[([^\]]+)\]", label)
+        if not match or _normalize_set_code(match.group(1)) != wanted:
             continue
         type_rank = type_rank_for(label)
         if type_rank is None:
@@ -145,7 +165,7 @@ class DatasetSelector:
         bracket — a set has one dataset per event type, and loading the wrong
         one (e.g. a PickTwo draft for a QuickDraft) yields all-zero stats.
         """
-        set_tag = f"[{s_code.upper()}]"
+        set_tag = _normalize_set_code(s_code)
 
         def rank_by_event(label: str) -> Optional[int]:
             label_type = label.split("]", 1)[1].split("(", 1)[0].strip()

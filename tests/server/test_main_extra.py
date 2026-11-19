@@ -3,6 +3,7 @@ from unittest.mock import patch, MagicMock
 from server.main import run_pipeline
 
 
+@patch("server.main.fetch_event_calendar")
 @patch("server.main.get_scheduled_events")
 @patch("server.main.load_existing_manifest")
 @patch("server.main.extract_basic_lands")
@@ -14,6 +15,7 @@ from server.main import run_pipeline
 @patch("server.main.save_dataset")
 @patch("server.main.save_manifest")
 @patch("server.main.save_report")
+@patch("server.main.save_calendar")
 @patch("server.main.deploy_web_assets")
 @patch("server.main.get_historical_start_dates")
 @patch("server.main.APIClient")
@@ -21,6 +23,7 @@ def test_run_pipeline(
     mock_apiclient,
     mock_get_hist,
     mock_deploy,
+    mock_save_calendar,
     mock_save_report,
     mock_save_manifest,
     mock_save_dataset,
@@ -32,6 +35,7 @@ def test_run_pipeline(
     mock_basic_lands,
     mock_load_manifest,
     mock_scheduled,
+    mock_fetch_calendar,
 ):
     mock_scheduled.return_value = {
         "M10": {"formats": ["PremierDraft"], "start_date": "2020-01-01"}
@@ -54,9 +58,14 @@ def test_run_pipeline(
     mock_deploy.assert_called_once()
 
 
+@patch("server.main.save_calendar")
+@patch("server.main.fetch_event_calendar")
 @patch("server.main.get_scheduled_events")
+@patch("server.main.save_manifest")
 @patch("server.main.save_report")
-def test_run_pipeline_no_events(mock_save_report, mock_scheduled):
+def test_run_pipeline_no_events(
+    mock_save_report, mock_save_manifest, mock_scheduled, mock_fetch_calendar, mock_save_calendar
+):
     mock_scheduled.return_value = {}
     run_pipeline()
     mock_save_report.assert_called_once()

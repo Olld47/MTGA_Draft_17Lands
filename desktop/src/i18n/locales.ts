@@ -282,6 +282,15 @@ export const messages: Record<Lang, Record<string, string>> = {
       "Datasets may be out of date — newest data is {days} days old (no successful auto-sync yet).",
     "datasets.syncFailedToast":
       "Dataset sync failed — will retry on next launch.",
+    "datasets.deleteHint":
+      "Deleted datasets stay excluded from automatic sync.",
+    "datasets.excluded": "{n} dataset(s) excluded from automatic sync",
+    "datasets.restoreDeleted": "Restore deleted datasets",
+    "datasets.restoreToast": "Restored {n} dataset(s) to automatic sync",
+    "datasets.clearInactive": "Delete inactive datasets",
+    "datasets.clearInactiveConfirm":
+      "Delete every dataset except the active one? They stay excluded from automatic sync until restored.",
+    "datasets.clearInactiveToast": "Deleted {n} dataset(s)",
 
     // App update
     "update.available": "New version {version} available",
@@ -660,6 +669,14 @@ export const messages: Record<Lang, Record<string, string>> = {
     "datasets.staleBannerNoSync":
       "数据集可能已过期——最新数据为 {days} 天前（尚无成功的自动同步）。",
     "datasets.syncFailedToast": "数据集同步失败——下次启动时将重试。",
+    "datasets.deleteHint": "已删除的数据集不会被自动同步重新下载。",
+    "datasets.excluded": "已排除 {n} 个数据集（不参与自动同步）",
+    "datasets.restoreDeleted": "恢复已删除的数据集",
+    "datasets.restoreToast": "已将 {n} 个数据集恢复到自动同步",
+    "datasets.clearInactive": "删除非活跃数据集",
+    "datasets.clearInactiveConfirm":
+      "删除除当前使用之外的所有数据集？它们将不参与自动同步，直到你选择恢复。",
+    "datasets.clearInactiveToast": "已删除 {n} 个数据集",
 
     // App update
     "update.available": "发现新版本 {version}",

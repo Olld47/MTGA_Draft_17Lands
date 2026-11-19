@@ -2,14 +2,20 @@
 
 **Version:** 5.5 | **Architecture:** Pro-Tour Context Engine & Archetype Gravity
 
-> **Calibration debt (read before tuning).** Every tuned number in the scoring
-> sections below lives in **`ENGINE_PARAMS`** (`src/advisor/engine.py`, module
-> constant) — this spec references field names, it does not restate values.
-> These values are **heuristic hand-tuning with no backtest / regression
+> **Calibration debt (read before tuning).** Every tuned number in the *advisor
+> engine* sections below lives in **`ENGINE_PARAMS`** (`src/advisor/engine.py`,
+> module constant) — this spec references field names, it does not restate
+> values. These values are **heuristic hand-tuning with no backtest / regression
 > harness**: changing a coefficient (or the branch that consumes it) cannot
 > currently be measured against recommendation quality. See
 > `ENGINE_PARAMS_CALIBRATION`. If you change a value, change it in exactly one
 > place (`ENGINE_PARAMS`), not here and not in the engine body.
+>
+> **Not covered: §9C (deck score).** The deck score's weights live in
+> **`WEIGHTS`** (`src/advisor/deck_scorer.py`), not `ENGINE_PARAMS`, and they
+> *are* fitted — to about 915,000 17Lands Premier Draft decks
+> (`Tools/DeckScoreFit`). Change a deck-score weight there, in exactly one place,
+> and refit rather than hand-tuning it.
 
 ---
 
@@ -117,7 +123,50 @@ Evaluates the user's custom deck by running a 10,000-game Monte Carlo simulation
 - Applies pro-level London mulligan heuristics.
 - Calculates probabilities for `cast_t2/t3/t4`, Mana Screw, Mana Flood, and Color Screw.
 
-### C. On-Demand AI Auto-Optimizer
+### C. Deck Score & Estimated Record
+
+The deck builder ranks its candidate builds by a deck score. The score is
+`BASE_SCORE` plus one term per feature in `WEIGHTS`, all in
+`src/advisor/deck_scorer.py`:
+
+`75 + 12 × card quality + 3.1 if two colors or fewer − 2.5 per missing fixing card − 10 per missing spell`
+
+Twelve points are one standard deviation of card quality, so every other weight
+is expressed in the same unit — what the feature is worth, measured in card
+quality.
+
+- **Card quality** is the mean **overall** win rate of the deck's spells, in
+  standard deviations from the format mean. A card's win rate *in the deck's
+  pair* is deliberately not used: that number also carries how the pair does as
+  a whole, so scoring builds of different pairs on it over-rewarded the pair.
+  A card with no overall rate falls back to `get_card_rating()`, and the
+  builders still use the pair rate to choose cards within a pair.
+- **Missing fixing:** for decks of 3+ colors, fixing cards short of one per
+  color beyond the first.
+- **Missing spells:** spells short of a full deck for the pool size, less one.
+
+`deck_features()` returns the per-feature values; `calculate_holistic_score()`
+folds them through `WEIGHTS` and renders `NOTES` as the human-readable
+breakdown (`Rock-Solid Mana`, `Greedy Mana Strain`, `Incomplete Deck`).
+Card quality is the base of the score, so it gets no note.
+
+The weights were fit to about 915,000 17Lands Premier Draft decks over twenty
+sets, comparing players of similar skill (`Tools/DeckScoreFit`). Curve, evasion
+and tribal adjustments were worth about zero once card quality was counted, so
+the score leaves them out — and so was a bonus for a 3+ color deck with domain
+payoffs and four fixing cards, which is why it no longer exists. The
+missing-fixing weight is fit instead to which candidate builds drafters chose;
+see [the deck builder's suggestions before and after](logs/deck-builder-before-after.md).
+
+Because these weights were fitted rather than hand-tuned, changing one means
+refitting — not eyeballing. (They are not part of `ENGINE_PARAMS`; see the
+calibration note at the top of this document.)
+
+The Monte Carlo simulation's rates are shown with each build and don't change its score.
+
+The **estimated record** (`[Est: 3.5 wins]`) is the expected number of wins for a deck of that score. The score is converted to a game win rate by a fitted logistic map (`WIN_LOG_ODDS_AT_BASE` at `BASE_SCORE`, plus `WIN_LOG_ODDS_PER_POINT` per point above it), and `estimate_record()` then computes expected wins for the event shape: in Premier Draft, an event that ends at 7 wins or 3 losses (`expected_wins(7, 3)`); in Traditional Draft, three best-of-three matches (the chance of winning two games out of three).
+
+### D. On-Demand AI Auto-Optimizer
 
 Users can actively "brute-force" permutations of their current deck configuration via a dedicated background task.
 

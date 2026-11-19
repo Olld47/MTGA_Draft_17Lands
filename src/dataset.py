@@ -10,6 +10,10 @@ from src.utils import (
     sanitize_card_name,
 )
 from typing import List, Dict, Tuple
+import copy
+import threading
+import time
+import tempfile
 from src.card_data import CardData
 from src.constants import (
     DATA_FIELD_NAME,
@@ -24,6 +28,23 @@ from src.constants import (
     DATA_FIELD_CMC,
 )
 
+# Basic lands resolve without 17Lands data (Day 1, new sets). Shared by the
+# getter path and the background resolver so both agree on types and colors.
+BASIC_LAND_COLORS = {
+    "Plains": ["W"],
+    "Island": ["U"],
+    "Swamp": ["B"],
+    "Mountain": ["R"],
+    "Forest": ["G"],
+    "Wastes": ["C"],
+    "Snow-Covered Plains": ["W"],
+    "Snow-Covered Island": ["U"],
+    "Snow-Covered Swamp": ["B"],
+    "Snow-Covered Mountain": ["R"],
+    "Snow-Covered Forest": ["G"],
+}
+BASIC_LAND_NAMES = frozenset(BASIC_LAND_COLORS)
+
 
 class Dataset:
     # Configuration flag to allow the UI to drop unresolved numeric IDs
@@ -37,7 +58,40 @@ class Dataset:
         self._id_index = {}
         self.unknown_id_cache = {}
         self._fallback_ratings = {}
+        # Card resolution is asynchronous: getters never block on IO. They queue
+        # unknown IDs here, and a single background worker (start_resolution)
+        # resolves them against the local MTGA DB and Scryfall.
+        self._resolution_lock = threading.RLock()
+        self._pending_ids = set()
+        self._retry_after = {}
+        self._retry_counts = {}
+        self._generation = 0
+        self._resolving = False
         self._load_custom_cache()
+
+    # Failed lookups retry with backoff this many times, then wait for a
+    # dataset switch to be re-queued instead of hitting Scryfall forever.
+    MAX_RESOLVE_ATTEMPTS = 10
+
+    @staticmethod
+    def _card_metadata(card):
+        """Reusable ID metadata; statistics belong only to the active dataset.
+
+        Also migrates legacy custom_cards.json entries, which could contain a
+        complete card copied from another set, event, user group or time range.
+        Never mutate that card: a view may still hold the old dataset snapshot.
+        """
+        metadata = dict(card)
+        metadata.pop(DATA_FIELD_DECK_COLORS, None)
+        return metadata
+
+    def _remember(self, ratings, aid, card):
+        """Cache a resolved card. Without a dataset, ``ratings`` is the fallback.
+
+        Every write into ``_fallback_ratings`` strips statistics, so readers
+        can use its entries as they are.
+        """
+        ratings[aid] = card if self._dataset else self._card_metadata(card)
 
     def _load_custom_cache(self):
         import os
@@ -48,7 +102,12 @@ class Dataset:
         if os.path.exists(cache_path):
             try:
                 with open(cache_path, "r", encoding="utf-8") as f:
-                    self._fallback_ratings = json.load(f)
+                    cached = json.load(f)
+                self._fallback_ratings = {
+                    k: self._card_metadata(v)
+                    for k, v in cached.items()
+                    if isinstance(v, dict) and not str(v.get("name", "")).isdigit()
+                }
             except Exception:
                 pass
 
@@ -58,19 +117,118 @@ class Dataset:
         from src import constants
 
         cache_path = os.path.join(constants.SETS_FOLDER, "custom_cards.json")
+        tmp_path = None
         try:
-            with open(cache_path, "w", encoding="utf-8") as f:
-                json.dump(self._fallback_ratings, f, indent=4)
+            with self._resolution_lock:
+                snapshot = {
+                    aid: self._card_metadata(card)
+                    for aid, card in self._fallback_ratings.items()
+                    if not str(card.get(DATA_FIELD_NAME, "")).isdigit()
+                }
+            fd, tmp_path = tempfile.mkstemp(dir=constants.SETS_FOLDER, suffix=".tmp")
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                json.dump(snapshot, f, indent=4)
+            os.replace(tmp_path, cache_path)
         except Exception:
             pass
+        finally:
+            if tmp_path and os.path.exists(tmp_path):
+                os.remove(tmp_path)
 
     def clear(self) -> None:
-        """Clears the dataset and all memory caches."""
-        self._dataset = None
-        self._name_index.clear()
-        self._id_index.clear()
-        self.unknown_id_cache.clear()
-        self._fallback_ratings.clear()
+        """Clears the dataset and its derived in-memory caches.
+
+        ``_fallback_ratings`` is deliberately kept: it mirrors the on-disk
+        custom_cards.json of IDs no dataset knows (e.g. new-set basic lands).
+        Wiping it on every dataset switch forced those IDs to be re-resolved and
+        the cache file rewritten each draft, and get_data_by_id already prefers
+        the current dataset's statistics when a name is present in both.
+        """
+        with self._resolution_lock:
+            self._invalidate_resolution()
+            self._dataset = None
+            self._name_index.clear()
+            self._id_index.clear()
+            self.unknown_id_cache.clear()
+
+    def _invalidate_resolution(self):
+        with self._resolution_lock:
+            self._generation += 1
+            self._pending_ids.clear()
+            self._retry_after.clear()
+            self._retry_counts.clear()
+
+    def start_resolution(self, on_resolved):
+        """Start at most one resolver; getters and the log scanner never wait for IO."""
+        with self._resolution_lock:
+            now = time.monotonic()
+            ids = [
+                aid
+                for aid in self._pending_ids
+                if self._retry_after.get(aid, 0) <= now
+            ]
+            if self._resolving or not ids:
+                return None
+            self._resolving = True
+            generation = self._generation
+            # Resolve against a private snapshot. A dataset switch invalidates its results.
+            resolver = copy.copy(self)
+            resolver._dataset = None
+            resolver._fallback_ratings = {}
+            resolver._name_index = self._name_index.copy()
+            resolver.unknown_id_cache = self.unknown_id_cache.copy()
+            resolver._save_custom_cache = lambda: None
+
+        def work():
+            changed = False
+            try:
+                resolver.resolve_data_by_id(ids)
+                with self._resolution_lock:
+                    if generation != self._generation:
+                        return
+                    # Publish new mappings together instead of mutating a dict
+                    # that another view may already be iterating over.
+                    ratings = (
+                        self._dataset["card_ratings"] if self._dataset else self._fallback_ratings
+                    ).copy()
+                    fallback = self._fallback_ratings.copy()
+                    for aid in ids:
+                        card = resolver._fallback_ratings.get(aid)
+                        if card and not str(card.get("name", "")).isdigit():
+                            metadata = self._card_metadata(card)
+                            ratings[aid] = self._name_index.get(
+                                metadata.get(DATA_FIELD_NAME), metadata
+                            )
+                            fallback[aid] = metadata
+                            self._pending_ids.discard(aid)
+                            self._retry_after.pop(aid, None)
+                            self._retry_counts.pop(aid, None)
+                            changed = True
+                        else:
+                            attempts = self._retry_counts.get(aid, 0) + 1
+                            self._retry_counts[aid] = attempts
+                            if attempts >= self.MAX_RESOLVE_ATTEMPTS:
+                                # Give up until a dataset switch re-queues it.
+                                self._retry_after[aid] = float("inf")
+                            else:
+                                self._retry_after[aid] = time.monotonic() + min(
+                                    300, 5 * 2 ** (attempts - 1)
+                                )
+                    if changed:
+                        if self._dataset:
+                            self._dataset = {**self._dataset, "card_ratings": ratings}
+                        self._fallback_ratings = fallback
+                    self.unknown_id_cache.update(resolver.unknown_id_cache)
+                if changed:
+                    self._save_custom_cache()
+                    on_resolved()
+            finally:
+                with self._resolution_lock:
+                    self._resolving = False
+
+        worker = threading.Thread(target=work, daemon=True, name="card-resolver")
+        worker.start()
+        return worker
 
     def _resolve_unknown_id(self, grp_id: str) -> str:
         """Queries the local MTG Arena database to instantly translate unknown IDs."""
@@ -171,8 +329,8 @@ class Dataset:
                 for k, v in json_data["color_ratings"].items()
             }
 
-        self._name_index.clear()
-        self._id_index.clear()
+        name_index = {}
+        id_index = {}
 
         if "card_ratings" in json_data:
             for k, card in json_data["card_ratings"].items():
@@ -184,16 +342,80 @@ class Dataset:
                 card_name = sanitize_card_name(card.get(DATA_FIELD_NAME))
                 if card_name:
                     card[DATA_FIELD_NAME] = card_name
-                    self._name_index[card_name] = card
-                    self._id_index[card_name] = k
+                    name_index[card_name] = card
+                    id_index[card_name] = k
 
-        self._dataset = json_data
+        with self._resolution_lock:
+            self._invalidate_resolution()
+            self._name_index = name_index
+            self._id_index = id_index
+            self._dataset = json_data
         return result
 
     def get_data_by_id(self, id_list: List[str]) -> List[CardData]:
+        """Read cached cards only; queue missing IDs for the background resolver.
+
+        Never blocks on IO: looked-up-but-unknown IDs are added to
+        ``_pending_ids`` and resolved by ``start_resolution`` on its own thread.
+        """
         if not isinstance(id_list, list):
             return []
-        card_data = []
+        with self._resolution_lock:
+            ratings = (
+                self._dataset["card_ratings"] if self._dataset else self._fallback_ratings
+            )
+            result = []
+            for arena_id in id_list:
+                aid = str(arena_id)
+                card = ratings.get(aid) or self._fallback_ratings.get(aid)
+                if card and self._dataset is None:
+                    card = self._card_metadata(card)
+                unresolved = not card or str(card.get(DATA_FIELD_NAME, "")).isdigit()
+                if unresolved and self._retrieve_unknown:
+                    self._pending_ids.add(aid)
+                # An unresolved entry is queued for the resolver and withheld
+                # from the result, so a raw numeric ID never reaches the UI
+                # once a real name can be fetched. Diagnostic callers that set
+                # skip_unresolved_ids=False still see the placeholder.
+                if card and (not unresolved or not self.skip_unresolved_ids):
+                    # Prefer current statistics when this ID was resolved in an
+                    # earlier session against a different dataset.
+                    card = self._name_index.get(card.get(DATA_FIELD_NAME), card)
+                    name = card.get(DATA_FIELD_NAME, "").removeprefix("Snow-Covered ")
+                    basic_color = {
+                        "Plains": "W",
+                        "Island": "U",
+                        "Swamp": "B",
+                        "Mountain": "R",
+                        "Forest": "G",
+                        "Wastes": "C",
+                    }.get(name)
+                    if basic_color:
+                        card = dict(card)
+                        card[DATA_FIELD_TYPES] = ["Land", "Basic"]
+                        if not card.get(DATA_FIELD_COLORS):
+                            card[DATA_FIELD_COLORS] = [basic_color]
+                    result.append(card)
+                elif self._retrieve_unknown:
+                    if not self.skip_unresolved_ids:
+                        # Diagnostic callers may show the raw ID while its
+                        # metadata is pending; never persist that placeholder.
+                        from src.file_extractor import initialize_card_data
+
+                        placeholder = {
+                            DATA_FIELD_NAME: aid,
+                            DATA_FIELD_TYPES: [],
+                            DATA_FIELD_MANA_COST: "",
+                            DATA_SECTION_IMAGES: [],
+                        }
+                        initialize_card_data(placeholder)
+                        result.append(placeholder)
+            return result
+
+    def resolve_data_by_id(self, id_list: List[str]) -> List[CardData]:
+        """Blocking resolution for worker-owned snapshots, never called by UI getters."""
+        if not isinstance(id_list, list):
+            return []
         ratings = (
             self._dataset["card_ratings"] if self._dataset else self._fallback_ratings
         )
@@ -203,8 +425,11 @@ class Dataset:
 
         for arena_id in id_list:
             string_id = str(arena_id)
-            if string_id in ratings:
-                result_map[string_id] = ratings[string_id]
+            card = ratings.get(string_id) or self._fallback_ratings.get(string_id)
+            if card and not str(card.get(DATA_FIELD_NAME, "")).isdigit():
+                result_map[string_id] = self._name_index.get(
+                    card.get(DATA_FIELD_NAME), card
+                )
             elif self._retrieve_unknown:
                 display_name = self._resolve_unknown_id(string_id)
 
@@ -213,8 +438,8 @@ class Dataset:
                     and display_name != string_id
                     and display_name in self._name_index
                 ):
-                    matched_card = self._name_index[display_name]
-                    ratings[string_id] = matched_card
+                    matched_card = dict(self._name_index[display_name])
+                    self._remember(ratings, string_id, matched_card)
                     result_map[string_id] = matched_card
                 elif display_name == string_id and string_id.isdigit():
                     # The DB lookup failed completely. Mark it for Scryfall bulk fetch.
@@ -222,45 +447,19 @@ class Dataset:
                         unknown_ids_to_fetch.append(string_id)
                 else:
                     # We resolved a name locally, but it's not in the 17Lands dataset (e.g. Day 1 basic land)
-                    is_basic = display_name in [
-                        "Plains",
-                        "Island",
-                        "Swamp",
-                        "Mountain",
-                        "Forest",
-                        "Wastes",
-                        "Snow-Covered Plains",
-                        "Snow-Covered Island",
-                        "Snow-Covered Swamp",
-                        "Snow-Covered Mountain",
-                        "Snow-Covered Forest",
-                    ]
-
-                    color_map = {
-                        "Plains": ["W"],
-                        "Island": ["U"],
-                        "Swamp": ["B"],
-                        "Mountain": ["R"],
-                        "Forest": ["G"],
-                        "Wastes": ["C"],
-                        "Snow-Covered Plains": ["W"],
-                        "Snow-Covered Island": ["U"],
-                        "Snow-Covered Swamp": ["B"],
-                        "Snow-Covered Mountain": ["R"],
-                        "Snow-Covered Forest": ["G"],
-                    }
+                    is_basic = display_name in BASIC_LAND_NAMES
 
                     empty_dict = {
                         DATA_FIELD_NAME: display_name,
                         DATA_FIELD_MANA_COST: "",
                         DATA_FIELD_TYPES: ["Land", "Basic"] if is_basic else [],
-                        DATA_FIELD_COLORS: color_map.get(display_name, []),
+                        DATA_FIELD_COLORS: BASIC_LAND_COLORS.get(display_name, []),
                         DATA_SECTION_IMAGES: [],
                     }
                     from src.file_extractor import initialize_card_data
 
                     initialize_card_data(empty_dict)
-                    ratings[string_id] = empty_dict
+                    self._remember(ratings, string_id, empty_dict)
                     result_map[string_id] = empty_dict
 
         # Bulk Scryfall Fallback for any IDs that the local database couldn't find
@@ -289,109 +488,65 @@ class Dataset:
                             name = card.get("name", "").split(" // ")[0]
                             types = card.get("type_line", "")
                             colors = card.get("colors", [])
-                            cmc = int(card.get("cmc", 0))
 
                             is_basic = "Basic" in types and "Land" in types
 
                             if name in self._name_index:
-                                matched_card = self._name_index[name]
-                                ratings[aid] = matched_card
+                                matched_card = dict(self._name_index[name])
+                                self._remember(ratings, aid, matched_card)
                                 result_map[aid] = matched_card
-                                # Store it in the fallback cache so we don't have to look it up next launch
-                                self._fallback_ratings[aid] = matched_card
-                                made_new_cache_entries = True
                             else:
-                                from src.file_extractor import extract_types
-
-                                parsed_types = extract_types(types)
-                                if is_basic and "Basic" not in parsed_types:
-                                    parsed_types.append("Basic")
-
-                                empty_dict = {
+                                fallback_card = {
                                     DATA_FIELD_NAME: name,
-                                    DATA_FIELD_CMC: cmc,
-                                    DATA_FIELD_MANA_COST: card.get("mana_cost", ""),
-                                    DATA_FIELD_TYPES: parsed_types,
-                                    DATA_FIELD_COLORS: colors,
+                                    DATA_FIELD_MANA_COST: "",
+                                    DATA_FIELD_TYPES: (
+                                        ["Land", "Basic"] if is_basic else []
+                                    ),
+                                    DATA_FIELD_COLORS: (
+                                        colors if colors else BASIC_LAND_COLORS.get(name, [])
+                                    ),
                                     DATA_SECTION_IMAGES: [],
                                 }
-                                initialize_card_data(empty_dict)
-                                ratings[aid] = empty_dict
-                                result_map[aid] = empty_dict
-
-                                self._fallback_ratings[aid] = empty_dict
+                                initialize_card_data(fallback_card)
+                                self._remember(ratings, aid, fallback_card)
+                                result_map[aid] = fallback_card
+                                self._fallback_ratings[aid] = self._card_metadata(
+                                    fallback_card
+                                )
                                 made_new_cache_entries = True
 
                             if aid in unknown_ids_to_fetch:
                                 unknown_ids_to_fetch.remove(aid)
-                except Exception as e:
-                    from src.logger import create_logger
-
-                    create_logger().error(f"Scryfall bulk resolve failed: {e}")
+                except Exception:
+                    pass
 
             for aid in unknown_ids_to_fetch:
+                # Give up on unresolved IDs after the Scryfall attempt.
                 if aid not in result_map:
-                    empty_dict = {
+                    fallback_card = {
                         DATA_FIELD_NAME: aid,
                         DATA_FIELD_MANA_COST: "",
                         DATA_FIELD_TYPES: [],
                         DATA_SECTION_IMAGES: [],
                     }
-                    initialize_card_data(empty_dict)
-                    ratings[aid] = empty_dict
-                    result_map[aid] = empty_dict
-
-                    self._fallback_ratings[aid] = empty_dict
-                    made_new_cache_entries = True
+                    initialize_card_data(fallback_card)
+                    self._fallback_ratings[aid] = self._card_metadata(fallback_card)
 
             if made_new_cache_entries:
                 self._save_custom_cache()
 
         # Construct final output preserving the exact order and duplication of the input id_list
+        results = []
         for arena_id in id_list:
             string_id = str(arena_id)
-            if string_id in result_map:
-                name = str(result_map[string_id].get(DATA_FIELD_NAME, ""))
-
-                if name.isdigit() and self.skip_unresolved_ids:
-                    continue
-                if name in [
-                    "Plains",
-                    "Island",
-                    "Swamp",
-                    "Mountain",
-                    "Forest",
-                    "Wastes",
-                    "Snow-Covered Plains",
-                    "Snow-Covered Island",
-                    "Snow-Covered Swamp",
-                    "Snow-Covered Mountain",
-                    "Snow-Covered Forest",
-                ]:
-                    if "Basic" not in result_map[string_id].get(DATA_FIELD_TYPES, []):
-                        result_map[string_id][DATA_FIELD_TYPES] = ["Land", "Basic"]
-
-                    color_map = {
-                        "Plains": ["W"],
-                        "Island": ["U"],
-                        "Swamp": ["B"],
-                        "Mountain": ["R"],
-                        "Forest": ["G"],
-                        "Wastes": ["C"],
-                        "Snow-Covered Plains": ["W"],
-                        "Snow-Covered Island": ["U"],
-                        "Snow-Covered Swamp": ["B"],
-                        "Snow-Covered Mountain": ["R"],
-                        "Snow-Covered Forest": ["G"],
-                    }
-                    if not result_map[string_id].get(DATA_FIELD_COLORS):
-                        result_map[string_id][DATA_FIELD_COLORS] = color_map.get(
-                            name, []
-                        )
-
-                card_data.append(result_map[string_id])
-
-        return card_data
+            card = result_map.get(string_id)
+            if card is None:
+                continue
+            name = str(card.get(DATA_FIELD_NAME, ""))
+            if name.isdigit() and self.skip_unresolved_ids:
+                continue
+            results.append(card)
+        return results
 
     def get_data_by_name(self, name_list: List[str]) -> List[CardData]:
         if not isinstance(name_list, list) or not self._dataset:
