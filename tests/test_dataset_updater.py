@@ -1,357 +1,300 @@
-import pytest
-import json
 import gzip
-import os
-from unittest.mock import patch, MagicMock
+import hashlib
+import json
+from unittest.mock import MagicMock, patch
+
+import pytest
 from src.dataset_updater import DatasetUpdater
+from src.configuration import Configuration, read_configuration, write_configuration
+
+KEY = "MH3_PremierDraft_All"
+FILENAME = KEY + "_Data.json.gz"
 
 
 @pytest.fixture
 def updater(tmp_path, monkeypatch):
-    # Route the application's SETS_FOLDER to a temporary test directory
     monkeypatch.setattr("src.constants.SETS_FOLDER", str(tmp_path))
-    return DatasetUpdater(config=MagicMock())
+    return DatasetUpdater(Configuration())
 
 
-@patch("src.dataset_updater.requests.get")
-def test_sync_datasets_downloads_new_files(mock_get, updater, tmp_path):
-    # 1. Mock the remote manifest response
-    mock_manifest_response = MagicMock()
-    mock_manifest_response.status_code = 200
-    mock_manifest_response.json.return_value = {
-        "active_sets": ["MH3"],
-        "datasets": {
-            "MH3_PremierDraft_All": {
-                "hash": "fake_hash_123",
-                "filename": "MH3_PremierDraft_All_Data.json.gz",
-            }
-        },
-    }
+@pytest.fixture
+def payload():
+    return json.dumps({
+        "meta": {"version": 3, "start_date": "2026-01-01", "end_date": "2026-01-02"},
+        "card_ratings": {str(i): {"name": f"Card {i}", "deck_colors": {"All Decks": {"gihwr": 50}}} for i in range(10)},
+        "color_ratings": {"WU": 50},
+    }).encode()
 
-    # 2. Mock the GZIP file download response
-    mock_gz_response = MagicMock()
-    mock_gz_response.status_code = 200
-    mock_gz_response.content = gzip.compress(b'{"mock_card": "data"}')
 
-    # 3. Mock the 17Lands live-formats endpoint (MH3 Premier Draft is live)
-    mock_filters_response = MagicMock()
-    mock_filters_response.status_code = 200
-    mock_filters_response.json.return_value = {
-        "live_formats_by_expansion": {"MH3": ["PremierDraft"]}
-    }
+def file_info(compressed, filename=FILENAME):
+    return {"filename": filename, "hash": hashlib.sha256(compressed).hexdigest()}
 
-    # Wire the mock to return manifest first, then gz data
+
+def stream_response(compressed):
+    response = MagicMock()
+    response.__enter__.return_value = response
+    response.iter_content.return_value = [compressed]
+    return response
+
+
+def mock_sync(mock_get, manifest, compressed):
     mock_get.side_effect = [
-        MagicMock(
-            status_code=200, json=lambda: {"pipeline_run": {"status": "SUCCESS"}}
-        ),  # Health check
-        mock_manifest_response,  # Manifest
-        mock_filters_response,  # 17Lands live formats
-        mock_gz_response,  # Dataset download
+        MagicMock(status_code=200, json=lambda: {}),
+        MagicMock(json=lambda: manifest),
+        stream_response(compressed),
     ]
 
-    progress_mock = MagicMock()
 
-    # Act
-    result = updater.sync_datasets(progress_mock)
-
-    # Assert
-    # Verify the GZ file was extracted and saved correctly as a standard JSON
-    target_file = tmp_path / "MH3_PremierDraft_All_Data.json"
-    assert target_file.exists()
-
-    with open(target_file, "r") as f:
-        data = json.load(f)
-        assert data["mock_card"] == "data"
-
-    # Verify local manifest was updated
-    local_manifest = updater.get_local_manifest()
-    assert "MH3_PremierDraft_All" in local_manifest["datasets"]
-    assert local_manifest["datasets"]["MH3_PremierDraft_All"]["hash"] == "fake_hash_123"
-
-    # One dataset was downloaded → the sync reports a count of 1
-    assert result.succeeded is True
-    assert result.downloaded == 1
+@patch("src.dataset_updater.requests.get")
+def test_sync_datasets_downloads_new_files(mock_get, updater, tmp_path, payload):
+    compressed = gzip.compress(payload)
+    info = file_info(compressed)
+    mock_sync(mock_get, {"active_sets": ["MH3"], "datasets": {KEY: info}}, compressed)
+    updater.sync_datasets(MagicMock())
+    assert (tmp_path / FILENAME[:-3]).read_bytes() == payload
+    assert updater.get_local_manifest()["datasets"][KEY] == info
+    assert updater.get_local_manifest()["active_sets"] == ["MH3"]
+    assert not list(tmp_path.glob("*.tmp"))
 
 
 @patch("src.dataset_updater.requests.get")
-def test_sync_datasets_skips_existing_hashes(mock_get, updater, tmp_path):
-    # Arrange: Create a local manifest that already matches the remote hash
-    updater.save_local_manifest(
-        {"datasets": {"MH3_PremierDraft_All": {"hash": "matched_hash"}}}
+def test_auto_sync_only_downloads_live_sets(mock_get, updater, tmp_path, payload):
+    compressed = gzip.compress(payload)
+    keys = ["MH_PremierDraft_All", KEY, "MH3_Sealed_Top", "OTJ_PremierDraft_All"]
+    datasets = {key: file_info(compressed, key + "_Data.json.gz") for key in keys}
+    # Even a changed historical dataset already on disk must not be refreshed.
+    historical = tmp_path / "OTJ_PremierDraft_All_Data.json"
+    historical.write_bytes(b"saved historical data")
+    old_info = {"filename": historical.name + ".gz", "hash": "0" * 64}
+    updater.save_local_manifest({"datasets": {keys[-1]: old_info}})
+    manifest = {"active_sets": ["MH3"], "datasets": datasets}
+    mock_get.side_effect = [MagicMock(status_code=200, json=lambda: {}),
+                           MagicMock(json=lambda: manifest),
+                           stream_response(compressed), stream_response(compressed)]
+    updater.sync_datasets(MagicMock())
+    assert mock_get.call_count == 4
+    assert not (tmp_path / (keys[0] + "_Data.json")).exists()
+    for key in keys[1:3]:
+        assert (tmp_path / (key + "_Data.json")).read_bytes() == payload
+    assert historical.read_bytes() == b"saved historical data"
+    assert updater.get_local_manifest()["datasets"][keys[-1]] == old_info
+
+
+@pytest.mark.parametrize("active", [None, "MH3", {}, [None], [123], [""], []])
+@patch("src.dataset_updater.requests.get")
+def test_no_live_set_metadata_never_downloads_warehouse(mock_get, active, updater, tmp_path, payload):
+    compressed = gzip.compress(payload)
+    manifest = {"datasets": {KEY: file_info(compressed)}}
+    if active is not None:
+        manifest["active_sets"] = active
+    old = {"active_sets": ["MH3"], "datasets": {}}
+    updater.save_local_manifest(old)
+    mock_sync(mock_get, manifest, compressed)
+    updater.sync_datasets(MagicMock())
+    assert mock_get.call_count == 2
+    assert not (tmp_path / FILENAME[:-3]).exists()
+    assert updater.get_local_manifest() == (
+        {"active_sets": [], "datasets": {}} if active == [] else old
     )
 
-    # We must also create the local file so file_missing is False
-    (tmp_path / "MH3_PremierDraft_All_Data.json").write_text("dummy")
 
-    mock_manifest_response = MagicMock()
-    mock_manifest_response.status_code = 200
-    mock_manifest_response.json.return_value = {
-        "datasets": {
-            "MH3_PremierDraft_All": {
-                "hash": "matched_hash",
-                "filename": "MH3_PremierDraft_All_Data.json.gz",
-            }
-        }
-    }
+@patch("src.dataset_updater.requests.get")
+def test_sync_datasets_skips_existing_hashes(mock_get, updater, tmp_path, payload):
+    info = file_info(gzip.compress(payload))
+    updater.save_local_manifest({"datasets": {KEY: info}})
+    (tmp_path / FILENAME[:-3]).write_bytes(payload)
+    mock_sync(mock_get, {"active_sets": ["MH3"], "datasets": {KEY: info}}, b"")
+    updater.sync_datasets(MagicMock())
+    assert mock_get.call_count == 2
 
-    mock_filters_response = MagicMock()
-    mock_filters_response.status_code = 200
-    mock_filters_response.json.return_value = {
-        "live_formats_by_expansion": {"MH3": ["PremierDraft"]}
-    }
 
-    # Mock sequence: Health -> Filters -> Manifest -> (NO GZIP DOWNLOAD EXPECTED)
-    mock_get.side_effect = [
-        MagicMock(
-            status_code=200, json=lambda: {"pipeline_run": {"status": "SUCCESS"}}
-        ),
-        mock_manifest_response,
-        mock_filters_response,
-    ]
-
-    progress_mock = MagicMock()
-
-    # Act
-    result = updater.sync_datasets(progress_mock)
-
-    # Assert: Network was only hit three times (Health + Filters + Manifest),
-    # meaning the file download was skipped
+@patch("src.dataset_updater.requests.get")
+def test_deleted_dataset_stays_excluded_after_restart(mock_get, updater, tmp_path, payload):
+    updater.config.card_data.excluded_datasets = [FILENAME[:-3]]
+    config_path = str(tmp_path / "config.json")
+    assert write_configuration(updater.config, config_path)
+    config, success = read_configuration(config_path)
+    assert success
+    restarted = DatasetUpdater(config)
+    compressed = gzip.compress(payload)
+    other_key = "MSH_PremierDraft_All"
+    manifest = {"active_sets": ["MH3", "MSH"], "datasets": {
+        KEY: file_info(compressed),
+        other_key: file_info(compressed, other_key + "_Data.json.gz"),
+    }}
+    mock_sync(mock_get, manifest, compressed)
+    restarted.sync_datasets(MagicMock())
+    assert not (tmp_path / FILENAME[:-3]).exists()
+    assert (tmp_path / (other_key + "_Data.json")).exists()
     assert mock_get.call_count == 3
-    # Nothing changed → the sync reports a count of 0 (and still succeeded)
-    assert result.succeeded is True
-    assert result.downloaded == 0
-
-
-def test_dataset_key_splitting():
-    from src.dataset_updater import _dataset_set_format
-
-    assert _dataset_set_format("MSH_PremierDraft_All") == ("MSH", "PremierDraft")
-    assert _dataset_set_format("Cube - Powered_TradDraft_Top") == (
-        "Cube - Powered",
-        "TradDraft",
-    )
-    assert _dataset_set_format("malformed") == (None, None)
-
-
-def test_is_live_dataset_matches_only_exact_expansion_and_format():
-    from src.dataset_updater import _is_live_dataset
-
-    live = {"MSH": ["PremierDraft", "TradDraft"], "WAR": ["PremierDraft"]}
-
-    assert _is_live_dataset("MSH_PremierDraft_All", live)
-    assert _is_live_dataset("MSH_TradDraft_Top", live)
-    assert _is_live_dataset("WAR_PremierDraft_All", live)
-    # Same set, non-live format → excluded (no auto-download of Sealed)
-    assert not _is_live_dataset("MSH_Sealed_All", live)
-    # Non-live set → excluded
-    assert not _is_live_dataset("TMT_PremierDraft_All", live)
-    # A rotated cube must never be served for a live one of a different name
-    assert not _is_live_dataset("Cube - Powered_PremierDraft_All", live)
-    # Malformed keys can't match anything
-    assert not _is_live_dataset("not_a_dataset_key", live)
+    assert restarted.get_local_manifest()["active_sets"] == ["MH3", "MSH"]
 
 
 @patch("src.dataset_updater.requests.get")
-def test_sync_datasets_downloads_only_live_draft_formats(mock_get, updater, tmp_path):
-    """A fresh install downloads the currently-live draft sets only — the
-    manifest's other 80+ datasets (rotated sets, and a live set's Sealed)
-    stay on the server."""
-    manifest_datasets = {
-        "MSH_PremierDraft_All": {
-            "hash": "h_msh_p", "filename": "MSH_PremierDraft_All_Data.json.gz"
-        },
-        "MSH_Sealed_All": {
-            "hash": "h_msh_s", "filename": "MSH_Sealed_All_Data.json.gz"
-        },
-        "TMT_PremierDraft_All": {
-            "hash": "h_tmt_p", "filename": "TMT_PremierDraft_All_Data.json.gz"
-        },
-    }
-    mock_manifest_response = MagicMock()
-    mock_manifest_response.status_code = 200
-    mock_manifest_response.json.return_value = {
-        "active_sets": ["MSH", "TMT"],
-        "datasets": manifest_datasets,
-    }
-    mock_filters_response = MagicMock()
-    mock_filters_response.status_code = 200
-    mock_filters_response.json.return_value = {
-        "live_formats_by_expansion": {"MSH": ["PremierDraft"]}
-    }
-
-    def gz_response():
-        r = MagicMock()
-        r.status_code = 200
-        r.content = gzip.compress(b'{"card": "data"}')
-        return r
-
-    mock_get.side_effect = [
-        MagicMock(status_code=200, json=lambda: {"pipeline_run": {"status": "SUCCESS"}}),
-        mock_manifest_response,
-        mock_filters_response,
-        # Enough gz responses for every manifest dataset, so that a wrongly
-        # scoped download SUCCEEDS and is caught by the file assertions below
-        # instead of silently dying on an exhausted mock.
-        gz_response(),
-        gz_response(),
-        gz_response(),
-    ]
-
+def test_deletion_during_download_does_not_restore_file(mock_get, updater, tmp_path, payload):
+    compressed = gzip.compress(payload)
+    response = stream_response(compressed)
+    def chunks(**kwargs):
+        updater.config.card_data.excluded_datasets.append(FILENAME[:-3])
+        return iter([compressed])
+    response.iter_content.side_effect = chunks
+    mock_get.side_effect = [MagicMock(status_code=200, json=lambda: {}),
+                           MagicMock(json=lambda: {"active_sets": ["MH3"], "datasets": {KEY: file_info(compressed)}}),
+                           response]
     updater.sync_datasets(MagicMock())
-
-    assert (tmp_path / "MSH_PremierDraft_All_Data.json").exists()
-    assert not (tmp_path / "MSH_Sealed_All_Data.json").exists()
-    assert not (tmp_path / "TMT_PremierDraft_All_Data.json").exists()
-    local = updater.get_local_manifest()
-    assert set(local["datasets"]) == {"MSH_PremierDraft_All"}
-    # Health + Manifest + Filters + exactly one download.
-    assert mock_get.call_count == 4
+    assert not (tmp_path / FILENAME[:-3]).exists()
+    assert not list(tmp_path.glob("*.tmp"))
+    assert KEY not in updater.get_local_manifest()["datasets"]
 
 
+@pytest.mark.parametrize("filename", [
+    "../outside.py.gz", r"..\outside.py.gz", "/tmp/outside.py.gz",
+    r"C:\outside.py.gz", "MH3_PremierDraft_All_Data.json.gz/extra",
+    "%2e%2e%2foutside.py.gz", "local_manifest.json.gz",
+])
 @patch("src.dataset_updater.requests.get")
-def test_sync_datasets_falls_back_to_active_sets_when_filters_fail(mock_get, updater, tmp_path):
-    """If the 17Lands filters endpoint is unreachable, scope to the manifest's
-    own active_sets so a fresh install still gets the current set."""
-    manifest_datasets = {
-        "MSH_PremierDraft_All": {
-            "hash": "h_msh", "filename": "MSH_PremierDraft_All_Data.json.gz"
-        },
-        "TMT_PremierDraft_All": {
-            "hash": "h_tmt", "filename": "TMT_PremierDraft_All_Data.json.gz"
-        },
-    }
-    mock_manifest_response = MagicMock()
-    mock_manifest_response.status_code = 200
-    mock_manifest_response.json.return_value = {
-        "active_sets": ["MSH"],
-        "datasets": manifest_datasets,
-    }
-    failing_filters = MagicMock()
-    failing_filters.raise_for_status.side_effect = Exception("network down")
-
-    def gz_response():
-        r = MagicMock()
-        r.status_code = 200
-        r.content = gzip.compress(b'{"card": "data"}')
-        return r
-
-    mock_get.side_effect = [
-        MagicMock(status_code=200, json=lambda: {"pipeline_run": {"status": "SUCCESS"}}),
-        mock_manifest_response,
-        failing_filters,
-        # Two gz responses so a wrongly-scoped TMT download would SUCCEED and
-        # be caught by the file/call-count assertions instead of dying on an
-        # exhausted mock.
-        gz_response(),
-        gz_response(),
-    ]
-
+def test_untrusted_filename_never_reaches_download(mock_get, filename, updater, tmp_path, payload):
+    compressed = gzip.compress(payload)
+    old = {"datasets": {}}
+    updater.save_local_manifest(old)
+    mock_sync(mock_get, {"datasets": {KEY: file_info(compressed, filename)}}, compressed)
     updater.sync_datasets(MagicMock())
-
-    assert (tmp_path / "MSH_PremierDraft_All_Data.json").exists()
-    assert not (tmp_path / "TMT_PremierDraft_All_Data.json").exists()
-    # Health + Manifest + Filters + exactly one download (MSH only).
-    assert mock_get.call_count == 4
+    assert mock_get.call_count == 2
+    assert updater.get_local_manifest() == old
+    assert list(tmp_path.iterdir()) == [tmp_path / "local_manifest.json"]
 
 
+@pytest.mark.parametrize("bad_hash", [None, "fake_hash", "g" * 64])
 @patch("src.dataset_updater.requests.get")
-def test_sync_datasets_downloads_everything_when_no_live_info(mock_get, updater, tmp_path):
-    """Last-resort degradation: with neither filters nor active_sets, download
-    the whole manifest rather than leave a fresh install empty."""
-    manifest_datasets = {
-        "MSH_PremierDraft_All": {
-            "hash": "h_msh", "filename": "MSH_PremierDraft_All_Data.json.gz"
-        },
-        "TMT_PremierDraft_All": {
-            "hash": "h_tmt", "filename": "TMT_PremierDraft_All_Data.json.gz"
-        },
-    }
-    mock_manifest_response = MagicMock()
-    mock_manifest_response.status_code = 200
-    mock_manifest_response.json.return_value = {"datasets": manifest_datasets}
-    failing_filters = MagicMock()
-    failing_filters.raise_for_status.side_effect = Exception("network down")
-
-    def gz_response():
-        r = MagicMock()
-        r.status_code = 200
-        r.content = gzip.compress(b'{"card": "data"}')
-        return r
-
-    mock_get.side_effect = [
-        MagicMock(status_code=200, json=lambda: {"pipeline_run": {"status": "SUCCESS"}}),
-        mock_manifest_response,
-        failing_filters,
-        gz_response(),
-        gz_response(),
-    ]
-
+def test_invalid_checksum_metadata_rejected(mock_get, bad_hash, updater, payload):
+    compressed = gzip.compress(payload)
+    info = file_info(compressed)
+    info["hash"] = bad_hash
+    mock_sync(mock_get, {"active_sets": ["MH3"], "datasets": {KEY: info}}, compressed)
     updater.sync_datasets(MagicMock())
+    assert mock_get.call_count == 2
+    assert updater.get_local_manifest() == {"datasets": {}}
 
-    assert (tmp_path / "MSH_PremierDraft_All_Data.json").exists()
-    assert (tmp_path / "TMT_PremierDraft_All_Data.json").exists()
+
+@pytest.mark.parametrize("key", ["../outside", r"..\outside", "C:outside", "%2e%2e", "bad.key"])
+@patch("src.dataset_updater.requests.get")
+def test_unsafe_key_rejected_even_when_filename_matches(mock_get, key, updater, payload):
+    compressed = gzip.compress(payload)
+    manifest = {"datasets": {key: file_info(compressed, key + "_Data.json.gz")}}
+    mock_sync(mock_get, manifest, compressed)
+    updater.sync_datasets(MagicMock())
+    assert mock_get.call_count == 2
+    assert updater.get_local_manifest() == {"datasets": {}}
+
+
+@pytest.mark.parametrize("failure", [
+    "checksum", "gzip", "json", "encoding", "schema", "card", "statistic",
+    "infinity", "metadata_count", "metadata_timestamp", "compressed_limit",
+    "decompressed_limit", "replace",
+])
+@patch("src.dataset_updater.requests.get")
+def test_failed_update_preserves_cache_and_manifest(mock_get, failure, updater, tmp_path, payload, monkeypatch):
+    target = tmp_path / FILENAME[:-3]
+    target.write_bytes(payload)
+    old_info = {"filename": FILENAME, "hash": "0" * 64}
+    updater.save_local_manifest({"datasets": {KEY: old_info}})
+    compressed = gzip.compress(payload)
+    if failure == "gzip":
+        compressed = b"not gzip"
+    elif failure == "json":
+        compressed = gzip.compress(b"not json")
+    elif failure == "encoding":
+        compressed = gzip.compress(payload.decode("utf-8").encode("utf-16"))
+    elif failure == "schema":
+        compressed = gzip.compress(b'{"meta": {}, "card_ratings": {}}')
+    elif failure == "card":
+        data = json.loads(payload)
+        data["card_ratings"]["9"] = []
+        compressed = gzip.compress(json.dumps(data).encode())
+    elif failure == "statistic":
+        data = json.loads(payload)
+        data["card_ratings"]["9"]["deck_colors"]["All Decks"]["gihwr"] = "invalid"
+        compressed = gzip.compress(json.dumps(data).encode())
+    elif failure == "infinity":
+        compressed = gzip.compress(payload.replace(b'"gihwr": 50', b'"gihwr": 1e999'))
+    elif failure in ("metadata_count", "metadata_timestamp"):
+        data = json.loads(payload)
+        field = "game_count" if failure == "metadata_count" else "collection_date"
+        data["meta"][field] = []
+        compressed = gzip.compress(json.dumps(data).encode())
+    info = file_info(compressed)
+    if failure == "checksum":
+        info["hash"] = "1" * 64
+    elif failure == "compressed_limit":
+        monkeypatch.setattr("src.dataset_updater.MAX_COMPRESSED_BYTES", 10)
+    elif failure == "decompressed_limit":
+        monkeypatch.setattr("src.dataset_updater.MAX_DATASET_BYTES", 10)
+    elif failure == "replace":
+        import os
+        original_replace = os.replace
+        def fail_dataset_replace(src, dst):
+            if str(dst) == str(target):
+                raise OSError("File is locked")
+            return original_replace(src, dst)
+        monkeypatch.setattr("src.dataset_updater.os.replace", fail_dataset_replace)
+    mock_sync(mock_get, {"active_sets": ["MH3"], "datasets": {KEY: info}}, compressed)
+    progress = MagicMock()
+    updater.sync_datasets(progress)
+    assert target.read_bytes() == payload
+    assert updater.get_local_manifest()["datasets"][KEY] == old_info
+    assert not list(tmp_path.glob("*.tmp"))
+    progress.assert_any_call("Skipped 1 dataset update(s). Kept cached data.")
 
 
 @patch("src.dataset_updater.requests.get")
-def test_sync_datasets_counts_each_downloaded_set(mock_get, updater, tmp_path):
-    """The return value is the number of datasets actually downloaded — a
-    boolean would collapse this into True. Guards the counter upgrade on
-    sync_datasets, which the desktop background notifier turns into
-    "N datasets updated"."""
-    manifest_datasets = {
-        "MSH_PremierDraft_All": {
-            "hash": "h_msh", "filename": "MSH_PremierDraft_All_Data.json.gz"
-        },
-        "TMT_PremierDraft_All": {
-            "hash": "h_tmt", "filename": "TMT_PremierDraft_All_Data.json.gz"
-        },
-    }
-    mock_manifest_response = MagicMock()
-    mock_manifest_response.status_code = 200
-    mock_manifest_response.json.return_value = {
-        "active_sets": ["MSH", "TMT"],
-        "datasets": manifest_datasets,
-    }
-    mock_filters_response = MagicMock()
-    mock_filters_response.status_code = 200
-    mock_filters_response.json.return_value = {
-        "live_formats_by_expansion": {
-            "MSH": ["PremierDraft"],
-            "TMT": ["PremierDraft"],
-        }
-    }
-
-    def gz_response():
-        r = MagicMock()
-        r.status_code = 200
-        r.content = gzip.compress(b'{"card": "data"}')
-        return r
-
-    mock_get.side_effect = [
-        MagicMock(status_code=200, json=lambda: {"pipeline_run": {"status": "SUCCESS"}}),
-        mock_manifest_response,
-        mock_filters_response,
-        gz_response(),
-        gz_response(),
-    ]
-
-    result = updater.sync_datasets(MagicMock())
-
-    assert result.succeeded is True
-    assert result.downloaded == 2
-    assert (tmp_path / "MSH_PremierDraft_All_Data.json").exists()
-    assert (tmp_path / "TMT_PremierDraft_All_Data.json").exists()
+def test_rejected_dataset_does_not_block_other_updates(mock_get, updater, tmp_path, payload):
+    compressed = gzip.compress(payload)
+    other_key = "MH3_Sealed_All"
+    bad_info = file_info(compressed)
+    bad_info["hash"] = "1" * 64
+    manifest = {"active_sets": ["MH3"], "datasets": {KEY: bad_info, other_key: file_info(compressed, other_key + "_Data.json.gz")}}
+    mock_sync(mock_get, manifest, compressed)
+    mock_get.side_effect = [MagicMock(status_code=200, json=lambda: {}), MagicMock(json=lambda: manifest),
+                           stream_response(compressed), stream_response(compressed)]
+    updater.sync_datasets(MagicMock())
+    assert not (tmp_path / FILENAME[:-3]).exists()
+    assert (tmp_path / (other_key + "_Data.json")).read_bytes() == payload
+    assert list(updater.get_local_manifest()["datasets"]) == [other_key]
 
 
 @patch("src.dataset_updater.requests.get")
-def test_sync_datasets_reports_failure(mock_get, updater, tmp_path):
-    """A network failure must be distinguishable from 'synced, nothing new':
-    both report a download count of 0, but a failed sync must NOT count as a
-    successful once-per-day stamp. SyncResult.succeeded is the discriminator."""
-    mock_get.side_effect = Exception("network down")
+def test_cube_filename_is_supported(mock_get, updater, tmp_path, payload):
+    key = "Cube - Powered_PremierDraft_All"
+    filename = key + "_Data.json.gz"
+    compressed = gzip.compress(payload)
+    mock_sync(mock_get, {"active_sets": ["Cube - Powered"], "datasets": {key: file_info(compressed, filename)}}, compressed)
+    updater.sync_datasets(MagicMock())
+    assert (tmp_path / filename[:-3]).read_bytes() == payload
+    assert "Cube%20-%20Powered" in mock_get.call_args.args[0]
 
-    result = updater.sync_datasets(MagicMock())
 
-    assert result.succeeded is False
-    assert result.downloaded == 0
+@patch("src.dataset_updater.requests.get")
+def test_existing_symlink_cannot_escape_sets(mock_get, updater, tmp_path, payload):
+    outside = tmp_path.parent / (tmp_path.name + "-outside.json")
+    outside.write_bytes(b"untouched")
+    try:
+        (tmp_path / FILENAME[:-3]).symlink_to(outside)
+    except OSError:
+        pytest.skip("Creating symlinks requires permission on this platform")
+    compressed = gzip.compress(payload)
+    mock_sync(mock_get, {"active_sets": ["MH3"], "datasets": {KEY: file_info(compressed)}}, compressed)
+    updater.sync_datasets(MagicMock())
+    assert mock_get.call_count == 2
+    assert outside.read_bytes() == b"untouched"
+
+
+@patch("src.dataset_updater.requests.get")
+def test_auto_sync_includes_live_set_events_with_underscores(mock_get, updater, tmp_path, payload):
+    """Keys are SET_EVENT_GROUP; an event like ArenaDirect_Sealed must not make
+    the set-code check read 'MH3_ArenaDirect' and skip a live-set dataset."""
+    compressed = gzip.compress(payload)
+    key = "MH3_ArenaDirect_Sealed_All"
+    manifest = {"active_sets": ["MH3"], "datasets": {key: file_info(compressed, key + "_Data.json.gz")}}
+    mock_sync(mock_get, manifest, compressed)
+    updater.sync_datasets(MagicMock())
+    assert (tmp_path / (key + "_Data.json")).read_bytes() == payload

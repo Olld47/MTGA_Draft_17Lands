@@ -196,6 +196,9 @@ class CardData(BaseModel):
 
     database_size: int = 0
     latest_dataset: str = ""
+    # Filenames deleted by the user; kept separately from the dataset cache so a
+    # deleted dataset is not silently restored by the next automatic sync.
+    excluded_datasets: List[str] = Field(default_factory=list)
     last_check: float = 0
     last_auto_check: float = 0
     # UTC date (YYYY-MM-DD) the cloud datasets were last auto-refreshed. Drives
