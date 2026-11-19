@@ -14,15 +14,28 @@ into `.json.gz` files every day and publishes them to GitHub Pages.
 
 - **Base URL:** `constants.REMOTE_DATASET_BASE_URL` (GitHub Pages).
 - **Manifest:** `manifest.json` — lists every dataset key (`SET_FORMAT_GROUP`),
-  its filename, and a content `hash`.
+  its filename, and a content `hash`. Also carries **`active_sets`**: the set
+  codes the ETL resolved as playable for the published run (see
+  `05-server-etl-pipeline.md` §5).
+- **Calendar:** `calendar.json` — upstream publishes the resolved event schedule
+  as a pipeline **output**. This branch does not publish it; its copy is still a
+  repo input (§5F).
 - **Report:** `report.json` — pipeline execution summary (used for the live
   dataset schedule page).
 - **Client sync:** `src/dataset_updater.py` `DatasetUpdater.sync_datasets`:
   1. Fetches `manifest.json` and `report.json`.
-  2. Filters to the draft formats 17Lands currently reports as live.
-  3. Downloads only missing/updated files (comparing `hash` against
+  2. *Upstream:* downloads only keys whose leading `SET` segment is in the
+     manifest's `active_sets`. The warehouse keeps historical sets forever;
+     `active_sets` marks the live ones. The client does no independent liveness
+     inference — that is deliberate, and inferring it from a second endpoint is
+     how the two catalogs drifted apart before.
+  3. *This branch:* still filters by 17Lands `live_formats_by_expansion`, with a
+     fallback — if that filter selects **zero** keys it retries against
+     `active_sets`, then the whole manifest, so a scoping miss cannot masquerade
+     as "already up to date". See `05-server-etl-pipeline.md` §5F.
+  4. Downloads only missing/updated files (comparing `hash` against
      `Sets/local_manifest.json`).
-  4. Writes with atomic file replacement.
+  5. Writes with atomic file replacement.
 - **Auto-sync cadence:** at most **once per UTC day**, gated by
   `is_auto_synced_today()` (see `00-system-overview.md` §5). Manual downloads
   are unaffected. `sync_datasets` returns a typed `SyncResult`; the once-per-day
