@@ -200,3 +200,56 @@ def test_best_dataset_by_rank_all_beats_top():
     }
     best = _best_dataset_by_rank(sources, "[MSH]", lambda _label: 1)
     assert best == ((1, 0, "[MSH] QuickDraft (All)"), "/all.json")
+
+
+# --- Alchemy set codes ------------------------------------------------------
+# Arena tags Alchemy sets with a year prefix ("Y26FRA"), while the scanner can
+# report the bare expansion ("FRA"). They name the same set, so either spelling
+# must find the other's datasets.
+
+@pytest.mark.parametrize(
+    "catalog_tag, query_code",
+    [
+        ("Y26FRA", "FRA"),   # catalog has the year prefix, scanner reports bare
+        ("FRA", "Y26FRA"),   # catalog is bare, scanner reports the prefix
+    ],
+)
+def test_select_best_dataset_matches_across_the_y_prefix(catalog_tag, query_code):
+    catalog = {
+        f"[{catalog_tag}] PremierDraft (All)": "/fra.json",
+        f"[{catalog_tag}] PremierDraft (Top)": "/fra_top.json",
+    }
+
+    assert DatasetSelector().select_best_dataset(
+        catalog, query_code, "PremierDraft_FRA_20260101"
+    ) == "/fra.json"
+
+
+def test_select_best_dataset_y_prefix_does_not_merge_distinct_sets():
+    """Dropping the prefix must not make two different sets collide."""
+    catalog = {"[Y26EOE] PremierDraft (All)": "/eoe.json"}
+
+    assert DatasetSelector().select_best_dataset(
+        catalog, "FRA", "PremierDraft_FRA_20260101"
+    ) == ""
+
+
+@pytest.mark.parametrize(
+    "code, expected",
+    [
+        ("Y26FRA", "FRA"),      # year prefix + a real expansion code
+        ("y26fra", "FRA"),      # case-insensitive
+        ("Cube - Powered", "CUBEPOWERED"),  # punctuation stripped, not truncated
+        ("Y26", "Y26"),         # prefix alone has no expansion tail to lose
+        ("HOB", "HOB"),
+    ],
+)
+def test_normalize_set_code_only_drops_a_real_year_prefix(code, expected):
+    """The prefix comes off only when a three-letter expansion code remains.
+
+    A bare "Y26" must survive, otherwise it would normalize to "" and match
+    every set in the catalog.
+    """
+    from src.dataset_selector import _normalize_set_code
+
+    assert _normalize_set_code(code) == expected
