@@ -17,24 +17,24 @@ into `.json.gz` files every day and publishes them to GitHub Pages.
   its filename, and a content `hash`. Also carries **`active_sets`**: the set
   codes the ETL resolved as playable for the published run (see
   `05-server-etl-pipeline.md` §5).
-- **Calendar:** `calendar.json` — upstream publishes the resolved event schedule
-  as a pipeline **output**. This branch does not publish it; its copy is still a
-  repo input (§5F).
+- **Calendar:** `calendar.json` — the resolved event schedule, published by the
+  ETL as a **pipeline output** (see `05-server-etl-pipeline.md` §5). The repo
+  carries no schedule input.
 - **Report:** `report.json` — pipeline execution summary (used for the live
   dataset schedule page).
 - **Client sync:** `src/dataset_updater.py` `DatasetUpdater.sync_datasets`:
   1. Fetches `manifest.json` and `report.json`.
-  2. *Upstream:* downloads only keys whose leading `SET` segment is in the
-     manifest's `active_sets`. The warehouse keeps historical sets forever;
-     `active_sets` marks the live ones. The client does no independent liveness
-     inference — that is deliberate, and inferring it from a second endpoint is
-     how the two catalogs drifted apart before.
-  3. *This branch:* still filters by 17Lands `live_formats_by_expansion`, with a
-     fallback — if that filter selects **zero** keys it retries against
-     `active_sets`, then the whole manifest, so a scoping miss cannot masquerade
-     as "already up to date". See `05-server-etl-pipeline.md` §5F.
-  4. Downloads only missing/updated files (comparing `hash` against
+  2. Downloads only keys whose leading `SET` segment is in the manifest's
+     `active_sets`. The warehouse keeps historical sets forever; `active_sets`
+     marks the live ones. The client does no independent liveness inference —
+     that is deliberate, and inferring it from a second endpoint is how the two
+     catalogs drifted apart before (§5F of the ETL doc).
+  3. Downloads only missing/updated files (comparing `hash` against
      `Sets/local_manifest.json`).
+  4. Verifies every payload before it may replace a working file: SHA-256 against
+     the manifest, compressed and decompressed size caps, structural validation,
+     and a destination confined to `Sets/`. A rejected file leaves the previous
+     copy serving, and one failure does not block the others.
   5. Writes with atomic file replacement.
 - **Auto-sync cadence:** at most **once per UTC day**, gated by
   `is_auto_synced_today()` (see `00-system-overview.md` §5). Manual downloads

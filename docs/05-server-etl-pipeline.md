@@ -10,12 +10,9 @@ These compiled datasets are then deployed to a static file host (e.g., GitHub Pa
 
 The pipeline executes daily via GitHub Actions. It is strictly schedule-driven, meaning it only spends compute resources updating sets that are currently active on MTG Arena.
 
-> **Status of this section.** The event-scheduling design described here is the
-> **upstream target**, not what this branch runs today. This branch still reads a
-> hand-maintained `server/calendar.json`; upstream replaced it with
-> `server/events.py` (a sourced MTGpile feed) and deleted the repo file. See §5
-> for both, and §5F for the migration gap. Read every "is" below as "is, once
-> the `events.py` port lands".
+The schedule is fetched from MTGpile's published Arena event feed on every run
+and published to Pages as an artifact — there is no hand-maintained schedule
+file. §5 covers the resolution pipeline and why the old design failed silently.
 
 ```mermaid
 graph TD
@@ -33,16 +30,16 @@ graph TD
     A2 -->|Published to Pages| K[calendar.json]
 ```
 
-Note the direction reversal in the upstream design: `calendar.json` becomes a
-**pipeline output** (published to GitHub Pages alongside the datasets), not an
-input. In this branch it is still an input.
+Note the direction reversal: `calendar.json` is a **pipeline output** (published
+to GitHub Pages alongside the datasets), not an input. The repo no longer carries
+a schedule file.
 
 ## 3. Module Breakdown
 
 | Module | Function |
 | :--- | :--- |
 | `config.py` | Centralizes all configuration: API delays, retry logic, WAF cooldowns, and definition of the 26 tracked color archetypes. |
-| `events.py` | **(upstream only — absent here)** Resolves MTGpile's announced Arena schedule into supported 17Lands jobs. Owns the feed URL, staleness check, title→format mapping, and set-code resolution. Exports `fetch_event_calendar`, `build_event_calendar`, `get_scheduled_events`. |
+| `events.py` | Resolves MTGpile's announced Arena schedule into supported 17Lands jobs. Owns the feed URL, staleness check, title→format mapping, and set-code resolution. Exports `fetch_event_calendar`, `build_event_calendar`, `get_scheduled_events`. |
 | `utils.py` | Houses the `APIClient`. Wraps `requests` with robust exponential backoff, automated HTTP 429/403 (Cloudflare WAF) cooldowns, random anti-bot jitter, and a local `.api_cache` system. |
 | `extract.py` | Handles all network requests. Responsible for downloading base card definitions, Scryfall community tags (`otags`), and 17Lands archetype-specific win rates. |
 | `transform.py` | The "Data Sanitizer." Merges Scryfall IDs with 17Lands `arena_id`s, guarantees all 26 archetypes are pre-initialized (even if data is missing), and formats the payload exactly to the desktop client's expectations. |
@@ -61,13 +58,9 @@ The pipeline is designed to be highly respectful of community APIs:
 
 ## 5. Event Management (`server/events.py`)
 
-> **Two states, one section.** This branch still uses a hand-maintained
-> `server/calendar.json` (§5F records the gap). Upstream replaced it with
-> `server/events.py`, which fetches MTGpile's Arena event feed and resolves it
-> into jobs, and deleted the repo file. The design below is upstream's; §5F says
-> exactly what this branch is missing.
-
-The pipeline does not guess what to download. Upstream no longer relies on a hand-edited file to know: `server/events.py` fetches MTGpile's Arena event feed and resolves it into jobs.
+The pipeline does not guess what to download, and it does not rely on a
+hand-edited file to know: `server/events.py` fetches MTGpile's Arena event feed
+and resolves it into jobs.
 
 ### A. Source & cadence
 
@@ -116,29 +109,35 @@ When nothing is active the pipeline saves the manifest with an **empty** `active
 
 The previous design was a hand-maintained `server/calendar.json`. When nobody added the next event, the file's last `end_date` passed, `get_scheduled_events` returned `{}` every day, the run exited early, and the published `manifest.json` froze at its last `active_sets`. The client then downloaded nothing — while the pipeline still reported success. Fetching a sourced feed, failing on stale feeds, and publishing `active_sets` from the live schedule removes that whole failure mode.
 
-### F. This branch's state, and the gap
+### F. The failure this replaced (v1.0.7, 2026-11-18)
 
-**What this branch has today:**
+The hand-maintained schedule failed in a way that cost fifty days of silent
+staleness, and the fix targeted all three layers of that failure:
 
-| Piece | State |
-| :--- | :--- |
-| `server/calendar.json` | Present — hand-maintained input, last `end_date` **2026-09-29** |
-| `server/events.py` | **Absent** |
-| `save_calendar()` in `load.py` | **Absent** — `calendar.json` is never published |
-| `src/dataset_manifest.py` | **Absent** |
-| Client scoping | Still filters by 17Lands `live_formats_by_expansion` |
+1. **Expired schedule.** `server/calendar.json`'s last `end_date` was
+   2026-09-29, so `get_scheduled_events()` returned `{}`. `main.py` logged
+   *"No active events found… Exiting."* and returned early — but `report.json`
+   still recorded `SUCCESS`, so nothing alerted. `manifest.json` therefore froze
+   at `active_sets: ["HOB"]`.
+2. **Client-side liveness inference.** 17Lands reported live formats
+   `FRA`/`TRK`/`TDM`/`BLB` while the manifest named `HOB`. `sync_datasets`
+   intersected the two catalogs, they share no keys, and it selected zero
+   datasets. Those live set codes had no datasets in the published manifest at
+   all (their `*.gz` URLs returned 404), so no amount of retrying could help.
+3. **Zero selected read as success.** The sync returned `succeeded=True` with
+   `downloaded=0`, so the caller stamped the once-per-day date and the day was
+   never retried.
 
-**The consequence, observed 2026-11-18:** every calendar entry had expired, so `get_scheduled_events()` returned `{}`, `main.py` logged *"No active events found… Exiting."* and returned early — while `report.json` still reported `SUCCESS`. `manifest.json` therefore froze with `active_sets: ["HOB"]`. 17Lands meanwhile reported live formats `FRA`/`TRK`/`TDM`/`BLB`, and those set codes have **no datasets in the published manifest** (their `*.gz` URLs 404). The client's live-format filter intersected two disjoint key spaces, selected zero keys, and reported success with 0 downloads — stamping the once-per-day date so it never retried that day.
+Each is now addressed at its own layer: §5A fails the run on a stale or empty
+feed instead of idling; the client downloads only what `manifest.active_sets`
+names, with no second catalog to disagree with; and an empty `active_sets` is
+published explicitly rather than left stale.
 
-**Three compounding defects, and where each is addressed:**
-
-1. **Expired hand-maintained calendar** → upstream fixes by sourcing the feed and failing the run on a stale `as_of` (§5A). Not addressed here.
-2. **Client infers liveness from a second catalog** → upstream fixes by making the client trust `manifest.active_sets` only. A partial mitigation is in this branch's `sync_datasets` (§5F note below).
-3. **"Nothing selected" reported as success** → partially mitigated in this branch: an empty selection now falls back to `active_sets`, then to the whole manifest, instead of silently downloading nothing.
-
-**Partial mitigation already in this branch.** `src/dataset_updater.py` `sync_datasets` keeps the live-format filter, but when the filter selects **zero** keys it falls back to the manifest's `active_sets`, and then to the entire manifest. This prevents a total dry run, but it does **not** fix the root cause — a stale `active_sets` still yields stale datasets. Guarded by `test_sync_datasets_falls_back_to_active_sets_when_live_filter_matches_nothing`.
-
-**To close the gap properly,** port upstream's changes together (they are interdependent): `server/events.py`, `server/main.py` + `server/load.py` (`save_calendar`), `src/dataset_manifest.py`, and the `src/dataset_updater.py` rewrite that drops the live-format filter in favour of `manifest.active_sets`. Upstream also removes `src/bootstrap.py` / `src/boot_sync.py` and the `SyncResult` type, so that rewrite reaches beyond the ETL itself.
+**Operational note.** Shipping the pipeline is not the same as refreshing the
+data. Until the ETL actually runs (daily GitHub Actions, or a manual
+`python -m server.main`), Pages keeps serving the previous `manifest.json`, and
+the client correctly refuses to invent sets it is not told about. A version bump
+alone does not move `active_sets`.
 
 ## 6. Data-Quality Validation (`validate.py`)
 

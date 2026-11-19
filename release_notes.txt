@@ -1,16 +1,24 @@
-===================== RELEASE NOTES 1.0.6 =====================
+===================== RELEASE NOTES 1.0.7 =====================
 ### Highlights
 
-#### 测试环境隔离：单元测试不再读写本机真实配置
+#### 修复数据集长期不再更新：赛程改由 MTGpile 自动获取
 
-本版为工程质量与测试隔离修复，用户可见行为保持不变。此前单元测试套件会在真实用户配置目录留下文件：导入 `src.configuration` 即在系统配置目录（macOS `~/Library/Application Support/MTGA_Draft_Tool` 等）创建默认 `config.json`，导入 `src.logger` 即创建 `Debug/debug.log`——全新机器与 CI 上每跑一次测试都会产生真实用户态文件；“恢复默认设置”与练习模式数据集持久化等路径经“默认参数 def 期绑定”绕过 monkeypatch，把改动写进真实配置。本版改为：模块导入零副作用、配置初始化在启动路径显式执行、调试日志文件在首条记录时才创建；新增隔离守卫测试钉住该行为，防止回归。
+本版修复了一个会让数据集静默停更的故障。ETL 原本依赖手工维护的 `server/calendar.json` 决定抓取哪些系列；当其中最后一条赛事结束日期过期后，流水线每天都会因"今天没有活跃赛事"而提前退出，却仍汇报 `SUCCESS`，导致发布出的 `manifest.json` 永久冻结在旧的 `active_sets`。客户端随后按 17Lands 当前活跃格式去匹配这份清单，两边集合没有任何交集，于是下载 0 个文件——同时还写入了"今日已同步"标记，使当天不再重试。
+
+本版把赛程来源换成 MTGpile 公布的 MTG Arena 赛事表：每次运行实时抓取，用 Scryfall 与 17Lands 目录解析出系列代码，再发布为流水线输出。`as_of` 缺失、过期超过 7 天或指向未来、以及整份赛事表无法解析出任何受限赛制时，流水线直接失败而非静默空跑；确实无活跃赛事时则写入空的 `active_sets`，清除昨日的活跃集但保留历史仓库。
+
+客户端侧同步调整：不再自行推断"哪些系列是活跃的"，只按 manifest 的 `active_sets` 下载；仓库中的历史系列保留但不自动下载。每个下载现在都要通过 SHA-256 校验、压缩/解压体积上限、结构校验和路径限制，失败时保留旧文件。
 
 <details>
 <summary><b>English</b></summary>
 
-#### Test-environment isolation: unit tests no longer touch the real machine config
+#### Datasets stopped updating silently: the schedule now comes from MTGpile
 
-This release is engineering and test-hygiene work with no user-visible change. The suite previously left files in the real user profile: importing `src.configuration` wrote a default `config.json` into the OS config directory (macOS `~/Library/Application Support/MTGA_Draft_Tool`, etc.), importing `src.logger` created `Debug/debug.log` — so every fresh machine/CI run produced real user-state files. Some paths ("Restore Defaults", practice-mode dataset persistence) reached the real config through def-time-bound default arguments that monkeypatches could not redirect. Imports are now side-effect free, config initialization is explicit on the boot path, and the debug log file is created only on the first emitted record. Isolation guard tests pin this behavior against regressions.
+This release fixes a failure that let datasets silently stop refreshing. The ETL pipeline decided which sets to fetch from a hand-maintained `server/calendar.json`. Once the last event in that file expired, the pipeline exited early every day ("no active events today") while still reporting `SUCCESS`, so the published `manifest.json` stayed frozen at its old `active_sets`. The client then filtered for the formats 17Lands reports as live, the two sets had no keys in common, and it downloaded nothing — after stamping the once-per-day date, so it would not retry that day.
+
+The schedule now comes from MTGpile's published MTG Arena event feed: fetched on every run, resolved to set codes against the Scryfall and 17Lands catalogs, and published as a pipeline output. A missing, stale (over 7 days) or future-dated `as_of`, or a feed with no resolvable Limited events, fails the run rather than idling silently; a genuinely empty schedule publishes an empty `active_sets`, clearing yesterday's live sets while preserving the historical warehouse.
+
+The client no longer infers liveness: it downloads only what `manifest.active_sets` names, keeping historical sets in the warehouse without auto-downloading them. Every download must now pass SHA-256 verification, compressed and decompressed size caps, structural validation and a path confinement check, and a rejected file leaves the previous copy serving.
 
 </details>
 
@@ -18,19 +26,35 @@ This release is engineering and test-hygiene work with no user-visible change. T
 
 以下是详细内容：
 
-**v1.0.6 (2026-09-03)**
+**v1.0.7 (2026-11-19)**
 
 ### 修复 | Fix
 
-- `src.configuration` 导入纯化：`get_config_path()` 不再创建目录，删除导入期兜底写配置；新增显式 `init_configuration()`，由 launcher（`main.py`）与桌面桥接在读取配置前调用——首次启动仍自动生成默认 `config.json`
-- `src.logger` 惰性化：`Debug/` 目录与日志文件在首条日志记录时才创建，导入不再产生文件
-- “恢复默认设置”（`services.reset_settings`）改为调用时解析配置路径：测试对 `CONFIG_FILE` 的 monkeypatch 重新生效，不再写真实用户配置
-- 练习模式数据集持久化经 `datasets.select_dataset_blocking` 的写入在测试中被隔离
+- ETL 赛程改为抓取 MTGpile 赛事表（`server/events.py`），删除手工维护的 `server/calendar.json`，改为流水线输出并发布到 Pages
+- 赛程新鲜度守卫：`as_of` 缺失/过期超过 7 天/指向未来、或解析不出任何受限赛事时直接失败，不再静默空跑后汇报成功
+- 无活跃赛事时写入空 `active_sets` 并保存 manifest，清除昨日活跃集但保留历史仓库
+- 17Lands filters 目录改从 `www.17lands.com` 获取（原 `api.17lands.com` 地址）
+- 客户端同步不再按 17Lands live 格式过滤，改按 manifest 的 `active_sets` 限定；此前两套编码体系（FRA/TRK 对比 HOB）没有交集，导致恒为 0 下载
+- 下载硬化：SHA-256 校验、32 MiB 压缩 / 256 MiB 解压上限、载荷结构校验、目标路径限制在 `Sets/` 内、原子写；单个数据集失败不阻断其余下载
+- 删除数据集时写入 `card_data.excluded_datasets`，自动同步不再把已删除的文件重新下载回来；删除失败时回滚排除记录
+
+### 改进 | Improved
+
+- 数据集页新增"删除非活跃数据集"与"恢复已删除的数据集"，并显示已排除数量（桥接新增 `clear_inactive_datasets` / `restore_deleted_datasets` 两个命令）
+- Alchemy 系列按发布年份前缀双向匹配：`Y26FRA` 与 `FRA` 视为同一系列，修复该系列选不到本地数据集、卡包显示为空的问题
+- 扫描器按名称长度优先解析赛制：`PickTwoTradDraft` 不再被误判为 `TradDraft`，`TradSealed` 不再被误判为 `Sealed`
+- 特殊赛事规则按关键词数量排序，具体规则优先于通用规则（Qualifier + Draft 不再落入 Sealed）
+- Pick-Two 进度按"已移除卡牌数"推进：第 5 抽等同于普通第 9 抽；非 8 人 / 非单抽时不显示车轮概率，避免误导性百分比
+- 无 draft ID 的重置检测改为水位比较，取代"P1P1 即清空"的启发式：重放已记录的卡包不再误清空，整包内容必须吻合才判定为历史
+- 牌组评分改用总体胜率并引入特性权重表，移除 domain / 曲线 / 闪避 / 部族调整（实证拟合后归零）
+- 未知卡牌 ID 改为后台异步解析：读取路径不再阻塞于本地 SQLite 与 Scryfall 请求，失败按 5s→300s 指数退避重试，数据集切换时丢弃过期结果
+- 17Lands 直连响应校验：异常载荷视为错误而非"无数据"，损坏缓存重新拉取，缓存写入失败不再丢弃本次下载
 
 ### 测试 | Verification
 
-- 新增子进程守卫测试：HOME/APPDATA/工作目录重定向到空临时目录后导入配置与日志模块零落盘；日志文件在写入记录后按预期生成且不重复
-- 全套 1744 项测试在隔离环境（用户目录重定向为空）下通过，临时根目录零文件残留
+- 新增赛程解析、下载硬化、异步解析、赛制识别、Pick-Two 进度与数据集管理的回归测试
+- 每个行为修复均经突变验证：撤销修复后对应用例转红
+- 全套 1894 项 Python 测试与 130 项前端测试通过，`tsc --noEmit` 无错误
 
 
 ===================== RELEASE NOTES 1.0.5 =====================
