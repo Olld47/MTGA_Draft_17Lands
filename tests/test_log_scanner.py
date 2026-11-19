@@ -623,3 +623,87 @@ def test_mislabelled_pick_two_draft_keeps_first_pack(tmp_path):
         ] == expected.missing, entry_label
 
     assert scanner.session.draft_type == constants.LIMITED_TYPE_DRAFT_PICK_TWO
+
+
+@pytest.mark.parametrize(
+    "event_name, expected_type",
+    [
+        # A complete format name embeds a shorter one: PickTwoTradDraft contains
+        # TradDraft, PickTwoQuickDraft contains QuickDraft, TradSealed contains
+        # Sealed. Each pair uses different rules and statistics, so the longer,
+        # more specific name must win.
+        ("PickTwoTradDraft_MKM_20240301", constants.LIMITED_TYPE_STRING_DRAFT_PICK_TWO_TRAD),
+        ("PickTwoQuickDraft_MKM_20240301", constants.LIMITED_TYPE_STRING_DRAFT_PICK_TWO_QUICK),
+        ("TradSealed_DSK_20240924", constants.LIMITED_TYPE_STRING_TRAD_SEALED),
+        ("TradDraft_MKM_20240301", constants.LIMITED_TYPE_STRING_DRAFT_TRAD),
+        ("QuickDraft_OTJ_20240426", constants.LIMITED_TYPE_STRING_DRAFT_QUICK),
+    ],
+)
+def test_event_name_resolves_to_the_most_specific_format(
+    tmp_path, event_name, expected_type
+):
+    """Guards the length-ordered scan of LIMITED_TYPES_DICT.
+
+    Dict order happens to list the shorter names first, so without the sort
+    PickTwoTradDraft resolves to TradDraft and TradSealed to Sealed.
+    """
+    scanner = ArenaScanner(
+        str(tmp_path / "Player.log"),
+        TEST_SETS,
+        sets_location=TEST_SETS_DIRECTORY,
+        retrieve_unknown=False,
+        state_file=str(tmp_path / "active_draft_state.json"),
+    )
+    scanner.log_enable(False)
+
+    matched, event_type, _, _, _ = scanner._ArenaScanner__check_standard_event(
+        event_name
+    )
+
+    assert matched
+    assert event_type == expected_type
+
+
+def test_specific_special_event_wins_over_the_generic_one(tmp_path):
+    """Guards the keyword-count ordering in __check_special_event.
+
+    The default rules list "QualSealed" (keywords=["Qualifier"]) before
+    "QualDraft" (keywords=["Qualifier", "Draft"]). Both match a Qualifier draft
+    name, so an unordered scan returns the Sealed rule and mislabels the draft.
+    """
+    from src.limited_sets import SetDictionary, SetInfo, SpecialEvent
+
+    set_list = SetDictionary(
+        data={"DSK": SetInfo(seventeenlands=["DSK"], set_code="DSK")},
+        special_events=[
+            # The generic rule is listed first on purpose: only the keyword
+            # ordering keeps it from shadowing the specific one.
+            SpecialEvent(
+                label="QualSealed",
+                type=constants.LIMITED_TYPE_STRING_SEALED,
+                set_code="DSK",
+                keywords=["Qualifier"],
+            ),
+            SpecialEvent(
+                label="QualDraft",
+                type=constants.LIMITED_TYPE_STRING_DRAFT_PREMIER,
+                set_code="DSK",
+                keywords=["Qualifier", "Draft"],
+            ),
+        ],
+    )
+    scanner = ArenaScanner(
+        str(tmp_path / "Player.log"),
+        set_list,
+        sets_location=TEST_SETS_DIRECTORY,
+        retrieve_unknown=False,
+        state_file=str(tmp_path / "active_draft_state.json"),
+    )
+    scanner.log_enable(False)
+
+    matched, event_type, _, _, _ = scanner._ArenaScanner__check_special_event(
+        "Qualifier_Draft_DSK_20240924"
+    )
+
+    assert matched
+    assert event_type == constants.LIMITED_TYPE_STRING_DRAFT_PREMIER
