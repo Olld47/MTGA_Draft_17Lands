@@ -79,6 +79,14 @@ export const selectDataset = (path: string) =>
 export const deleteDataset = (path: string) =>
   pyInvoke<DatasetList>("delete_dataset", { path });
 
+/** Clear the exclusion list so automatic sync may fetch deleted datasets again. */
+export const restoreDeletedDatasets = () =>
+  pyInvoke<DatasetList>("restore_deleted_datasets", {});
+
+/** Delete every local dataset except the active one. */
+export const clearInactiveDatasets = () =>
+  pyInvoke<DatasetList>("clear_inactive_datasets", {});
+
 export function downloadDataset(
   setCode: string,
   eventType: string,

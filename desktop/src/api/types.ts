@@ -153,6 +153,8 @@ export interface DatasetList {
   newestAgeDays: number;
   /** True when newestAgeDays exceeds the backend's stale threshold. */
   stale: boolean;
+  /** Datasets the user deleted; automatic sync skips them until restored. */
+  excludedCount: number;
 }
 
 export interface ColorMetric {

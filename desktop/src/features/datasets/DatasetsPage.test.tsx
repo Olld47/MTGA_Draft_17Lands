@@ -15,6 +15,8 @@ vi.mock("../../api/client", () => ({
   downloadDataset: vi.fn(),
   selectDataset: vi.fn(),
   deleteDataset: vi.fn(),
+  restoreDeletedDatasets: vi.fn(),
+  clearInactiveDatasets: vi.fn(),
 }));
 
 const datasets = (over: Partial<DatasetList> = {}): DatasetList => ({
@@ -23,6 +25,7 @@ const datasets = (over: Partial<DatasetList> = {}): DatasetList => ({
   lastSyncDate: "",
   newestAgeDays: -1,
   stale: false,
+  excludedCount: 0,
   ...over,
 });
 

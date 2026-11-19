@@ -505,13 +505,14 @@ def test_deleting_an_inactive_dataset_leaves_the_selection(config, sets_folder):
         path.write_text("{}")
     config.card_data.latest_dataset = active.name
 
-    with patch("mtga_bridge.datasets.write_configuration") as write_config, patch(
+    with patch("mtga_bridge.datasets.write_configuration"), patch(
         "src.utils.drop_local_set_from_cache"
     ):
         datasets.delete_dataset(config, str(doomed))
 
+    # The selection is untouched even though the exclusion list had to be saved.
     assert config.card_data.latest_dataset == active.name
-    write_config.assert_not_called()
+    assert config.card_data.excluded_datasets == [doomed.name]
 
 
 def test_deleting_drops_the_file_from_the_set_list_cache(config, sets_folder):
@@ -644,3 +645,98 @@ def test_switcher_normalizes_hyphenated_set_codes(config, sets_folder):
 
     assert vm.set_code == "TE-ST"
     assert [e.name for e in vm.events] == ["PremierDraft", "QuickDraft"]
+
+
+# --- deletion excludes from automatic sync ---------------------------------
+
+@pytest.fixture
+def isolated_config_writes():
+    """delete_dataset and friends call write_configuration to persist the
+    exclusion list. Patch it at the usage site so the suite never touches the
+    real user config (repo hermeticity rule)."""
+    with patch("mtga_bridge.datasets.write_configuration"):
+        yield
+
+def test_delete_excludes_the_file_from_automatic_sync(isolated_config_writes, config, sets_folder):
+    """A deleted dataset must not be re-fetched by the next auto-sync, which is
+    what excluded_datasets is for."""
+    path = sets_folder / "TEST_PremierDraft_All_Data.json"
+    path.write_text("{}")
+
+    assert datasets.delete_dataset(config, str(path)) is True
+
+    assert not path.exists()
+    assert config.card_data.excluded_datasets == ["TEST_PremierDraft_All_Data.json"]
+
+
+def test_delete_does_not_duplicate_an_existing_exclusion(isolated_config_writes, config, sets_folder):
+    path = sets_folder / "TEST_PremierDraft_All_Data.json"
+    path.write_text("{}")
+    config.card_data.excluded_datasets = ["TEST_PremierDraft_All_Data.json"]
+
+    assert datasets.delete_dataset(config, str(path)) is True
+
+    assert config.card_data.excluded_datasets == ["TEST_PremierDraft_All_Data.json"]
+
+
+def test_failed_delete_does_not_exclude_the_file(isolated_config_writes, config, sets_folder, monkeypatch):
+    """If the file survives, it must not be excluded: excluding it would hide a
+    dataset the user can still see in the list."""
+    path = sets_folder / "TEST_PremierDraft_All_Data.json"
+    path.write_text("{}")
+    monkeypatch.setattr(
+        "mtga_bridge.datasets.os.remove",
+        MagicMock(side_effect=OSError("permission denied")),
+    )
+
+    assert datasets.delete_dataset(config, str(path)) is False
+
+    assert path.exists()
+    assert config.card_data.excluded_datasets == []
+
+
+def test_delete_clears_an_active_selection_of_that_file(isolated_config_writes, config, sets_folder):
+    path = sets_folder / "TEST_PremierDraft_All_Data.json"
+    path.write_text("{}")
+    config.card_data.latest_dataset = "TEST_PremierDraft_All_Data.json"
+
+    assert datasets.delete_dataset(config, str(path)) is True
+
+    assert config.card_data.latest_dataset == ""
+
+
+def test_restore_clears_the_exclusion_list(isolated_config_writes, config):
+    config.card_data.excluded_datasets = ["a.json", "b.json"]
+
+    assert datasets.restore_deleted_datasets(config) == 2
+
+    assert config.card_data.excluded_datasets == []
+
+
+def test_restore_is_a_noop_without_exclusions(isolated_config_writes, config):
+    assert datasets.restore_deleted_datasets(config) == 0
+
+
+def test_clear_inactive_keeps_the_active_dataset(isolated_config_writes, config, sets_folder):
+    """Everything but the in-use dataset goes, and each removal is excluded."""
+    keep = sets_folder / "KEEP_PremierDraft_All_Data.json"
+    drop = sets_folder / "DROP_PremierDraft_All_Data.json"
+    keep.write_text("{}")
+    drop.write_text("{}")
+    config.card_data.latest_dataset = "KEEP_PremierDraft_All_Data.json"
+
+    with _stub_set_list([_row(str(keep)), _row(str(drop))]):
+        assert datasets.clear_inactive_datasets(config) == 1
+
+    assert keep.exists()
+    assert not drop.exists()
+    assert config.card_data.excluded_datasets == ["DROP_PremierDraft_All_Data.json"]
+
+
+def test_listing_reports_the_excluded_count(isolated_config_writes, config, sets_folder):
+    config.card_data.excluded_datasets = ["a.json", "b.json", "c.json"]
+
+    with _stub_set_list([]):
+        result = datasets.list_local_datasets(config)
+
+    assert result.excluded_count == 3
