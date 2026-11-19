@@ -6,6 +6,7 @@ Test suite for the ArenaScanner class logic.
 import pytest
 import os
 from unittest.mock import patch, MagicMock
+from src import constants
 from src.log_scanner import ArenaScanner
 from tests.test_log_scanner_data import (
     TEST_SETS,
@@ -581,3 +582,33 @@ def test_quick_draft_pick_after_picked_cards_resync_counts_once(function_scanner
     append(OTJ_QUICK_DRAFT_PICK_P1P9)
     assert function_scanner.draft_data_search()
     assert function_scanner.session.taken_cards == restored + ["90627"]
+
+
+def test_mislabelled_pick_two_draft_keeps_first_pack(function_scanner):
+    """A Pick-Two draft logged under a standard event name is switched to
+    Pick-Two on its first two-card pick. The P1P1 pack recorded before the
+    switch must survive, or the P1P5 wheel shows no missing cards."""
+    scanner = function_scanner
+    for entry_label, expected, entry_string in OM1_PICK_TWO_PREMIER_DRAFT_ENTRIES:
+        with open(scanner.arena_file, "a", encoding="utf-8") as log_file:
+            log_file.write(
+                entry_string.replace("PickTwoDraft_OM1", "PremierDraft_OM1") + "\n"
+            )
+        scanner.draft_start_search()
+        scanner.draft_data_search()
+
+        assert scanner.retrieve_current_pack_and_pick() == (
+            expected.current_pack,
+            expected.current_pick,
+        ), entry_label
+        assert [
+            x["name"] for x in scanner.retrieve_current_pack_cards()
+        ] == expected.pack, entry_label
+        assert [
+            x["name"] for x in scanner.retrieve_taken_cards()
+        ] == expected.card_pool, entry_label
+        assert [
+            x["name"] for x in scanner.retrieve_current_missing_cards()
+        ] == expected.missing, entry_label
+
+    assert scanner.session.draft_type == constants.LIMITED_TYPE_DRAFT_PICK_TWO
