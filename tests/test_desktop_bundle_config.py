@@ -65,6 +65,13 @@ def _upload_artifact_names(workflow_text):
     )
 
 
+def _workflow_call_targets(workflow_text):
+    """Local reusable workflows a file calls via `uses: ./.github/workflows/x.yml`."""
+    return set(
+        re.findall(r"uses:\s*\./\.github/workflows/([\w.-]+\.yml)", workflow_text)
+    )
+
+
 def _push_branches(workflow_text):
     """The `on: push: branches:` list of a workflow."""
     block = re.search(r"(?m)^\s+push:\n\s+branches:\n((?:\s+- .+\n)+)", workflow_text)
@@ -335,15 +342,30 @@ def test_desktop_workflows_build_on_the_release_branches(platform):
 
 def test_release_artifacts_include_the_desktop_bundles():
     """
-    The desktop bundles ARE the release artifacts. publish-release.yml runs
-    inline desktop build jobs (continue-on-error, so a red leg does not fail
-    the release) that upload the same artifact names as the standalone
-    build-desktop-*.yml legs, and the publish job attaches the .dmg/.msi/.exe
-    to the Release. Downloads must be scoped by explicit `name:` — a blanket
-    `merge-multiple` grab would silently flatten the wrong artifacts into the
-    publish step.
+    The desktop bundles ARE the release artifacts. publish-release.yml builds
+    them by calling the validated build-desktop-*.yml workflows (it used to
+    keep a mirrored copy of their steps, which drifted and produced release-only
+    failures), and the publish job attaches the .dmg/.msi/.exe to the Release.
+    Downloads must be scoped by explicit `name:` — a blanket `merge-multiple`
+    grab would silently flatten the wrong artifacts into the publish step.
+
+    A reusable-workflow call cannot be given `continue-on-error` (actionlint:
+    only name/uses/with/secrets/needs/if/permissions are allowed), so a red
+    desktop leg now fails the release instead of being ignored. That is the
+    stricter contract this test also pins.
     """
     publish = _read(PUBLISH_WORKFLOW)
+
+    # The bundles must come from the same workflows CI validates, not a copy.
+    called = _workflow_call_targets(publish)
+    for platform in ("macos", "windows"):
+        expected = f"build-desktop-{platform}.yml"
+        assert expected in called, (
+            f"publish-release.yml does not call {expected}; it calls {sorted(called)}"
+        )
+
+    # And those workflows must actually produce the artifacts the publish job
+    # downloads by name, so the call cannot silently point at an empty build.
     desktop_artifacts = set()
     for platform in ("macos", "windows"):
         desktop_artifacts |= _upload_artifact_names(
@@ -351,10 +373,20 @@ def test_release_artifacts_include_the_desktop_bundles():
         )
     assert desktop_artifacts, "the desktop workflows upload nothing"
 
-    published = _upload_artifact_names(publish)
-    assert desktop_artifacts <= published, (
-        f"publish-release.yml uploads {sorted(published)}; expected the desktop "
-        f"bundle artifacts {sorted(desktop_artifacts)}"
+    for name in desktop_artifacts:
+        assert f"name: {name}" in publish, (
+            f"publish-release.yml does not download {name}"
+        )
+
+    # A mirror would reintroduce the drift; assert the inline build steps are gone.
+    assert "tauri build" not in publish, (
+        "publish-release.yml must not build the desktop app itself — call the "
+        "build-desktop-*.yml workflows instead"
+    )
+    # Match the YAML key, not a mention of it in a comment: the file explains
+    # in prose why the key is unavailable, which must not trip this guard.
+    assert not re.search(r"(?m)^\s*continue-on-error\s*:", publish), (
+        "continue-on-error is not permitted on a reusable-workflow call"
     )
 
     for pattern in (

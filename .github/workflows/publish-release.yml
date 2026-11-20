@@ -2,11 +2,12 @@
 # tkinter/PyInstaller app was removed (2026-08-15); the macOS/Windows exe
 # build workflows no longer exist.
 #
-# The two desktop legs are inline jobs, not reusable-workflow calls, so that
-# `continue-on-error` is a legal keyword: a red desktop build must not mark an
-# otherwise-successful release as failed. Each leg mirrors the steps of
-# build-desktop-macos.yml / build-desktop-windows.yml so the release artifact
-# is built the same way as the validated artifact those workflows check.
+# The two desktop legs are calls into build-desktop-macos.yml /
+# build-desktop-windows.yml, not copies of their steps. The mirror drifted once
+# already — it kept a retired runner label and a floating Rust version the
+# validated builds had moved off — so the release now runs the exact definition
+# CI checks. Consequently a desktop build failure fails the release; the old
+# `continue-on-error` escape is not available on reusable-workflow jobs.
 #
 # The bundles are unsigned and the .msi has not been launched on hardware, so
 # before any release is trusted: launch-verify the macOS .dmg/.app and the
@@ -26,132 +27,24 @@ permissions:
   contents: write # Required to create the GitHub Release
 
 jobs:
+  # Both legs call the same workflows that CI validates, instead of mirroring
+  # their steps. The mirror had drifted: it still pinned macos-14 (retired by
+  # GitHub on 2026-11-02) and resolved a floating Rust stable, so a release run
+  # could fail on inputs the validated build had never used. Calling the real
+  # definition makes that class of drift impossible.
+  #
+  # A desktop build failure now fails the release. The previous mirror set
+  # `continue-on-error: true` so an unsigned bundle could not block a release,
+  # but that key is not permitted on a job that calls a reusable workflow —
+  # only name/uses/with/secrets/needs/if/permissions are (actionlint rejects
+  # it). The stricter behaviour is the defensible one anyway: a release is
+  # supposed to ship the artifacts this job builds, and both legs passing is
+  # now the same bar CI already enforces before a merge.
   build-desktop-macos:
-    runs-on: macos-14
-    continue-on-error: true
-    steps:
-      - uses: actions/checkout@v7.0.1
-
-      - name: Install Rust stable
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: aarch64-apple-darwin
-
-      - name: Rust cache
-        uses: swatinem/rust-cache@v2
-        with:
-          workspaces: desktop -> target
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v10.0.1
-        with:
-          enable-cache: true
-
-      - name: Install Node.js
-        uses: actions/setup-node@v7.0.0
-        with:
-          node-version: lts/*
-          cache: npm
-          cache-dependency-path: desktop/package-lock.json
-
-      - name: Install frontend dependencies
-        working-directory: desktop
-        run: npm ci
-
-      # Downloads python-build-standalone into desktop/src-tauri/pyembed.
-      # Kept in the script so local and CI builds cannot drift.
-      - name: Download python-build-standalone
-        run: desktop/scripts/macos/download-py.sh aarch64-apple-darwin
-
-      # Installs mtga-bridge and the repo-root src package into the embedded
-      # interpreter, then runs `tauri build` with the bundle overlay config.
-      - name: Build and bundle
-        run: desktop/scripts/macos/build.sh
-
-      - name: Upload bundle
-        uses: actions/upload-artifact@v7.0.1
-        with:
-          name: mtga-draft-desktop-macos-aarch64
-          path: |
-            desktop/target/bundle-release/bundle/dmg/*.dmg
-            desktop/target/bundle-release/bundle/macos/*.app
-          if-no-files-found: error
+    uses: ./.github/workflows/build-desktop-macos.yml
 
   build-desktop-windows:
-    runs-on: windows-2022
-    continue-on-error: true
-    defaults:
-      run:
-        shell: bash
-    steps:
-      - uses: actions/checkout@v7.0.1
-
-      - name: Install Rust stable
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: x86_64-pc-windows-msvc
-
-      - name: Rust cache
-        uses: swatinem/rust-cache@v2
-        with:
-          workspaces: desktop -> target
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v10.0.1
-        with:
-          enable-cache: true
-
-      - name: Install Node.js
-        uses: actions/setup-node@v7.0.0
-        with:
-          node-version: lts/*
-          cache: npm
-          cache-dependency-path: desktop/package-lock.json
-
-      - name: Install frontend dependencies
-        working-directory: desktop
-        run: npm ci
-
-      # Downloads python-build-standalone into desktop/src-tauri/pyembed.
-      # Kept in the script so local and CI builds cannot drift.
-      - name: Download python-build-standalone
-        shell: pwsh
-        run: .\desktop\scripts\windows\download-py.ps1 x86_64-pc-windows-msvc
-
-      # Installs mtga-bridge and the repo-root src package into the embedded
-      # interpreter, then runs `tauri build` with the bundle overlay config.
-      - name: Build and bundle
-        shell: pwsh
-        run: .\desktop\scripts\windows\build.ps1
-
-      # The .exe is not launched — it opens a window and would hang the runner.
-      # Instead assert the contract that a bundle can silently violate: the
-      # embedded interpreter must land in the same directory as the .exe, since
-      # that is where the loader looks for python3*.dll.
-      - name: Verify the embedded interpreter is bundled
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = "Stop"
-          $exe = Get-ChildItem -Recurse -Filter "mtga-draft-desktop.exe" `
-            -Path desktop\target\bundle-release | Select-Object -First 1
-          if (-not $exe) { throw "no mtga-draft-desktop.exe produced" }
-          Write-Host "found $($exe.FullName)"
-
-          $pydll = Get-ChildItem -Path $exe.DirectoryName -Filter "python3*.dll"
-          if (-not $pydll) {
-            Get-ChildItem $exe.DirectoryName | Format-Table Name
-            throw "no python3*.dll beside the exe — the interpreter is missing"
-          }
-          Write-Host "embedded interpreter: $($pydll.Name)"
-
-      - name: Upload bundle
-        uses: actions/upload-artifact@v7.0.1
-        with:
-          name: mtga-draft-desktop-windows-x86_64
-          path: |
-            desktop/target/bundle-release/bundle/msi/*.msi
-            desktop/target/bundle-release/bundle/nsis/*.exe
-          if-no-files-found: error
+    uses: ./.github/workflows/build-desktop-windows.yml
 
   publish:
     needs: [build-desktop-macos, build-desktop-windows]
