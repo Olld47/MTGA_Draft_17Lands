@@ -36,15 +36,17 @@ class APIClient:
         self.session.mount("https://", adapter)
         self.session.mount("http://", adapter)
 
+        # api.17lands.com went dark (404 on every path) on 2026-11-07; every
+        # 17Lands request goes to www.17lands.com now, so the old host has no
+        # entry here. A host absent from _domain_delays gets no throttle at all,
+        # which is why a dead host must be removed rather than left in place.
         self._last_request_time = {
             "api.scryfall.com": 0.0,
             "www.17lands.com": 0.0,
-            "api.17lands.com": 0.0,
         }
         self._domain_delays = {
             "api.scryfall.com": config.DELAY_SCRYFALL_SEC,
             "www.17lands.com": config.DELAY_17LANDS_SEC,
-            "api.17lands.com": config.DELAY_17LANDS_SEC,
         }
 
         self._cache_dir = os.path.join(os.path.dirname(config.OUTPUT_DIR), ".api_cache")

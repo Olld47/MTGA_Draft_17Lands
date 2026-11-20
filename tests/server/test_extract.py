@@ -275,6 +275,12 @@ def test_get_historical_start_dates_success(mock_client):
 
     dates = get_historical_start_dates(mock_client)
 
+    # The host matters as much as the payload: api.17lands.com went dark on
+    # 2026-11-07 and answers 404 on every path, which only degrades to the
+    # event's own start_date, so a wrong host fails quietly.
+    url = mock_client.respectful_get.call_args.args[0]
+    assert url == "https://www.17lands.com/data/filters"
+
     assert "M10" in dates
     assert dates["OTJ"] == "2024-04-16T15:00:00Z"
 
