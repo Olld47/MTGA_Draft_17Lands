@@ -36,9 +36,15 @@ jobs:
     steps:
       - uses: actions/checkout@v7.0.1
 
-      - name: Install Rust stable
+      # Pinned, not floating. rustc 1.100.0 moved cargo's build-script OUT_DIR
+      # one level deeper, which breaks tauri-build's resource placement:
+      # it derives the copy destination as out_dir.parent()x3 and now lands in
+      # target/bundle-release/build instead of beside the .exe. 1.98.0 is the
+      # version the last green release (1.0.6) was built with.
+      - name: Install Rust == 1.98.0
         uses: dtolnay/rust-toolchain@stable
         with:
+          toolchain: "1.98.0"
           targets: x86_64-pc-windows-msvc
 
       - name: Rust cache

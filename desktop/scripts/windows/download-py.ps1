@@ -1,7 +1,7 @@
 ### Argument ###
 
-$PYTHON_VERSION = "3.13.7"  # update these by yourself
-$TAG = "20250828"  # update these by yourself
+$PYTHON_VERSION = "3.13.18"  # update these by yourself
+$TAG = "20261110"  # update these by yourself
 
 ################
 
@@ -26,6 +26,17 @@ try {
 
     tar.exe -xzf "$TEMP_FILE" -C "$DEST_DIR"
     if ($LASTEXITCODE -ne 0) { throw "tar failed ($LASTEXITCODE)" }
+
+    # The bundle's resource mapping copies pyembed/python into the .exe's own
+    # directory, so these DLLs must exist at the archive root. Assert it here:
+    # otherwise a changed archive surfaces ~12 minutes later as "no python3*.dll
+    # beside the exe", which does not say where the file went missing.
+    foreach ($required in @("python.exe", "python3.dll")) {
+        if (-not (Test-Path -LiteralPath "$DEST_DIR\python\$required")) {
+            Get-ChildItem "$DEST_DIR\python" | Format-Table Name | Out-String | Write-Host
+            throw "downloaded archive has no python\$required at its root"
+        }
+    }
 }
 finally {
     Remove-Item -Force -ErrorAction SilentlyContinue "$TEMP_FILE"
