@@ -35,7 +35,11 @@ defaults:
 
 jobs:
   build:
-    runs-on: macos-14
+    # macos-14 was retired on 2026-11-02; a job pinned to it is rejected at
+    # dispatch with "The configuration 'macos-14-arm64-us-default' is not
+    # supported", before any runner is assigned. macos-15 is the current
+    # Apple Silicon image.
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v7.0.1
 

@@ -2,8 +2,8 @@
 
 ### Argument ###
 
-PYTHON_VERSION="3.13.7"  # update these by yourself
-TAG="20250828"  # update these by yourself
+PYTHON_VERSION="3.13.18"  # update these by yourself
+TAG="20261110"  # update these by yourself
 
 ################
 
@@ -23,6 +23,20 @@ rm -rf "$DEST_DIR"
 mkdir -p "$DEST_DIR"
 curl -fL "$url" | tar -xz -C "$DEST_DIR"
 
+python_major_minor="${PYTHON_VERSION%.*}"  # "3.13.18" -> "3.13"
+
+# Assert the archive's layout before anything downstream depends on it. A changed
+# archive otherwise surfaces much later as a missing interpreter or dylib, which
+# does not say where it went missing.
+for required in \
+    "python/bin/python3" \
+    "python/lib/libpython$python_major_minor.dylib"; do
+    if [ ! -e "$DEST_DIR/$required" ]; then
+        ls -la "$DEST_DIR/python" >&2 || true
+        echo "downloaded archive has no $required" >&2
+        exit 1
+    fi
+done
+
 # ref: <https://github.com/pytauri/pytauri/issues/99#issuecomment-2704556726>
-python_major_minor="${PYTHON_VERSION%.*}"  # "3.13.7" -> "3.13"
 install_name_tool -id "@rpath/libpython$python_major_minor.dylib" "$DEST_DIR/python/lib/libpython$python_major_minor.dylib"
