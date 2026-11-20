@@ -17,10 +17,12 @@
 name: Build & Publish Release
 
 on:
+  # Publish on a version tag, not on every push to main. A merge no longer
+  # implies a release; tagging is the deliberate act that cuts one. workflow_dispatch
+  # stays for re-running a failed publish against an existing tag.
   push:
-    branches:
-      - master
-      - main
+    tags:
+      - "v*"
   workflow_dispatch:
 
 permissions:
@@ -65,11 +67,29 @@ jobs:
         id: prep_release
         run: |
           python -c "
-          import hashlib, json, os, re
+          import hashlib, json, os, re, sys
 
           with open('desktop/src-tauri/tauri.conf.json', encoding='utf-8') as f:
               version = json.load(f)['version']
-          tag_name = f'v{version}'
+
+          # The pushed tag is the release identity. Deriving it from
+          # tauri.conf.json instead would publish v<file version> even when the
+          # tag says otherwise, which is how a release ends up named for a
+          # version that was never tagged. Require the two to agree.
+          #
+          # workflow_dispatch (re-running a failed publish) carries no tag in
+          # GITHUB_REF, so it falls back to the file — same as before.
+          ref = os.environ.get('GITHUB_REF', '')
+          ref_name = os.environ.get('GITHUB_REF_NAME', '')
+          is_tag = ref.startswith('refs/tags/')
+          tag_name = ref_name if is_tag else f'v{version}'
+
+          if is_tag and ref_name != f'v{version}':
+              sys.exit(
+                  f"tag {ref_name} does not match tauri.conf.json version "
+                  f"{version} (expected v{version}); bump the version or retag"
+              )
+          print(f"releasing {tag_name} from {ref or 'workflow_dispatch'}")
 
           with open(os.environ.get('GITHUB_OUTPUT', ''), 'a') as f:
               f.write(f'tag_name={tag_name}\n')

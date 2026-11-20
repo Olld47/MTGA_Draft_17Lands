@@ -318,26 +318,50 @@ def test_desktop_version_is_consistent_across_manifests():
 
 
 @pytest.mark.parametrize("platform", ["macos", "windows"])
-def test_desktop_workflows_build_on_the_release_branches(platform):
+def test_desktop_workflows_build_the_branches_releases_come_from(platform):
     """
-    The desktop legs are the only thing that builds the bundles, and they are
-    deliberately separate runs rather than jobs inside publish-release.yml
-    (`continue-on-error` is not permitted on a reusable-workflow call, so a red
-    desktop build would redden an otherwise-successful release).
+    publish-release.yml is tagged, not branched: a release is cut by pushing a
+    v* tag, and the leg workflows are what build its artifacts.
 
-    That separation is what makes this assertion necessary: nothing in
-    publish-release.yml references these files, so if the trigger silently
-    reverted to ci/desktop*-only, a release would go out with no desktop bundle
-    built and no failure anywhere to say so.
+    A tag can be pushed from any commit, but releases are cut from main, so the
+    desktop workflows must still build on main — otherwise a release would go
+    out with no desktop bundle built and no failure anywhere to say so. This is
+    the trigger half; test_release_artifacts_include_the_desktop_bundles covers
+    the wiring half.
     """
     branches = _push_branches(
         _read(os.path.join(WORKFLOWS, f"build-desktop-{platform}.yml"))
     )
-    release_branches = _push_branches(_read(PUBLISH_WORKFLOW))
-    assert release_branches <= branches, (
-        f"build-desktop-{platform}.yml does not build on "
-        f"{sorted(release_branches - branches)}"
+    for required in ("main", "master"):
+        assert required in branches, (
+            f"build-desktop-{platform}.yml does not build on {required} "
+            f"(builds on {sorted(branches)})"
+        )
+
+
+def test_release_is_cut_from_a_tag_not_a_branch_push():
+    """A merge must not publish a release; pushing a v* tag is the deliberate act.
+
+    Also pins that the workflow reconciles the tag it was triggered by against
+    tauri.conf.json: silently publishing v<file version> while the tag says
+    something else is how a release ends up named for a version nobody tagged.
+    """
+    publish = _read(PUBLISH_WORKFLOW)
+
+    assert re.search(r"(?m)^\s+tags:\n\s+- ", publish), (
+        "publish-release.yml must trigger on tags"
     )
+    assert not re.search(r"(?m)^\s+branches:\n(?:\s+- .+\n)+", publish), (
+        "publish-release.yml must not trigger on branch pushes"
+    )
+    assert "GITHUB_REF" in publish and "GITHUB_REF_NAME" in publish, (
+        "publish-release.yml must read the pushed tag from GITHUB_REF"
+    )
+    # Assert the comparison itself, not just the failure message: a message can
+    # survive in dead code, and the guard is the predicate that must exist.
+    assert re.search(
+        r"if\s+is_tag\s+and\s+ref_name\s*!=\s*f['\"]v\{version\}", publish
+    ), "publish-release.yml must compare the pushed tag against the version file"
 
 
 def test_release_artifacts_include_the_desktop_bundles():
