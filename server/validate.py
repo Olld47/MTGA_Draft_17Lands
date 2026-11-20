@@ -81,7 +81,18 @@ def validate_dataset(
             )
 
     # --- Check 2: at least some sampled cards have real win-rate data ---------
-    if all(
+    # A payload with no samples at all is the empty case: 17Lands answered with
+    # the card list but zero games for this set/format/user-group, so every
+    # statistic is 0.0. The condition below deliberately requires samples > 0 to
+    # catch "sampled but win rates missing", which leaves the genuinely empty
+    # payload passing -- a 1337-card all-zero file that looks like broken data to
+    # the client. Treat it as critical on its own terms.
+    if max_samples == 0:
+        critical.append(
+            "Dataset contains no samples at all — every card has 0 samples and "
+            "0% win rate, so the payload carries no statistics."
+        )
+    elif all(
         c.get("deck_colors", {}).get("All Decks", {}).get("gihwr", 0) == 0
         and _all_decks_samples(c) > 0
         for c in top_cards

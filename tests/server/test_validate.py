@@ -102,3 +102,30 @@ def test_only_all_decks_present_does_not_falsely_flag_archetypes():
         "MSH", "PremierDraft", "All", _dataset(cards), total_games=100000
     )
     assert critical == []
+
+
+def test_dataset_with_no_samples_is_critical():
+    """A payload with the card list but zero games carries no statistics.
+
+    This is what 17Lands returns for a set/format/user-group it has no games for
+    (seen on TRK QuickDraft Top, 2026-11-20: 1337 cards, every field 0.0). It
+    used to pass: the win-rate check requires samples > 0 so it only caught
+    "sampled but win rates missing", and the empty payload slipped through as a
+    published 100 KB all-zero file that reads as broken data in the client.
+    """
+    cards = [_card(f"Card {i}", 0, 0.0) for i in range(6)]
+    warnings, critical = validate_dataset(
+        "TRK", "QuickDraft", "Top", _dataset(cards), total_games=0
+    )
+    assert critical, "a dataset with no samples at all must be flagged critical"
+    assert "no samples" in critical[0]
+
+
+def test_zero_sampled_fraction_is_not_confused_with_empty():
+    """A thin-but-real dataset still has samples; it must not be blocked by the
+    empty-payload check (a warning about coverage is enough)."""
+    cards = [_card(f"Card {i}", 40, 58.0) for i in range(6)]
+    warnings, critical = validate_dataset(
+        "TRK", "QuickDraft", "All", _dataset(cards), total_games=40000
+    )
+    assert not any("no samples" in msg for msg in critical)
