@@ -43,9 +43,12 @@ jobs:
     steps:
       - uses: actions/checkout@v7.0.1
 
-      - name: Install Rust stable
+      # Pinned for the same reason as the Windows leg: rustc 1.100.0 changed
+      # where tauri-build places bundle resources relative to the binary.
+      - name: Install Rust == 1.98.0
         uses: dtolnay/rust-toolchain@stable
         with:
+          toolchain: "1.98.0"
           targets: aarch64-apple-darwin
 
       - name: Rust cache
@@ -78,6 +81,44 @@ jobs:
       # interpreter, then runs `tauri build` with the bundle overlay config.
       - name: Build and bundle
         run: desktop/scripts/macos/build.sh
+
+      # The counterpart of the Windows check. The rpath baked into the binary is
+      # @executable_path/../Resources/lib (see desktop/scripts/macos/build.sh),
+      # so libpython MUST be at <app>/Contents/Resources/lib or the shipped app
+      # cannot load its interpreter. The Windows leg failed this class of bug by
+      # copying bundle resources into target/<profile>/build instead of beside
+      # the binary; macOS had no equivalent assertion, so the same misplacement
+      # would have shipped silently.
+      - name: Verify the embedded interpreter is bundled
+        run: |
+          set -euo pipefail
+          app="$(find desktop/target/bundle-release/bundle/macos -maxdepth 1 -name '*.app' | head -1)"
+          if [ -z "$app" ]; then
+            echo "no .app produced" >&2
+            exit 1
+          fi
+          echo "found $app"
+
+          dylib="$app/Contents/Resources/lib/libpython3.13.dylib"
+          if [ ! -e "$dylib" ]; then
+            echo "--- Resources tree ---" >&2
+            ls -la "$app/Contents/Resources" >&2 || true
+            echo "--- any libpython under the .app ---" >&2
+            find "$app" -name 'libpython*' >&2 || true
+            echo "no libpython3.13.dylib at the rpath the binary expects: $dylib" >&2
+            exit 1
+          fi
+          echo "embedded interpreter: $(basename "$dylib")"
+
+          # The load command is what actually has to match the placed file; a
+          # dylib in the right directory is useless if the rpath points elsewhere.
+          exe="$app/Contents/MacOS/mtga-draft-desktop"
+          if ! otool -l "$exe" | grep -q '@executable_path/../Resources/lib'; then
+            echo "binary does not carry the expected rpath" >&2
+            otool -l "$exe" | grep -A2 LC_RPATH >&2 || true
+            exit 1
+          fi
+          echo "rpath: @executable_path/../Resources/lib"
 
       - name: Upload bundle
         uses: actions/upload-artifact@v7.0.1

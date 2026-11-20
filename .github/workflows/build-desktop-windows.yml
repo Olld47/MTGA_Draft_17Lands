@@ -36,9 +36,15 @@ jobs:
     steps:
       - uses: actions/checkout@v7.0.1
 
-      - name: Install Rust stable
+      # Pinned, not floating. rustc 1.100.0 moved cargo's build-script OUT_DIR
+      # one level deeper, which breaks tauri-build's resource placement:
+      # it derives the copy destination as out_dir.parent()x3 and now lands in
+      # target/bundle-release/build instead of beside the .exe. 1.98.0 is the
+      # version the last green release (1.0.6) was built with.
+      - name: Install Rust == 1.98.0
         uses: dtolnay/rust-toolchain@stable
         with:
+          toolchain: "1.98.0"
           targets: x86_64-pc-windows-msvc
 
       - name: Rust cache
@@ -75,43 +81,6 @@ jobs:
         run: .\desktop\scripts\windows\build.ps1
 
       # The .exe is not launched — it opens a window and would hang the runner.
-      # Temporary diagnostic for the missing interpreter. The build succeeds and
-      # the archive verifiably contains python/python3.dll (download-py.ps1
-      # asserts it), yet python3*.dll is absent from bundle-release, and the
-      # verify step below only reports "not beside the exe" without saying
-      # where the files went. This prints the three candidate locations so one
-      # run can tell a wrong output path from a resource copy that never ran.
-      # Remove once the bundle path is fixed.
-      - name: Diagnose embedded interpreter layout
-        if: always()
-        shell: pwsh
-        run: |
-          Write-Host "=== source: src-tauri\pyembed\python ==="
-          Get-ChildItem desktop\src-tauri\pyembed\python -Filter "python3*.dll" `
-            -ErrorAction SilentlyContinue | Format-Table Name, Length
-          Write-Host "=== bundle-release top level ==="
-          Get-ChildItem desktop\target\bundle-release -ErrorAction SilentlyContinue |
-            Format-Table Name, Mode
-          Write-Host "=== any python3*.dll under bundle-release ==="
-          Get-ChildItem -Recurse -Path desktop\target\bundle-release `
-            -Filter "python3*.dll" -ErrorAction SilentlyContinue |
-            Select-Object -First 20 FullName | Format-Table -AutoSize
-          Write-Host "=== any python313.dll under bundle-release ==="
-          Get-ChildItem -Recurse -Path desktop\target\bundle-release `
-            -Filter "python313.dll" -ErrorAction SilentlyContinue |
-            Select-Object -First 20 FullName | Format-Table -AutoSize
-          Write-Host "=== resources\ if the bundle produced one ==="
-          if (Test-Path desktop\target\bundle-release\resources) {
-            Get-ChildItem desktop\target\bundle-release\resources |
-              Format-Table Name
-          } else {
-            Write-Host "(no resources directory)"
-          }
-          Write-Host "=== bundle-release depth 2 (where the exe actually sits) ==="
-          Get-ChildItem -Recurse -Depth 1 -Path desktop\target\bundle-release `
-            -ErrorAction SilentlyContinue |
-            Select-Object -First 30 FullName | Format-Table -AutoSize
-
       # Instead assert the contract that a bundle can silently violate: the
       # embedded interpreter must land in the same directory as the .exe, since
       # that is where the loader looks for python3*.dll.
