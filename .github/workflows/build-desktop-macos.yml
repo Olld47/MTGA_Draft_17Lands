@@ -28,6 +28,9 @@ on:
       - "ci/desktop*"
       - main
       - master
+  # Called by publish-release.yml so the released artifact is built by exactly
+  # this definition rather than a hand-mirrored copy of it.
+  workflow_call:
 
 defaults:
   run:
